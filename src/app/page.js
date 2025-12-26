@@ -44,6 +44,12 @@ const getDaysRemaining = (endDate) => {
   return `เหลืออีก ${diff} วัน`
 }
 
+const isExpired = (endDate) => {
+  const end = new Date(endDate)
+  const now = new Date()
+  return now > end
+}
+
 const getTopTwo = (options) => {
   if (!options || options.length === 0) return [null, null]
   const sorted = [...options].sort((a, b) => b.votes - a.votes)
@@ -54,8 +60,8 @@ function PollCard({ poll, onClick, userVotes }) {
   const totalVotes = poll.options?.reduce((sum, opt) => sum + opt.votes, 0) || 0
   const [first, second] = getTopTwo(poll.options)
   const daysRemaining = getDaysRemaining(poll.ends_at)
-  const isExpired = daysRemaining === 'หมดเวลาแล้ว'
-  const isBlind = poll.blind_mode && !isExpired && !poll.resolved
+  const expired = isExpired(poll.ends_at)
+  const isBlind = poll.blind_mode && !expired && !poll.resolved
   const hasVoted = userVotes && userVotes[poll.id]
 
   const firstPercent = totalVotes > 0 && first ? Math.round((first.votes / totalVotes) * 100) : 50
@@ -64,9 +70,9 @@ function PollCard({ poll, onClick, userVotes }) {
   return (
     <div className="poll-card" onClick={onClick}>
       <div className="poll-card-header">
-        {poll.blind_mode && <span className="blind-badge">🔒 Blind</span>}
+        {poll.blind_mode && !expired && <span className="blind-badge">🔒 Blind</span>}
         {poll.poll_type === 'prediction' && <span className="prediction-badge">🎯 ทายผล</span>}
-        {poll.resolved && <span className="resolved-badge">✅ เฉลยแล้ว</span>}
+        {expired && <span className="resolved-badge">⏰ หมดเวลา</span>}
       </div>
       <div className="poll-question">{poll.question}</div>
       {isBlind ? (
@@ -100,7 +106,7 @@ function PollCard({ poll, onClick, userVotes }) {
       )}
       <div className="poll-footer">
         <span>👥 {totalVotes.toLocaleString()} คน</span>
-        <span className={daysRemaining === 'หมดเวลาแล้ว' ? 'time-remaining expired' : 'time-remaining'}>
+        <span className={expired ? 'time-remaining expired' : 'time-remaining'}>
           ⏱️ {daysRemaining}
         </span>
       </div>
@@ -126,11 +132,17 @@ export default function Home() {
     loadLeaderboard()
     const savedUser = localStorage.getItem('kidwa-user')
     if (savedUser) setUser(JSON.parse(savedUser))
+    const savedDarkMode = localStorage.getItem('kidwa-darkmode')
+    if (savedDarkMode) setDarkMode(JSON.parse(savedDarkMode))
   }, [])
 
   useEffect(() => {
     if (user) loadUserVotes()
   }, [user])
+
+  useEffect(() => {
+    localStorage.setItem('kidwa-darkmode', JSON.stringify(darkMode))
+  }, [darkMode])
 
   const loadPolls = async () => {
     setIsLoading(true)
@@ -181,6 +193,13 @@ export default function Home() {
 
   const handleVote = async (pollId, optionId, confidence = 50) => {
     if (!user) { setShowAuthModal(true); return }
+    
+    const poll = polls.find(p => p.id === pollId)
+    if (poll && isExpired(poll.ends_at)) {
+      alert('โพลนี้หมดเวลาแล้ว ไม่สามารถโหวตได้')
+      return
+    }
+    
     const { error } = await vote(user.id, pollId, optionId, confidence)
     if (!error) {
       setUserVotes(prev => ({ ...prev, [pollId]: { optionId, confidence } }))
@@ -201,7 +220,7 @@ export default function Home() {
   const latestPolls = [...filteredPolls].slice(0, 9)
 
   if (isLoading) {
-    return <div className="loading-screen"><div className="loading-spinner" /><p>กำลังโหลด...</p></div>
+    return <div className={`loading-screen ${darkMode ? 'dark' : ''}`}><div className="loading-spinner" /><p>กำลังโหลด...</p></div>
   }
 
   return (
@@ -216,8 +235,8 @@ export default function Home() {
           <div className="header-actions">
             {user ? (
               <>
-                <button className="btn btn-create">➕ สร้างโพล</button>
-                <div className="user-badge" onClick={() => setShowMenu(!showMenu)}>
+                <button className="btn btn-create hide-mobile">➕ สร้างโพล</button>
+                <div className="user-badge hide-mobile" onClick={() => setShowMenu(!showMenu)}>
                   <div className="user-avatar">{user.username[0].toUpperCase()}</div>
                   <div>
                     <span>{user.username}</span>
@@ -229,20 +248,47 @@ export default function Home() {
               </>
             ) : (
               <>
-                <button className="btn btn-secondary" onClick={() => setShowAuthModal(true)}>เข้าสู่ระบบ</button>
-                <button className="btn btn-primary" onClick={() => setShowAuthModal(true)}>สมัครสมาชิก</button>
+                <button className="btn btn-secondary hide-mobile" onClick={() => setShowAuthModal(true)}>เข้าสู่ระบบ</button>
+                <button className="btn btn-primary hide-mobile" onClick={() => setShowAuthModal(true)}>สมัครสมาชิก</button>
               </>
             )}
-            <button style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }} onClick={() => setDarkMode(!darkMode)}>
-              {darkMode ? '☀️' : '🌙'}
-            </button>
+            <button className="menu-btn" onClick={() => setShowMenu(!showMenu)}>☰</button>
           </div>
         </div>
-        {showMenu && user && (
-          <div style={{ position: 'absolute', top: '70px', right: '2rem', background: 'var(--bg-card)', borderRadius: '12px', boxShadow: '0 10px 40px rgba(0,0,0,0.2)', padding: '0.5rem', zIndex: 200 }}>
-            <button onClick={handleLogout} style={{ display: 'block', width: '100%', padding: '0.75rem 1rem', border: 'none', background: 'none', textAlign: 'left', cursor: 'pointer', borderRadius: '8px', fontFamily: 'inherit' }}>
-              🚪 ออกจากระบบ
+
+        {showMenu && (
+          <div className="dropdown-menu">
+            {!user && (
+              <>
+                <button className="dropdown-item" onClick={() => { setShowAuthModal(true); setShowMenu(false); }}>🔐 เข้าสู่ระบบ</button>
+                <button className="dropdown-item" onClick={() => { setShowAuthModal(true); setShowMenu(false); }}>✨ สมัครสมาชิก</button>
+                <div className="dropdown-divider"></div>
+              </>
+            )}
+            {user && (
+              <>
+                <div className="dropdown-item user-info-mobile">
+                  <div className="user-avatar">{user.username[0].toUpperCase()}</div>
+                  <div>
+                    <span>{user.username}</span>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                      {getReputationLevel(user.reputation).badge} {user.reputation}
+                    </div>
+                  </div>
+                </div>
+                <button className="dropdown-item" onClick={() => setShowMenu(false)}>➕ สร้างโพล</button>
+                <div className="dropdown-divider"></div>
+              </>
+            )}
+            <button className="dropdown-item" onClick={() => { setDarkMode(!darkMode); setShowMenu(false); }}>
+              {darkMode ? '☀️ โหมดสว่าง' : '🌙 โหมดมืด'}
             </button>
+            {user && (
+              <>
+                <div className="dropdown-divider"></div>
+                <button className="dropdown-item" onClick={handleLogout}>🚪 ออกจากระบบ</button>
+              </>
+            )}
           </div>
         )}
       </header>
@@ -322,25 +368,38 @@ export default function Home() {
           <div className="modal" style={{ maxWidth: '550px' }} onClick={e => e.stopPropagation()}>
             <button className="modal-close" onClick={() => setSelectedPoll(null)}>✕</button>
             <div style={{ marginBottom: '1rem' }}>
-              {selectedPoll.blind_mode && <span className="blind-badge">🔒 Blind Mode</span>}
+              {selectedPoll.blind_mode && !isExpired(selectedPoll.ends_at) && <span className="blind-badge">🔒 Blind Mode</span>}
               {selectedPoll.poll_type === 'prediction' && <span className="prediction-badge" style={{ marginLeft: '0.5rem' }}>🎯 ทายผล</span>}
+              {isExpired(selectedPoll.ends_at) && <span className="resolved-badge" style={{ marginLeft: '0.5rem' }}>⏰ หมดเวลา</span>}
             </div>
-            <h2 style={{ fontSize: '1.2rem', marginBottom: '1rem' }}>{selectedPoll.question}</h2>
+            <h2 style={{ fontSize: '1.2rem', marginBottom: '1rem', color: 'var(--text)' }}>{selectedPoll.question}</h2>
             <div style={{ marginBottom: '1.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
               <span>👥 {selectedPoll.options?.reduce((sum, o) => sum + o.votes, 0).toLocaleString()} คนโหวต</span>
               <span style={{ marginLeft: '1rem' }}>⏱️ {getDaysRemaining(selectedPoll.ends_at)}</span>
             </div>
+            
+            {isExpired(selectedPoll.ends_at) && (
+              <div className="expired-notice">
+                ⏰ โพลนี้หมดเวลาแล้ว ไม่สามารถโหวตได้
+              </div>
+            )}
+            
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               {selectedPoll.options?.map(option => {
                 const totalVotes = selectedPoll.options.reduce((sum, o) => sum + o.votes, 0)
                 const percent = totalVotes > 0 ? Math.round((option.votes / totalVotes) * 100) : 0
                 const isSelected = userVotes[selectedPoll.id]?.optionId === option.id
-                const isBlind = selectedPoll.blind_mode && !selectedPoll.resolved && getDaysRemaining(selectedPoll.ends_at) !== 'หมดเวลาแล้ว'
+                const expired = isExpired(selectedPoll.ends_at)
+                const isBlind = selectedPoll.blind_mode && !selectedPoll.resolved && !expired
                 return (
-                  <button key={option.id} onClick={() => handleVote(selectedPoll.id, option.id, 50)}
-                    style={{ position: 'relative', padding: '1rem', border: `2px solid ${isSelected ? 'var(--primary)' : 'var(--border)'}`, borderRadius: '10px', background: isSelected ? 'rgba(255, 107, 157, 0.1)' : 'var(--bg)', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', overflow: 'hidden' }}>
-                    {!isBlind && <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${percent}%`, background: 'rgba(200, 200, 200, 0.2)', zIndex: 0 }} />}
-                    <div style={{ position: 'relative', zIndex: 1, display: 'flex', justifyContent: 'space-between' }}>
+                  <button 
+                    key={option.id} 
+                    onClick={() => !expired && handleVote(selectedPoll.id, option.id, 50)}
+                    disabled={expired}
+                    className={`option-btn ${isSelected ? 'selected' : ''} ${expired ? 'disabled' : ''}`}
+                  >
+                    {!isBlind && <div className="option-bar" style={{ width: `${percent}%` }} />}
+                    <div className="option-content">
                       <span>{isSelected && '✓ '}{option.text}</span>
                       {!isBlind && <span style={{ fontWeight: 600 }}>{percent}%</span>}
                     </div>
@@ -348,9 +407,8 @@ export default function Home() {
                 )
               })}
             </div>
-            {!user && (
-              <div onClick={() => { setSelectedPoll(null); setShowAuthModal(true); }}
-                style={{ marginTop: '1rem', padding: '0.75rem', background: 'var(--bg)', borderRadius: '10px', textAlign: 'center', color: 'var(--primary)', cursor: 'pointer', fontWeight: 500 }}>
+            {!user && !isExpired(selectedPoll.ends_at) && (
+              <div onClick={() => { setSelectedPoll(null); setShowAuthModal(true); }} className="login-prompt">
                 🔒 เข้าสู่ระบบเพื่อโหวต
               </div>
             )}
