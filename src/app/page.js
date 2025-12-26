@@ -235,11 +235,11 @@ export default function Home() {
           <div className="header-actions">
             {user ? (
               <>
-                <button className="btn btn-create hide-mobile">➕ สร้างโพล</button>
+<button className="btn btn-create hide-mobile">➕ สร้างโพล</button>
                 <div className="user-badge hide-mobile" onClick={() => setShowMenu(!showMenu)}>
                   <div className="user-avatar">{user.username[0].toUpperCase()}</div>
                   <div>
-                    <span>{user.username}</span>
+                    <span style={{ color: 'var(--text)' }}>{user.username}</span>
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
                       {getReputationLevel(user.reputation).badge} {user.reputation}
                     </div>
