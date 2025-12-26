@@ -182,3 +182,142 @@ body { font-family: 'IBM Plex Sans Thai', sans-serif; background: var(--bg); col
 .leaderboard-info { flex: 1; }
 .leaderboard-name { font-weight: 500; font-size: 0.9rem; }
 .leaderboard-score { font-size: 0.75rem; color: var(--text-secondary); }
+/* ===== เพิ่มต่อท้าย globals.css ===== */
+
+/* Confidence Selector */
+.confidence-selector {
+  margin: 1rem 0;
+  padding: 1rem;
+  background: var(--bg);
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+
+.confidence-label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+.confidence-options {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+}
+
+.confidence-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 0.5rem;
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-card);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.confidence-btn:hover:not(:disabled) {
+  border-color: var(--confidence-color, var(--primary));
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.confidence-btn.active {
+  border-color: var(--confidence-color, var(--primary));
+  background: color-mix(in srgb, var(--confidence-color, var(--primary)) 15%, var(--bg-card));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--confidence-color, var(--primary)) 20%, transparent);
+}
+
+.confidence-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.confidence-emoji {
+  font-size: 1.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.confidence-text {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
+.confidence-desc {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  margin-top: 0.15rem;
+}
+
+/* Voted Notice */
+.voted-notice {
+  background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+  color: #065f46;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  text-align: center;
+  margin-bottom: 1rem;
+  font-weight: 500;
+}
+
+.dark .voted-notice {
+  background: linear-gradient(135deg, #064e3b, #065f46);
+  color: #a7f3d0;
+}
+
+/* Option Button States */
+.option-btn.voted {
+  border-color: var(--green);
+  background: rgba(34, 197, 94, 0.1);
+}
+
+.option-btn.voted .option-bar {
+  background: rgba(34, 197, 94, 0.3);
+}
+
+/* Dark mode fixes */
+.dark .confidence-selector {
+  background: var(--bg-card);
+}
+
+.dark .confidence-btn {
+  background: var(--bg);
+}
+
+.dark .confidence-btn.active {
+  background: color-mix(in srgb, var(--confidence-color, var(--primary)) 20%, var(--bg));
+}
+
+/* Mobile responsive */
+@media (max-width: 500px) {
+  .confidence-options {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+  
+  .confidence-btn {
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+  }
+  
+  .confidence-emoji {
+    font-size: 1.3rem;
+    margin-bottom: 0;
+  }
+  
+  .confidence-text {
+    flex: 1;
+  }
+  
+  .confidence-desc {
+    margin-top: 0;
+  }
+}
