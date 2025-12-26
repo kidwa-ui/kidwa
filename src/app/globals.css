@@ -357,3 +357,11 @@ select.form-input { appearance: none; background-image: url("data:image/svg+xml,
   .account-streak { flex-direction: column; }
   .account-header { flex-direction: column; text-align: center; }
 }
+/* แก้ไข: หัวข้อ "หัวข้อเด่น" และ "ล่าสุด" ใน dark mode */
+.section-title {
+  color: var(--text);
+}
+
+.dark .section-title {
+  color: #f3f4f6 !important;
+}
