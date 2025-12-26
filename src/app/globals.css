@@ -145,3 +145,40 @@ body { font-family: 'IBM Plex Sans Thai', sans-serif; background: var(--bg); col
   .hide-mobile { display: none; }
   .poll-grid { grid-template-columns: 1fr; }
 }
+/* ===== Dark Mode Fixes ===== */
+
+/* Fix: Leaderboard text in dark mode */
+.leaderboard-item { color: var(--text); }
+.leaderboard-name { color: var(--text); }
+.leaderboard-score { color: var(--text-secondary); }
+.leaderboard-rank { color: var(--text); font-size: 1rem; }
+
+/* Fix: User badge text in header */
+.user-badge span { color: var(--text); }
+.user-badge div { color: var(--text); }
+
+/* Leaderboard styling */
+.leaderboard-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.leaderboard-item:last-child { border-bottom: none; }
+.leaderboard-rank { min-width: 24px; text-align: center; }
+.leaderboard-avatar {
+  width: 28px;
+  height: 28px;
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.leaderboard-info { flex: 1; }
+.leaderboard-name { font-weight: 500; font-size: 0.9rem; }
+.leaderboard-score { font-size: 0.75rem; color: var(--text-secondary); }
