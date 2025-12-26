@@ -23,9 +23,9 @@ const categories = [
 ]
 
 const reputationLevels = [
-  { min: 0, max: 500, name: 'มือใหม่', badge: '🌱' },
-  { min: 501, max: 1000, name: 'นักทาย', badge: '🎯' },
-  { min: 1001, max: 2000, name: 'นักวิเคราะห์', badge: '🔮' },
+  { min: 0, max: 500, name: 'นักศึกษา', badge: '🌱' },
+  { min: 501, max: 1500, name: 'ผู้เริ่มต้น', badge: '🎯' },
+  { min: 1501, max: 2000, name: 'นักวิเคราะห์', badge: '🔮' },
   { min: 2001, max: 5000, name: 'ผู้เชี่ยวชาญ', badge: '⭐' },
   { min: 5001, max: 10000, name: 'ปรมาจารย์', badge: '👑' },
   { min: 10001, max: Infinity, name: 'ตำนาน', badge: '🏆' }
@@ -303,16 +303,19 @@ export default function Home() {
         </div>
       </nav>
 
-      <main className="main">
+<main className="main">
         <aside className="sidebar">
           <div className="sidebar-card">
             <h3 className="sidebar-title">🏆 Leaderboard</h3>
-            {leaderboard.map((item, i) => (
-              <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid var(--border)' }}>
-                <span>{i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`} {item.username}</span>
-                <span style={{ color: 'var(--primary)', fontWeight: 600 }}>{item.reputation}</span>
-              </div>
-            ))}
+            {leaderboard.map((item, i) => {
+              const rankEmoji = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'][i] || `#${i + 1}`;
+              return (
+                <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid var(--border)' }}>
+                  <span style={{ color: 'var(--text)' }}>{rankEmoji} {item.username}</span>
+                  <span style={{ color: 'var(--primary)', fontWeight: 600 }}>{item.reputation}</span>
+                </div>
+              );
+            })}
           </div>
         </aside>
 
