@@ -88,9 +88,8 @@ export async function getLeaderboard(limit = 10) {
   return { data, error }
 }
 
-// ===== ฟังก์ชันใหม่สำหรับสร้างโพล =====
+// ===== ฟังก์ชันสำหรับสร้างโพล =====
 
-// ดึง tags ทั้งหมด
 export async function getTags() {
   const { data, error } = await supabase
     .from('tags')
@@ -99,7 +98,6 @@ export async function getTags() {
   return { data, error }
 }
 
-// ค้นหา tags
 export async function searchTags(query) {
   const { data, error } = await supabase
     .from('tags')
@@ -109,9 +107,7 @@ export async function searchTags(query) {
   return { data, error }
 }
 
-// สร้าง tag ใหม่
 export async function createTag(name) {
-  // เช็คว่ามีอยู่แล้วหรือไม่
   const { data: existing } = await supabase
     .from('tags')
     .select('*')
@@ -130,7 +126,6 @@ export async function createTag(name) {
   return { data, error }
 }
 
-// สร้างโพลใหม่
 export async function createPoll({ 
   question, 
   options, 
@@ -142,7 +137,6 @@ export async function createPoll({
   createdBy 
 }) {
   try {
-    // 1. สร้าง poll
     const { data: poll, error: pollError } = await supabase
       .from('polls')
       .insert([{
@@ -160,7 +154,6 @@ export async function createPoll({
     
     if (pollError) throw pollError
 
-    // 2. สร้าง options
     const optionsData = options.map(opt => ({
       poll_id: poll.id,
       text: opt,
@@ -173,7 +166,6 @@ export async function createPoll({
     
     if (optionsError) throw optionsError
 
-    // 3. เชื่อม tags (ถ้ามี)
     if (tags && tags.length > 0) {
       const tagLinks = tags.map(tagId => ({
         poll_id: poll.id,
@@ -192,7 +184,6 @@ export async function createPoll({
   }
 }
 
-// ดึงโพลที่ user สร้าง
 export async function getUserPolls(userId) {
   const { data, error } = await supabase
     .from('polls')
@@ -200,4 +191,141 @@ export async function getUserPolls(userId) {
     .eq('created_by', userId)
     .order('created_at', { ascending: false })
   return { data, error }
+}
+
+// ===== ฟังก์ชัน Admin =====
+
+// ดึงโพลทั้งหมดสำหรับ Admin
+export async function getAllPollsAdmin() {
+  const { data, error } = await supabase
+    .from('polls')
+    .select('*, options(*), tags(*)')
+    .order('created_at', { ascending: false })
+  return { data, error }
+}
+
+// ดึงโพลที่รอเฉลย
+export async function getPendingPolls() {
+  const { data, error } = await supabase
+    .from('polls')
+    .select('*, options(*), tags(*)')
+    .eq('resolved', false)
+    .order('ends_at', { ascending: true })
+  return { data, error }
+}
+
+// เฉลยโพล
+export async function resolvePoll(pollId, correctOptionId) {
+  try {
+    // อัพเดท poll
+    const { error: pollError } = await supabase
+      .from('polls')
+      .update({ 
+        resolved: true, 
+        correct_option_id: correctOptionId,
+        resolved_at: new Date().toISOString()
+      })
+      .eq('id', pollId)
+    
+    if (pollError) throw pollError
+
+    // ดึง votes ทั้งหมดของ poll นี้
+    const { data: votes } = await supabase
+      .from('votes')
+      .select('user_id, option_id, confidence')
+      .eq('poll_id', pollId)
+
+    // อัพเดท reputation แต่ละ user
+    for (const vote of votes || []) {
+      const change = vote.option_id === correctOptionId ? vote.confidence : -vote.confidence
+      
+      // ดึง reputation ปัจจุบัน
+      const { data: userData } = await supabase
+        .from('users')
+        .select('reputation')
+        .eq('id', vote.user_id)
+        .single()
+      
+      if (userData) {
+        const newRep = Math.max(0, userData.reputation + change)
+        await supabase
+          .from('users')
+          .update({ reputation: newRep })
+          .eq('id', vote.user_id)
+      }
+    }
+
+    return { error: null }
+  } catch (error) {
+    console.error('Error resolving poll:', error)
+    return { error }
+  }
+}
+
+// ลบโพล
+export async function deletePoll(pollId) {
+  try {
+    // ลบ votes ก่อน
+    await supabase.from('votes').delete().eq('poll_id', pollId)
+    // ลบ poll_tags
+    await supabase.from('poll_tags').delete().eq('poll_id', pollId)
+    // ลบ options
+    await supabase.from('options').delete().eq('poll_id', pollId)
+    // ลบ poll
+    const { error } = await supabase
+      .from('polls')
+      .delete()
+      .eq('id', pollId)
+    return { error }
+  } catch (error) {
+    return { error }
+  }
+}
+
+// ดึง users ทั้งหมด
+export async function getAllUsers() {
+  const { data, error } = await supabase
+    .from('users')
+    .select('*')
+    .order('reputation', { ascending: false })
+  return { data, error }
+}
+
+// แบน/ปลดแบน user
+export async function toggleBanUser(userId, isBanned) {
+  const { error } = await supabase
+    .from('users')
+    .update({ is_banned: isBanned })
+    .eq('id', userId)
+  return { error }
+}
+
+// ตั้ง/ยกเลิก featured poll
+export async function toggleFeatured(pollId, featured) {
+  const { error } = await supabase
+    .from('polls')
+    .update({ featured })
+    .eq('id', pollId)
+  return { error }
+}
+
+// ดึงสถิติสำหรับ Admin Dashboard
+export async function getAdminStats() {
+  const { data: polls } = await supabase.from('polls').select('id, resolved, ends_at')
+  const { data: users } = await supabase.from('users').select('id')
+  const { data: votes } = await supabase.from('votes').select('id')
+
+  const now = new Date()
+  const expiredUnresolved = polls?.filter(p => !p.resolved && new Date(p.ends_at) < now).length || 0
+  const activePolls = polls?.filter(p => !p.resolved && new Date(p.ends_at) >= now).length || 0
+  const resolvedPolls = polls?.filter(p => p.resolved).length || 0
+
+  return {
+    totalPolls: polls?.length || 0,
+    activePolls,
+    expiredUnresolved,
+    resolvedPolls,
+    totalUsers: users?.length || 0,
+    totalVotes: votes?.length || 0
+  }
 }
