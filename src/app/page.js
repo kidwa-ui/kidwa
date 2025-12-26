@@ -25,10 +25,17 @@ const categories = [
 const reputationLevels = [
   { min: 0, max: 500, name: 'นักศึกษา', badge: '🌱' },
   { min: 501, max: 1500, name: 'ผู้เริ่มต้น', badge: '🎯' },
-  { min: 1501, max: 2000, name: 'นักวิเคราะห์', badge: '🔮' },
-  { min: 2001, max: 5000, name: 'ผู้เชี่ยวชาญ', badge: '⭐' },
-  { min: 5001, max: 10000, name: 'ปรมาจารย์', badge: '👑' },
-  { min: 10001, max: Infinity, name: 'ตำนาน', badge: '🏆' }
+  { min: 1501, max: 3000, name: 'นักวิเคราะห์', badge: '🔮' },
+  { min: 3001, max: 5000, name: 'ผู้เชี่ยวชาญ', badge: '⭐' },
+  { min: 5001, max: 10000, name: 'ปรมาจารย์', badge: '🏆' },
+  { min: 10001, max: Infinity, name: 'ตำนาน', badge: '👑' }
+]
+
+// ระดับความมั่นใจ
+const confidenceLevels = [
+  { value: 20, label: 'ไม่มั่นใจ', emoji: '😅', color: '#22c55e', description: '±20 คะแนน' },
+  { value: 50, label: 'ปกติ', emoji: '🤗', color: '#f59e0b', description: '±50 คะแนน' },
+  { value: 100, label: 'มั่นใจมาก', emoji: '😎', color: '#ef4444', description: '±100 คะแนน' }
 ]
 
 const getReputationLevel = (rep) => {
@@ -81,7 +88,11 @@ function PollCard({ poll, onClick, userVotes }) {
             <span>🔒</span>
             <p>Blind Mode - ยังไม่เปิดเผยผล</p>
           </div>
-          {hasVoted && <div style={{ marginTop: '0.5rem', color: '#065f46' }}>✓ คุณโหวตแล้ว</div>}
+          {hasVoted && (
+            <div style={{ marginTop: '0.5rem', color: '#065f46' }}>
+              ✓ คุณโหวตแล้ว ({confidenceLevels.find(c => c.value === hasVoted.confidence)?.emoji || '🤔'})
+            </div>
+          )}
         </div>
       ) : first && second ? (
         <div className="dual-bar-container">
@@ -114,6 +125,34 @@ function PollCard({ poll, onClick, userVotes }) {
   )
 }
 
+// Component เลือกความมั่นใจ
+function ConfidenceSelector({ selectedConfidence, onSelect, disabled }) {
+  return (
+    <div className="confidence-selector">
+      <label className="confidence-label">🎲 เลือกระดับความมั่นใจ:</label>
+      <div className="confidence-options">
+        {confidenceLevels.map((level) => (
+          <button
+            key={level.value}
+            type="button"
+            disabled={disabled}
+            className={`confidence-btn ${selectedConfidence === level.value ? 'active' : ''}`}
+            style={{
+              '--confidence-color': level.color,
+              borderColor: selectedConfidence === level.value ? level.color : 'var(--border)'
+            }}
+            onClick={() => onSelect(level.value)}
+          >
+            <span className="confidence-emoji">{level.emoji}</span>
+            <span className="confidence-text">{level.label}</span>
+            <span className="confidence-desc">{level.description}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function Home() {
   const [darkMode, setDarkMode] = useState(false)
   const [activeCategory, setActiveCategory] = useState('home')
@@ -126,6 +165,10 @@ export default function Home() {
   const [selectedPoll, setSelectedPoll] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [leaderboard, setLeaderboard] = useState([])
+  
+  // State สำหรับ Confidence
+  const [selectedConfidence, setSelectedConfidence] = useState(50)
+  const [selectedOption, setSelectedOption] = useState(null)
 
   useEffect(() => {
     loadPolls()
@@ -143,6 +186,20 @@ export default function Home() {
   useEffect(() => {
     localStorage.setItem('kidwa-darkmode', JSON.stringify(darkMode))
   }, [darkMode])
+
+  // Reset selection เมื่อเปลี่ยน poll
+  useEffect(() => {
+    if (selectedPoll) {
+      const existingVote = userVotes[selectedPoll.id]
+      if (existingVote) {
+        setSelectedOption(existingVote.optionId)
+        setSelectedConfidence(existingVote.confidence || 50)
+      } else {
+        setSelectedOption(null)
+        setSelectedConfidence(50)
+      }
+    }
+  }, [selectedPoll, userVotes])
 
   const loadPolls = async () => {
     setIsLoading(true)
@@ -191,7 +248,7 @@ export default function Home() {
     setShowMenu(false)
   }
 
-  const handleVote = async (pollId, optionId, confidence = 50) => {
+  const handleVote = async (pollId, optionId, confidence) => {
     if (!user) { setShowAuthModal(true); return }
     
     const poll = polls.find(p => p.id === pollId)
@@ -204,7 +261,19 @@ export default function Home() {
     if (!error) {
       setUserVotes(prev => ({ ...prev, [pollId]: { optionId, confidence } }))
       loadPolls()
+      // แสดง feedback
+      const confLevel = confidenceLevels.find(c => c.value === confidence)
+      alert(`✅ โหวตสำเร็จ!\n\nความมั่นใจ: ${confLevel?.emoji} ${confLevel?.label}\nคะแนนเดิมพัน: ±${confidence}`)
     }
+  }
+
+  // ฟังก์ชันยืนยันการโหวต
+  const confirmVote = () => {
+    if (!selectedOption) {
+      alert('กรุณาเลือกตัวเลือกก่อน')
+      return
+    }
+    handleVote(selectedPoll.id, selectedOption, selectedConfidence)
   }
 
   const filteredPolls = polls.filter(poll => {
@@ -235,7 +304,7 @@ export default function Home() {
           <div className="header-actions">
             {user ? (
               <>
-<button className="btn btn-create hide-mobile">➕ สร้างโพล</button>
+                <button className="btn btn-create hide-mobile">➕ สร้างโพล</button>
                 <div className="user-badge hide-mobile" onClick={() => setShowMenu(!showMenu)}>
                   <div className="user-avatar">{user.username[0].toUpperCase()}</div>
                   <div>
@@ -270,7 +339,7 @@ export default function Home() {
                 <div className="dropdown-item user-info-mobile">
                   <div className="user-avatar">{user.username[0].toUpperCase()}</div>
                   <div>
-                    <span>{user.username}</span>
+                    <span style={{ color: 'var(--text)' }}>{user.username}</span>
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
                       {getReputationLevel(user.reputation).badge} {user.reputation}
                     </div>
@@ -303,7 +372,7 @@ export default function Home() {
         </div>
       </nav>
 
-<main className="main">
+      <main className="main">
         <aside className="sidebar">
           <div className="sidebar-card">
             <h3 className="sidebar-title">🏆 Leaderboard</h3>
@@ -386,30 +455,66 @@ export default function Home() {
                 ⏰ โพลนี้หมดเวลาแล้ว ไม่สามารถโหวตได้
               </div>
             )}
+
+            {/* แสดงถ้าโหวตแล้ว */}
+            {userVotes[selectedPoll.id] && (
+              <div className="voted-notice">
+                ✅ คุณโหวตแล้ว ({confidenceLevels.find(c => c.value === userVotes[selectedPoll.id].confidence)?.emoji} {confidenceLevels.find(c => c.value === userVotes[selectedPoll.id].confidence)?.label})
+              </div>
+            )}
             
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {/* ตัวเลือก */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
               {selectedPoll.options?.map(option => {
                 const totalVotes = selectedPoll.options.reduce((sum, o) => sum + o.votes, 0)
                 const percent = totalVotes > 0 ? Math.round((option.votes / totalVotes) * 100) : 0
-                const isSelected = userVotes[selectedPoll.id]?.optionId === option.id
+                const isVoted = userVotes[selectedPoll.id]?.optionId === option.id
+                const isSelected = selectedOption === option.id
                 const expired = isExpired(selectedPoll.ends_at)
                 const isBlind = selectedPoll.blind_mode && !selectedPoll.resolved && !expired
+                const hasVoted = !!userVotes[selectedPoll.id]
+                
                 return (
                   <button 
                     key={option.id} 
-                    onClick={() => !expired && handleVote(selectedPoll.id, option.id, 50)}
-                    disabled={expired}
-                    className={`option-btn ${isSelected ? 'selected' : ''} ${expired ? 'disabled' : ''}`}
+                    onClick={() => !expired && !hasVoted && setSelectedOption(option.id)}
+                    disabled={expired || hasVoted}
+                    className={`option-btn ${isVoted ? 'voted' : ''} ${isSelected ? 'selected' : ''} ${expired || hasVoted ? 'disabled' : ''}`}
                   >
                     {!isBlind && <div className="option-bar" style={{ width: `${percent}%` }} />}
                     <div className="option-content">
-                      <span>{isSelected && '✓ '}{option.text}</span>
+                      <span>{isVoted && '✓ '}{option.text}</span>
                       {!isBlind && <span style={{ fontWeight: 600 }}>{percent}%</span>}
                     </div>
                   </button>
                 )
               })}
             </div>
+
+            {/* Confidence Selector - แสดงเฉพาะเมื่อยังไม่ได้โหวต และโพลยังไม่หมดเวลา */}
+            {!userVotes[selectedPoll.id] && !isExpired(selectedPoll.ends_at) && user && (
+              <>
+                <ConfidenceSelector 
+                  selectedConfidence={selectedConfidence}
+                  onSelect={setSelectedConfidence}
+                  disabled={!selectedOption}
+                />
+                
+                <button 
+                  className="btn btn-primary" 
+                  style={{ width: '100%', marginTop: '1rem', padding: '1rem' }}
+                  onClick={confirmVote}
+                  disabled={!selectedOption}
+                >
+                  {selectedOption ? (
+                    <>🎯 ยืนยันโหวต ({confidenceLevels.find(c => c.value === selectedConfidence)?.emoji} ±{selectedConfidence} คะแนน)</>
+                  ) : (
+                    <>👆 เลือกตัวเลือกก่อน</>
+                  )}
+                </button>
+              </>
+            )}
+
             {!user && !isExpired(selectedPoll.ends_at) && (
               <div onClick={() => { setSelectedPoll(null); setShowAuthModal(true); }} className="login-prompt">
                 🔒 เข้าสู่ระบบเพื่อโหวต
