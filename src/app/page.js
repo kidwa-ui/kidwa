@@ -83,7 +83,7 @@ function PollCard({ poll, onClick, userVotes }) {
       {isBlind ? (
         <div className="blind-container">
           <div className="blind-message"><span>🔒</span><p>Blind Mode - ยังไม่เปิดเผยผล</p></div>
-          {hasVoted && <div style={{ marginTop: '0.5rem', color: '#065f46' }}>✓ คุณโหวตแล้ว ({confidenceLevels.find(c => c.value === hasVoted.confidence)?.emoji || '🤔'})</div>}
+          {hasVoted && <div style={{ marginTop: '0.5rem', color: '#065f46' }}>✓ คุณโหวตแล้ว ({confidenceLevels.find(c => c.value === hasVoted.confidence)?.emoji || '🤩'})</div>}
         </div>
       ) : first && second ? (
         <div className="dual-bar-container">
@@ -216,7 +216,7 @@ function AdminPanel({ onClose, darkMode, onRefresh }) {
           ) : activeTab === 'all' ? (
             <div className="admin-section">{polls.map(poll => (<div key={poll.id} className="admin-poll-item"><div className="admin-poll-info"><span className="admin-poll-question">{poll.featured && '⭐ '}{poll.resolved && '✅ '}{poll.question}</span><span className="admin-poll-meta">{categories.find(c => c.id === poll.category)?.icon} • 👥 {poll.options?.reduce((s, o) => s + o.votes, 0)}</span></div><div className="admin-poll-actions"><button className={`btn btn-sm ${poll.featured ? 'btn-warning' : 'btn-secondary'}`} onClick={() => handleToggleFeatured(poll.id, !poll.featured)}>{poll.featured ? '⭐' : '☆'}</button>{!poll.resolved && isExpired(poll.ends_at) && <button className="btn btn-sm btn-success" onClick={() => setSelectedPollForResolve(poll)}>✅</button>}<button className="btn btn-sm btn-danger" onClick={() => handleDeletePoll(poll.id)}>🗑️</button></div></div>))}</div>
           ) : (
-            <div className="admin-section">{users.map((u, i) => (<div key={u.id} className="admin-user-item"><div className="admin-user-info"><span className="admin-user-rank">{i + 1}</span><span className="admin-user-name">{u.is_banned && '🚫 '}{u.is_admin && '👑 '}{u.username}</span><span className="admin-user-rep">{getReputationLevel(u.reputation).badge} {u.reputation}</span></div><div className="admin-user-actions">{!u.is_admin && <button className={`btn btn-sm ${u.is_banned ? 'btn-success' : 'btn-danger'}`} onClick={() => handleToggleBan(u.id, !u.is_banned)}>{u.is_banned ? '✅ ปลดแบน' : '🚫 แบน'}</button>}</div></div>))}</div>
+            <div className="admin-section">{users.map((u, i) => (<div key={u.id} className="admin-user-item"><div className="admin-user-info"><span className="admin-user-rank">{i + 1}</span><span className="admin-user-name">{u.is_banned && '🚫 '}{u.is_admin && '👑 '}{u.username}</span><span className="admin-user-rep">{getReputationLevel(u.reputation).badge} {u.reputation} pt</span></div><div className="admin-user-actions">{!u.is_admin && <button className={`btn btn-sm ${u.is_banned ? 'btn-success' : 'btn-danger'}`} onClick={() => handleToggleBan(u.id, !u.is_banned)}>{u.is_banned ? '✅ ปลดแบน' : '🚫 แบน'}</button>}</div></div>))}</div>
           )}
         </div>
         {selectedPollForResolve && (
@@ -235,7 +235,6 @@ function AdminPanel({ onClose, darkMode, onRefresh }) {
   )
 }
 
-// ===== Account Modal =====
 function AccountModal({ onClose, user, darkMode, onUpdateUser }) {
   const [activeTab, setActiveTab] = useState('stats')
   const [profile, setProfile] = useState(null)
@@ -252,7 +251,6 @@ function AccountModal({ onClose, user, darkMode, onUpdateUser }) {
     if (profileData) {
       setProfile(profileData)
       setBadges(calculateBadges(profileData))
-      // อัพเดท localStorage ด้วย
       localStorage.setItem('kidwa-user', JSON.stringify(profileData))
       onUpdateUser(profileData)
     }
@@ -263,137 +261,46 @@ function AccountModal({ onClose, user, darkMode, onUpdateUser }) {
     setIsLoading(false)
   }
 
-  const winRate = profile?.total_predictions > 0 
-    ? Math.round((profile.correct_predictions / profile.total_predictions) * 100) 
-    : 0
-
+  const winRate = profile?.total_predictions > 0 ? Math.round((profile.correct_predictions / profile.total_predictions) * 100) : 0
   const level = profile ? getReputationLevel(profile.reputation) : reputationLevels[0]
 
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className={`modal account-modal ${darkMode ? 'dark' : ''}`} onClick={e => e.stopPropagation()}>
         <button className="modal-close" onClick={onClose}>✕</button>
-        
-        {isLoading ? (
-          <div style={{ textAlign: 'center', padding: '3rem' }}>⏳ กำลังโหลด...</div>
-        ) : profile ? (
+        {isLoading ? <div style={{ textAlign: 'center', padding: '3rem' }}>⏳ กำลังโหลด...</div> : profile ? (
           <>
-            {/* Header Profile */}
             <div className="account-header">
               <div className="account-avatar">{profile.username[0].toUpperCase()}</div>
               <div className="account-info">
                 <h2 className="account-username">{profile.username}</h2>
-                <div className="account-level">
-                  <span className="level-badge">{level.badge}</span>
-                  <span className="level-name">{level.name}</span>
-                </div>
-                <div className="account-reputation">{profile.reputation.toLocaleString()} Reputation</div>
+                <div className="account-level"><span className="level-badge">{level.badge}</span><span className="level-name">{level.name}</span></div>
+                <div className="account-reputation">{profile.reputation.toLocaleString()} point</div>
               </div>
             </div>
-
-            {/* Stats Cards */}
             <div className="account-stats">
-              <div className="account-stat-card">
-                <span className="account-stat-number">{profile.total_predictions || 0}</span>
-                <span className="account-stat-label">ทายทั้งหมด</span>
-              </div>
-              <div className="account-stat-card correct">
-                <span className="account-stat-number">{profile.correct_predictions || 0}</span>
-                <span className="account-stat-label">ถูก</span>
-              </div>
-              <div className="account-stat-card wrong">
-                <span className="account-stat-number">{(profile.total_predictions || 0) - (profile.correct_predictions || 0)}</span>
-                <span className="account-stat-label">ผิด</span>
-              </div>
-              <div className="account-stat-card rate">
-                <span className="account-stat-number">{winRate}%</span>
-                <span className="account-stat-label">Win Rate</span>
-              </div>
+              <div className="account-stat-card"><span className="account-stat-number">{profile.total_predictions || 0}</span><span className="account-stat-label">ทายทั้งหมด</span></div>
+              <div className="account-stat-card correct"><span className="account-stat-number">{profile.correct_predictions || 0}</span><span className="account-stat-label">ถูก</span></div>
+              <div className="account-stat-card wrong"><span className="account-stat-number">{(profile.total_predictions || 0) - (profile.correct_predictions || 0)}</span><span className="account-stat-label">ผิด</span></div>
+              <div className="account-stat-card rate"><span className="account-stat-number">{winRate}%</span><span className="account-stat-label">Win Rate</span></div>
             </div>
-
-            {/* Streak */}
             <div className="account-streak">
-              <div className="streak-item">
-                <span className="streak-icon">🔥</span>
-                <span className="streak-value">{profile.current_streak || 0}</span>
-                <span className="streak-label">Current Streak</span>
-              </div>
-              <div className="streak-item">
-                <span className="streak-icon">⚡</span>
-                <span className="streak-value">{profile.max_streak || 0}</span>
-                <span className="streak-label">Best Streak</span>
-              </div>
+              <div className="streak-item"><span className="streak-icon">🔥</span><span className="streak-value">{profile.current_streak || 0}</span><span className="streak-label">Current Streak</span></div>
+              <div className="streak-item"><span className="streak-icon">⚡</span><span className="streak-value">{profile.max_streak || 0}</span><span className="streak-label">Best Streak</span></div>
             </div>
-
-            {/* Badges */}
-            {badges.length > 0 && (
-              <div className="account-badges">
-                <h3 className="account-section-title">🏅 Badges</h3>
-                <div className="badges-grid">
-                  {badges.map(badge => (
-                    <div key={badge.id} className="badge-item" title={badge.description}>
-                      <span className="badge-icon">{badge.icon}</span>
-                      <span className="badge-name">{badge.name}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Tabs */}
+            {badges.length > 0 && <div className="account-badges"><h3 className="account-section-title">🏅 Badges</h3><div className="badges-grid">{badges.map(badge => <div key={badge.id} className="badge-item" title={badge.description}><span className="badge-icon">{badge.icon}</span><span className="badge-name">{badge.name}</span></div>)}</div></div>}
             <div className="account-tabs">
               <button className={`account-tab ${activeTab === 'stats' ? 'active' : ''}`} onClick={() => setActiveTab('stats')}>📊 สถิติ</button>
               <button className={`account-tab ${activeTab === 'history' ? 'active' : ''}`} onClick={() => setActiveTab('history')}>📜 ประวัติ</button>
               <button className={`account-tab ${activeTab === 'polls' ? 'active' : ''}`} onClick={() => setActiveTab('polls')}>📝 โพลของฉัน</button>
             </div>
-
-            {/* Tab Content */}
             <div className="account-content">
-              {activeTab === 'stats' && (
-                <div className="stats-detail">
-                  <div className="stats-row"><span>สมาชิกตั้งแต่</span><span>{new Date(profile.created_at).toLocaleDateString('th-TH')}</span></div>
-                  <div className="stats-row"><span>Reputation เริ่มต้น</span><span>1,000</span></div>
-                  <div className="stats-row"><span>ได้/เสีย รวม</span><span style={{ color: profile.reputation >= 1000 ? 'var(--green)' : 'var(--red)' }}>{profile.reputation >= 1000 ? '+' : ''}{profile.reputation - 1000}</span></div>
-                </div>
-              )}
-              {activeTab === 'history' && (
-                <div className="history-list">
-                  {voteHistory.length > 0 ? voteHistory.map(vote => (
-                    <div key={vote.id} className={`history-item ${vote.is_correct === true ? 'correct' : vote.is_correct === false ? 'wrong' : ''}`}>
-                      <div className="history-question">{vote.polls?.question || 'โพลถูกลบ'}</div>
-                      <div className="history-answer">
-                        <span>เลือก: {vote.options?.text || '-'}</span>
-                        {vote.is_correct !== null && (
-                          <span className={`history-result ${vote.is_correct ? 'correct' : 'wrong'}`}>
-                            {vote.is_correct ? '✅ ถูก' : '❌ ผิด'} ({vote.points_earned > 0 ? '+' : ''}{vote.points_earned})
-                          </span>
-                        )}
-                        {vote.is_correct === null && vote.polls && (
-                          <span className="history-pending">⏳ รอเฉลย</span>
-                        )}
-                      </div>
-                    </div>
-                  )) : <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '2rem' }}>ยังไม่มีประวัติการโหวต</div>}
-                </div>
-              )}
-              {activeTab === 'polls' && (
-                <div className="polls-list">
-                  {createdPolls.length > 0 ? createdPolls.map(poll => (
-                    <div key={poll.id} className="created-poll-item">
-                      <div className="created-poll-question">{poll.resolved && '✅ '}{poll.question}</div>
-                      <div className="created-poll-meta">
-                        <span>👥 {poll.options?.reduce((s, o) => s + o.votes, 0) || 0} โหวต</span>
-                        <span>⏱️ {getDaysRemaining(poll.ends_at)}</span>
-                      </div>
-                    </div>
-                  )) : <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '2rem' }}>ยังไม่ได้สร้างโพล</div>}
-                </div>
-              )}
+              {activeTab === 'stats' && <div className="stats-detail"><div className="stats-row"><span>สมาชิกตั้งแต่</span><span>{new Date(profile.created_at).toLocaleDateString('th-TH')}</span></div><div className="stats-row"><span>Point เริ่มต้น</span><span>1,000</span></div><div className="stats-row"><span>ได้/เสีย รวม</span><span style={{ color: profile.reputation >= 1000 ? 'var(--green)' : 'var(--red)' }}>{profile.reputation >= 1000 ? '+' : ''}{profile.reputation - 1000}</span></div></div>}
+              {activeTab === 'history' && <div className="history-list">{voteHistory.length > 0 ? voteHistory.map(vote => <div key={vote.id} className={`history-item ${vote.is_correct === true ? 'correct' : vote.is_correct === false ? 'wrong' : ''}`}><div className="history-question">{vote.polls?.question || 'โพลถูกลบ'}</div><div className="history-answer"><span>เลือก: {vote.options?.text || '-'}</span>{vote.is_correct !== null && <span className={`history-result ${vote.is_correct ? 'correct' : 'wrong'}`}>{vote.is_correct ? '✅ ถูก' : '❌ ผิด'} ({vote.points_earned > 0 ? '+' : ''}{vote.points_earned})</span>}{vote.is_correct === null && vote.polls && <span className="history-pending">⏳ รอเฉลย</span>}</div></div>) : <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '2rem' }}>ยังไม่มีประวัติการโหวต</div>}</div>}
+              {activeTab === 'polls' && <div className="polls-list">{createdPolls.length > 0 ? createdPolls.map(poll => <div key={poll.id} className="created-poll-item"><div className="created-poll-question">{poll.resolved && '✅ '}{poll.question}</div><div className="created-poll-meta"><span>👥 {poll.options?.reduce((s, o) => s + o.votes, 0) || 0} โหวต</span><span>⏱️ {getDaysRemaining(poll.ends_at)}</span></div></div>) : <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '2rem' }}>ยังไม่ได้สร้างโพล</div>}</div>}
             </div>
           </>
-        ) : (
-          <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>ไม่พบข้อมูล</div>
-        )}
+        ) : <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>ไม่พบข้อมูล</div>}
       </div>
     </div>
   )
@@ -450,7 +357,7 @@ export default function Home() {
                 <button className="btn btn-create hide-mobile" onClick={() => { setShowCreatePoll(true); setShowMenu(false) }}>➕ สร้างโพล</button>
                 <div className="user-badge hide-mobile" onClick={() => setShowMenu(!showMenu)}>
                   <div className="user-avatar">{user.username[0].toUpperCase()}</div>
-                  <div><span style={{ color: 'var(--text)' }}>{user.username}</span><div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{getReputationLevel(user.reputation).badge} {user.reputation}</div></div>
+                  <div><span style={{ color: 'var(--text)' }}>{user.username}</span><div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{getReputationLevel(user.reputation).badge} {user.reputation} pt</div></div>
                 </div>
               </>
             ) : (
@@ -462,7 +369,7 @@ export default function Home() {
         {showMenu && (
           <div className="dropdown-menu">
             {!user && <><button className="dropdown-item" onClick={() => { setShowAuthModal(true); setShowMenu(false) }}>🔐 เข้าสู่ระบบ</button><button className="dropdown-item" onClick={() => { setShowAuthModal(true); setShowMenu(false) }}>✨ สมัครสมาชิก</button><div className="dropdown-divider"></div></>}
-            {user && <><div className="dropdown-item user-info-mobile"><div className="user-avatar">{user.username[0].toUpperCase()}</div><div><span style={{ color: 'var(--text)' }}>{user.username}</span><div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{getReputationLevel(user.reputation).badge} {user.reputation}</div></div></div><button className="dropdown-item" onClick={() => { setShowAccount(true); setShowMenu(false) }}>👤 บัญชีของฉัน</button><button className="dropdown-item" onClick={() => { setShowCreatePoll(true); setShowMenu(false) }}>➕ สร้างโพล</button>{user.is_admin && <button className="dropdown-item" onClick={() => { setShowAdminPanel(true); setShowMenu(false) }}>🔧 Admin Panel</button>}<div className="dropdown-divider"></div></>}
+            {user && <><div className="dropdown-item user-info-mobile"><div className="user-avatar">{user.username[0].toUpperCase()}</div><div><span style={{ color: 'var(--text)' }}>{user.username}</span><div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{getReputationLevel(user.reputation).badge} {user.reputation} pt</div></div></div><button className="dropdown-item" onClick={() => { setShowAccount(true); setShowMenu(false) }}>👤 บัญชีของฉัน</button><button className="dropdown-item" onClick={() => { setShowCreatePoll(true); setShowMenu(false) }}>➕ สร้างโพล</button>{user.is_admin && <button className="dropdown-item" onClick={() => { setShowAdminPanel(true); setShowMenu(false) }}>🔧 Admin Panel</button>}<div className="dropdown-divider"></div></>}
             <button className="dropdown-item" onClick={() => { setDarkMode(!darkMode); setShowMenu(false) }}>{darkMode ? '☀️ โหมดสว่าง' : '🌙 โหมดมืด'}</button>
             {user && <><div className="dropdown-divider"></div><button className="dropdown-item" onClick={handleLogout}>🚪 ออกจากระบบ</button></>}
           </div>
@@ -477,7 +384,7 @@ export default function Home() {
             <h3 className="sidebar-title">🏆 Leaderboard</h3>
             {leaderboard.map((item, i) => {
               const rankEmoji = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'][i] || `#${i + 1}`
-              return <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid var(--border)' }}><span style={{ color: 'var(--text)' }}>{rankEmoji} {item.username}</span><span style={{ color: 'var(--primary)', fontWeight: 600 }}>{item.reputation}</span></div>
+              return <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid var(--border)' }}><span style={{ color: 'var(--text)' }}>{rankEmoji} {item.username}</span><span style={{ color: 'var(--primary)', fontWeight: 600 }}>{item.reputation} pt</span></div>
             })}
           </div>
         </aside>
@@ -491,7 +398,7 @@ export default function Home() {
         </div>
       </main>
 
-      {showAuthModal && <div className="modal-overlay" onClick={() => setShowAuthModal(false)}><div className="modal" onClick={e => e.stopPropagation()}><button className="modal-close" onClick={() => setShowAuthModal(false)}>✕</button><h2 className="modal-title">🎯 เข้าสู่ระบบ / สมัครสมาชิก</h2><form onSubmit={handleAuth}><div className="form-group"><label>ชื่อผู้ใช้</label><input type="text" name="username" className="form-input" placeholder="กรอกชื่อผู้ใช้" required /></div><p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>🎁 สมัครใหม่ได้ 1,000 Reputation เริ่มต้น!</p><div className="modal-actions"><button type="button" className="btn btn-secondary" onClick={() => setShowAuthModal(false)}>ยกเลิก</button><button type="submit" className="btn btn-primary">เข้าสู่ระบบ</button></div></form></div></div>}
+      {showAuthModal && <div className="modal-overlay" onClick={() => setShowAuthModal(false)}><div className="modal" onClick={e => e.stopPropagation()}><button className="modal-close" onClick={() => setShowAuthModal(false)}>✕</button><h2 className="modal-title">🎯 เข้าสู่ระบบ / สมัครสมาชิก</h2><form onSubmit={handleAuth}><div className="form-group"><label>ชื่อผู้ใช้</label><input type="text" name="username" className="form-input" placeholder="กรอกชื่อผู้ใช้" required /></div><p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>🎁 สมัครใหม่ได้ 1,000 Point เริ่มต้น!</p><div className="modal-actions"><button type="button" className="btn btn-secondary" onClick={() => setShowAuthModal(false)}>ยกเลิก</button><button type="submit" className="btn btn-primary">เข้าสู่ระบบ</button></div></form></div></div>}
 
       {selectedPoll && (
         <div className="modal-overlay" onClick={() => setSelectedPoll(null)}>
