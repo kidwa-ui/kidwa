@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase, getPolls, createUser, getUserByUsername, vote, getLeaderboard, getUserVotes } from '@/lib/supabase'
+import { supabase, getPolls, createUser, getUserByUsername, vote, getLeaderboard, getUserVotes, createPoll, getTags, createTag } from '@/lib/supabase'
 
 const categories = [
   { id: 'home', name: 'หน้าแรก', icon: '🏠' },
@@ -31,7 +31,6 @@ const reputationLevels = [
   { min: 10001, max: Infinity, name: 'ตำนาน', badge: '👑' }
 ]
 
-// ระดับความมั่นใจ
 const confidenceLevels = [
   { value: 20, label: 'ไม่มั่นใจ', emoji: '😅', color: '#22c55e', description: '±20 คะแนน' },
   { value: 50, label: 'ปกติ', emoji: '🤗', color: '#f59e0b', description: '±50 คะแนน' },
@@ -125,7 +124,6 @@ function PollCard({ poll, onClick, userVotes }) {
   )
 }
 
-// Component เลือกความมั่นใจ
 function ConfidenceSelector({ selectedConfidence, onSelect, disabled }) {
   return (
     <div className="confidence-selector">
@@ -153,6 +151,311 @@ function ConfidenceSelector({ selectedConfidence, onSelect, disabled }) {
   )
 }
 
+// ===== Create Poll Modal =====
+function CreatePollModal({ onClose, user, onSuccess, darkMode }) {
+  const [question, setQuestion] = useState('')
+  const [options, setOptions] = useState(['', ''])
+  const [category, setCategory] = useState('other')
+  const [blindMode, setBlindMode] = useState(false)
+  const [endsAt, setEndsAt] = useState('')
+  const [selectedTags, setSelectedTags] = useState([])
+  const [tagInput, setTagInput] = useState('')
+  const [availableTags, setAvailableTags] = useState([])
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [errors, setErrors] = useState({})
+
+  useEffect(() => {
+    loadTags()
+    const defaultDate = new Date()
+    defaultDate.setDate(defaultDate.getDate() + 7)
+    setEndsAt(defaultDate.toISOString().split('T')[0])
+  }, [])
+
+  const loadTags = async () => {
+    const { data } = await getTags()
+    if (data) setAvailableTags(data)
+  }
+
+  const addOption = () => {
+    if (options.length < 6) {
+      setOptions([...options, ''])
+    }
+  }
+
+  const removeOption = (index) => {
+    if (options.length > 2) {
+      setOptions(options.filter((_, i) => i !== index))
+    }
+  }
+
+  const updateOption = (index, value) => {
+    const newOptions = [...options]
+    newOptions[index] = value
+    setOptions(newOptions)
+  }
+
+  const addTag = async () => {
+    if (!tagInput.trim()) return
+    if (selectedTags.length >= 5) {
+      alert('เลือกแท็กได้สูงสุด 5 แท็ก')
+      return
+    }
+
+    let tag = availableTags.find(t => t.name.toLowerCase() === tagInput.toLowerCase().trim())
+    
+    if (!tag) {
+      const { data } = await createTag(tagInput.trim())
+      if (data) {
+        tag = data
+        setAvailableTags([...availableTags, data])
+      }
+    }
+
+    if (tag && !selectedTags.find(t => t.id === tag.id)) {
+      setSelectedTags([...selectedTags, tag])
+    }
+    setTagInput('')
+  }
+
+  const removeTag = (tagId) => {
+    setSelectedTags(selectedTags.filter(t => t.id !== tagId))
+  }
+
+  const selectExistingTag = (tag) => {
+    if (selectedTags.length >= 5) {
+      alert('เลือกแท็กได้สูงสุด 5 แท็ก')
+      return
+    }
+    if (!selectedTags.find(t => t.id === tag.id)) {
+      setSelectedTags([...selectedTags, tag])
+    }
+  }
+
+  const validate = () => {
+    const newErrors = {}
+    
+    if (!question.trim()) {
+      newErrors.question = 'กรุณาใส่คำถาม'
+    }
+    
+    const filledOptions = options.filter(o => o.trim())
+    if (filledOptions.length < 2) {
+      newErrors.options = 'ต้องมีตัวเลือกอย่างน้อย 2 ตัว'
+    }
+    
+    if (!endsAt) {
+      newErrors.endsAt = 'กรุณาเลือกวันหมดเวลา'
+    } else {
+      const endDate = new Date(endsAt)
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      if (endDate < today) {
+        newErrors.endsAt = 'วันหมดเวลาต้องไม่เป็นอดีต'
+      }
+    }
+
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    
+    if (!validate()) return
+    
+    setIsSubmitting(true)
+
+    const filledOptions = options.filter(o => o.trim())
+    
+    const { data, error } = await createPoll({
+      question: question.trim(),
+      options: filledOptions,
+      category,
+      tags: selectedTags.map(t => t.id),
+      blindMode,
+      endsAt: new Date(endsAt).toISOString(),
+      pollType: 'prediction',
+      createdBy: user.id
+    })
+
+    setIsSubmitting(false)
+
+    if (error) {
+      alert('เกิดข้อผิดพลาด: ' + error.message)
+    } else {
+      alert('🎉 สร้างโพลสำเร็จ!')
+      onSuccess()
+      onClose()
+    }
+  }
+
+  const filteredTags = availableTags.filter(tag => 
+    tag.name.toLowerCase().includes(tagInput.toLowerCase()) &&
+    !selectedTags.find(t => t.id === tag.id)
+  ).slice(0, 5)
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className={`modal create-poll-modal ${darkMode ? 'dark' : ''}`} onClick={e => e.stopPropagation()}>
+        <button className="modal-close" onClick={onClose}>✕</button>
+        <h2 className="modal-title">➕ สร้างโพลใหม่</h2>
+        
+        <form onSubmit={handleSubmit}>
+          {/* คำถาม */}
+          <div className="form-group">
+            <label>❓ คำถาม</label>
+            <input
+              type="text"
+              className={`form-input ${errors.question ? 'error' : ''}`}
+              placeholder="เช่น ทีมไหนจะชนะฟุตบอลโลก 2026?"
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
+              maxLength={200}
+            />
+            {errors.question && <span className="error-text">{errors.question}</span>}
+            <span className="char-count">{question.length}/200</span>
+          </div>
+
+          {/* ตัวเลือก */}
+          <div className="form-group">
+            <label>📋 ตัวเลือก (2-6 ตัว)</label>
+            {options.map((opt, index) => (
+              <div key={index} className="option-input-row">
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder={`ตัวเลือกที่ ${index + 1}`}
+                  value={opt}
+                  onChange={(e) => updateOption(index, e.target.value)}
+                  maxLength={100}
+                />
+                {options.length > 2 && (
+                  <button 
+                    type="button" 
+                    className="remove-option-btn"
+                    onClick={() => removeOption(index)}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            ))}
+            {errors.options && <span className="error-text">{errors.options}</span>}
+            {options.length < 6 && (
+              <button type="button" className="add-option-btn" onClick={addOption}>
+                + เพิ่มตัวเลือก
+              </button>
+            )}
+          </div>
+
+          {/* หมวดหมู่ */}
+          <div className="form-group">
+            <label>📂 หมวดหมู่</label>
+            <select 
+              className="form-input"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+            >
+              {categories.filter(c => c.id !== 'home').map(cat => (
+                <option key={cat.id} value={cat.id}>
+                  {cat.icon} {cat.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Tags */}
+          <div className="form-group">
+            <label>🏷️ แท็ก (สูงสุด 5)</label>
+            <div className="tags-selected">
+              {selectedTags.map(tag => (
+                <span key={tag.id} className="tag-chip">
+                  #{tag.name}
+                  <button type="button" onClick={() => removeTag(tag.id)}>✕</button>
+                </span>
+              ))}
+            </div>
+            <div className="tag-input-wrapper">
+              <input
+                type="text"
+                className="form-input"
+                placeholder="พิมพ์แท็กแล้วกด Enter"
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    addTag()
+                  }
+                }}
+              />
+              {tagInput && (
+                <button type="button" className="add-tag-btn" onClick={addTag}>
+                  เพิ่ม
+                </button>
+              )}
+            </div>
+            {filteredTags.length > 0 && tagInput && (
+              <div className="tag-suggestions">
+                {filteredTags.map(tag => (
+                  <button
+                    key={tag.id}
+                    type="button"
+                    className="tag-suggestion"
+                    onClick={() => selectExistingTag(tag)}
+                  >
+                    #{tag.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* วันหมดเวลา */}
+          <div className="form-group">
+            <label>📅 วันหมดเวลา</label>
+            <input
+              type="date"
+              className={`form-input ${errors.endsAt ? 'error' : ''}`}
+              value={endsAt}
+              onChange={(e) => setEndsAt(e.target.value)}
+              min={new Date().toISOString().split('T')[0]}
+            />
+            {errors.endsAt && <span className="error-text">{errors.endsAt}</span>}
+          </div>
+
+          {/* Blind Mode */}
+          <div className="form-group">
+            <label className="toggle-label">
+              <input
+                type="checkbox"
+                checked={blindMode}
+                onChange={(e) => setBlindMode(e.target.checked)}
+              />
+              <span className="toggle-switch"></span>
+              <span>🔒 Blind Mode (ไม่เห็นผลจนกว่าจะหมดเวลา)</span>
+            </label>
+          </div>
+
+          {/* ปุ่มส่ง */}
+          <div className="modal-actions">
+            <button type="button" className="btn btn-secondary" onClick={onClose}>
+              ยกเลิก
+            </button>
+            <button 
+              type="submit" 
+              className="btn btn-primary"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? '⏳ กำลังสร้าง...' : '🚀 สร้างโพล'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 export default function Home() {
   const [darkMode, setDarkMode] = useState(false)
   const [activeCategory, setActiveCategory] = useState('home')
@@ -165,10 +468,9 @@ export default function Home() {
   const [selectedPoll, setSelectedPoll] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [leaderboard, setLeaderboard] = useState([])
-  
-  // State สำหรับ Confidence
   const [selectedConfidence, setSelectedConfidence] = useState(50)
   const [selectedOption, setSelectedOption] = useState(null)
+  const [showCreatePoll, setShowCreatePoll] = useState(false)
 
   useEffect(() => {
     loadPolls()
@@ -187,7 +489,6 @@ export default function Home() {
     localStorage.setItem('kidwa-darkmode', JSON.stringify(darkMode))
   }, [darkMode])
 
-  // Reset selection เมื่อเปลี่ยน poll
   useEffect(() => {
     if (selectedPoll) {
       const existingVote = userVotes[selectedPoll.id]
@@ -261,19 +562,26 @@ export default function Home() {
     if (!error) {
       setUserVotes(prev => ({ ...prev, [pollId]: { optionId, confidence } }))
       loadPolls()
-      // แสดง feedback
       const confLevel = confidenceLevels.find(c => c.value === confidence)
       alert(`✅ โหวตสำเร็จ!\n\nความมั่นใจ: ${confLevel?.emoji} ${confLevel?.label}\nคะแนนเดิมพัน: ±${confidence}`)
     }
   }
 
-  // ฟังก์ชันยืนยันการโหวต
   const confirmVote = () => {
     if (!selectedOption) {
       alert('กรุณาเลือกตัวเลือกก่อน')
       return
     }
     handleVote(selectedPoll.id, selectedOption, selectedConfidence)
+  }
+
+  const openCreatePoll = () => {
+    if (!user) {
+      setShowAuthModal(true)
+      return
+    }
+    setShowCreatePoll(true)
+    setShowMenu(false)
   }
 
   const filteredPolls = polls.filter(poll => {
@@ -304,7 +612,7 @@ export default function Home() {
           <div className="header-actions">
             {user ? (
               <>
-                <button className="btn btn-create hide-mobile">➕ สร้างโพล</button>
+                <button className="btn btn-create hide-mobile" onClick={openCreatePoll}>➕ สร้างโพล</button>
                 <div className="user-badge hide-mobile" onClick={() => setShowMenu(!showMenu)}>
                   <div className="user-avatar">{user.username[0].toUpperCase()}</div>
                   <div>
@@ -345,7 +653,7 @@ export default function Home() {
                     </div>
                   </div>
                 </div>
-                <button className="dropdown-item" onClick={() => setShowMenu(false)}>➕ สร้างโพล</button>
+                <button className="dropdown-item" onClick={openCreatePoll}>➕ สร้างโพล</button>
                 <div className="dropdown-divider"></div>
               </>
             )}
@@ -410,6 +718,11 @@ export default function Home() {
             <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
               <p style={{ fontSize: '3rem', marginBottom: '1rem' }}>🔍</p>
               <p>ยังไม่มีโพลในหมวดนี้</p>
+              {user && (
+                <button className="btn btn-primary" style={{ marginTop: '1rem' }} onClick={openCreatePoll}>
+                  ➕ สร้างโพลแรก
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -451,19 +764,15 @@ export default function Home() {
             </div>
             
             {isExpired(selectedPoll.ends_at) && (
-              <div className="expired-notice">
-                ⏰ โพลนี้หมดเวลาแล้ว ไม่สามารถโหวตได้
-              </div>
+              <div className="expired-notice">⏰ โพลนี้หมดเวลาแล้ว ไม่สามารถโหวตได้</div>
             )}
 
-            {/* แสดงถ้าโหวตแล้ว */}
             {userVotes[selectedPoll.id] && (
               <div className="voted-notice">
                 ✅ คุณโหวตแล้ว ({confidenceLevels.find(c => c.value === userVotes[selectedPoll.id].confidence)?.emoji} {confidenceLevels.find(c => c.value === userVotes[selectedPoll.id].confidence)?.label})
               </div>
             )}
             
-            {/* ตัวเลือก */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
               {selectedPoll.options?.map(option => {
                 const totalVotes = selectedPoll.options.reduce((sum, o) => sum + o.votes, 0)
@@ -491,7 +800,6 @@ export default function Home() {
               })}
             </div>
 
-            {/* Confidence Selector - แสดงเฉพาะเมื่อยังไม่ได้โหวต และโพลยังไม่หมดเวลา */}
             {!userVotes[selectedPoll.id] && !isExpired(selectedPoll.ends_at) && user && (
               <>
                 <ConfidenceSelector 
@@ -499,7 +807,6 @@ export default function Home() {
                   onSelect={setSelectedConfidence}
                   disabled={!selectedOption}
                 />
-                
                 <button 
                   className="btn btn-primary" 
                   style={{ width: '100%', marginTop: '1rem', padding: '1rem' }}
@@ -522,6 +829,15 @@ export default function Home() {
             )}
           </div>
         </div>
+      )}
+
+      {showCreatePoll && (
+        <CreatePollModal 
+          onClose={() => setShowCreatePoll(false)}
+          user={user}
+          onSuccess={loadPolls}
+          darkMode={darkMode}
+        />
       )}
     </div>
   )
