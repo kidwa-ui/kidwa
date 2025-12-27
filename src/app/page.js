@@ -138,9 +138,13 @@ function ConfidenceSelector({ selectedConfidence, onSelect, disabled }) {
 }
 
 // ===== Share Social Component =====
-function ShareButtons({ poll, userVote }) {
+function ShareButtons({ poll }) {
   const baseUrl = 'https://kidwa.vercel.app'
-  const shareText = encodeURIComponent('คิดว่า..')
+  const totalVotes = poll.options?.reduce((sum, o) => sum + o.votes, 0) || 0
+  const timeInfo = getDaysRemaining(poll.ends_at)
+  
+  // สร้างข้อความแชร์: ชื่อโพล + จำนวนคนโหวต + เวลาที่เหลือ
+  const shareText = encodeURIComponent(`🎯 ${poll.question}\n\n👥 ${totalVotes.toLocaleString()} คนโหวตแล้ว | ⏱️ ${timeInfo}\n\nมาร่วมทายกันที่ คิดว่า..`)
   const shareUrl = encodeURIComponent(`${baseUrl}`)
   
   const handleShareFacebook = () => {
@@ -495,7 +499,17 @@ export default function Home() {
 
   useEffect(() => { loadPolls(); const u = localStorage.getItem('kidwa-user'); if (u) setUser(JSON.parse(u)); const d = localStorage.getItem('kidwa-darkmode'); if (d) setDarkMode(JSON.parse(d)) }, [])
   useEffect(() => { if (user) { loadUserVotes(); loadUnreadCount() }}, [user])
-  useEffect(() => { localStorage.setItem('kidwa-darkmode', JSON.stringify(darkMode)) }, [darkMode])
+  useEffect(() => { 
+    localStorage.setItem('kidwa-darkmode', JSON.stringify(darkMode));
+    // Apply dark mode to document
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+      document.body.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      document.body.classList.remove('dark');
+    }
+  }, [darkMode])
   useEffect(() => { if (selectedPoll) { const v = userVotes[selectedPoll.id]; if (v) { setSelectedOption(v.optionId); setSelectedConfidence(v.confidence || 50) } else { setSelectedOption(null); setSelectedConfidence(50) }}}, [selectedPoll, userVotes])
 
   const loadPolls = async () => { setIsLoading(true); const { data } = await getPolls(); if (data) setPolls(data); setIsLoading(false) }
@@ -509,7 +523,18 @@ export default function Home() {
 
   const confirmVote = () => { if (!selectedOption) { alert('กรุณาเลือกตัวเลือกก่อน'); return }; handleVote(selectedPoll.id, selectedOption, selectedConfidence) }
 
-  const filteredPolls = polls.filter(poll => { if (activeCategory !== 'home' && poll.category !== activeCategory) return false; if (searchQuery) { const q = searchQuery.toLowerCase(); return poll.question.toLowerCase().includes(q) || poll.tags?.some(t => t.name.toLowerCase().includes(q)) }; return true })
+  const filteredPolls = polls.filter(poll => { 
+    if (activeCategory !== 'home' && poll.category !== activeCategory) return false; 
+    if (searchQuery) { 
+      const q = searchQuery.toLowerCase(); 
+      // ค้นหาจาก: คำถาม, แท็ก, และตัวเลือก (options)
+      const matchQuestion = poll.question.toLowerCase().includes(q);
+      const matchTags = poll.tags?.some(t => t.name.toLowerCase().includes(q));
+      const matchOptions = poll.options?.some(o => o.text.toLowerCase().includes(q));
+      return matchQuestion || matchTags || matchOptions;
+    }
+    return true 
+  })
   const featuredPolls = filteredPolls.filter(p => p.featured).slice(0, 3)
   const latestPolls = [...filteredPolls].slice(0, 9)
 
@@ -532,7 +557,7 @@ export default function Home() {
                   </button>
                   {showNotifications && <NotificationDropdown user={user} onClose={() => { setShowNotifications(false); loadUnreadCount() }} />}
                 </div>
-                <div className="user-badge hide-mobile" onClick={() => setShowMenu(!showMenu)}>
+                <div className="user-badge hide-mobile" onClick={() => { setShowAccount(true); setShowMenu(false) }}>
                   <div className="user-avatar">{user.username[0].toUpperCase()}</div>
                   <div><span style={{ color: 'var(--text)' }}>{user.username}</span><div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{getReputationLevel(user.reputation).badge} {user.reputation} pt</div></div>
                 </div>
@@ -597,7 +622,7 @@ export default function Home() {
             {!user && !isExpired(selectedPoll.ends_at) && <div onClick={() => { setSelectedPoll(null); setShowAuthModal(true) }} className="login-prompt">🔒 เข้าสู่ระบบเพื่อโหวต</div>}
             
             {/* Share Buttons */}
-            <ShareButtons poll={selectedPoll} userVote={userVotes[selectedPoll.id]} />
+            <ShareButtons poll={selectedPoll} />
           </div>
         </div>
       )}
