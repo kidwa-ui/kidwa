@@ -7,7 +7,9 @@ import {
   deletePoll, getAllUsers, toggleBanUser, toggleFeatured, getAdminStats,
   getUserProfile, getUserVoteHistory, getUserCreatedPolls, calculateBadges,
   getWeeklyLeaderboard, getMonthlyLeaderboard,
-  getUserNotifications, getUnreadNotificationCount, markNotificationAsRead, markAllNotificationsAsRead
+  getUserNotifications, getUnreadNotificationCount, markNotificationAsRead, markAllNotificationsAsRead,
+  followUser, unfollowUser, isFollowing, getFollowers, getFollowing, getFollowCounts,
+  uploadAvatar, getUserPublicProfile, searchUsers
 } from '@/lib/supabase'
 
 const categories = [
@@ -145,7 +147,7 @@ function ShareButtons({ poll }) {
   const timeInfo = getDaysRemaining(poll.ends_at)
   
   // สร้างข้อความแชร์
-  const shareText = `🎯 ${poll.question}\n\n👥 ${totalVotes.toLocaleString()} คนโหวตแล้ว | ⏱️ ${timeInfo}\n\nมาร่วมทายกันที่ คิดว่า..\n${baseUrl}`
+  const shareText = `🎯 ${poll.question}\n\n👥 ${totalVotes.toLocaleString()} คนโหวตแล้ว | ⏱️ ${timeInfo}\n\nแล้วคุณล่ะ คิดว่า..\n${baseUrl}`
   
   const handleCopy = async () => {
     try {
@@ -246,8 +248,103 @@ function NotificationDropdown({ user, onClose }) {
   )
 }
 
+// ===== User Profile Modal (ดูโปรไฟล์คนอื่น) =====
+function UserProfileModal({ userId, currentUser, onClose, darkMode }) {
+  const [profile, setProfile] = useState(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isFollowingUser, setIsFollowingUser] = useState(false)
+  const [isProcessing, setIsProcessing] = useState(false)
+
+  useEffect(() => { loadProfile() }, [userId])
+
+  const loadProfile = async () => {
+    setIsLoading(true)
+    const { data } = await getUserPublicProfile(userId)
+    if (data) setProfile(data)
+    
+    if (currentUser && currentUser.id !== userId) {
+      const following = await isFollowing(currentUser.id, userId)
+      setIsFollowingUser(following)
+    }
+    setIsLoading(false)
+  }
+
+  const handleFollow = async () => {
+    if (!currentUser) return
+    setIsProcessing(true)
+    
+    if (isFollowingUser) {
+      await unfollowUser(currentUser.id, userId)
+      setIsFollowingUser(false)
+      setProfile(prev => ({ ...prev, followers: prev.followers - 1 }))
+    } else {
+      await followUser(currentUser.id, userId)
+      setIsFollowingUser(true)
+      setProfile(prev => ({ ...prev, followers: prev.followers + 1 }))
+    }
+    
+    setIsProcessing(false)
+  }
+
+  const winRate = profile?.total_predictions > 0 ? Math.round((profile.correct_predictions / profile.total_predictions) * 100) : 0
+  const level = profile ? getReputationLevel(profile.reputation) : reputationLevels[0]
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className={`modal user-profile-modal ${darkMode ? 'dark' : ''}`} onClick={e => e.stopPropagation()}>
+        <button className="modal-close" onClick={onClose}>✕</button>
+        {isLoading ? <div style={{ textAlign: 'center', padding: '3rem' }}>⏳ กำลังโหลด...</div> : profile ? (
+          <>
+            <div className="profile-header">
+              <div className="profile-avatar">
+                {profile.avatar_url ? (
+                  <img src={profile.avatar_url} alt={profile.username} />
+                ) : (
+                  <span>{profile.username[0].toUpperCase()}</span>
+                )}
+              </div>
+              <div className="profile-info">
+                <h2 className="profile-username">{profile.username}</h2>
+                <div className="profile-level">{level.badge} {level.name}</div>
+                <div className="profile-reputation">{profile.reputation.toLocaleString()} point</div>
+              </div>
+            </div>
+            
+            <div className="profile-follow-stats">
+              <div className="follow-stat"><strong>{profile.followers}</strong><span>ผู้ติดตาม</span></div>
+              <div className="follow-stat"><strong>{profile.following}</strong><span>กำลังติดตาม</span></div>
+            </div>
+            
+            {currentUser && currentUser.id !== userId && (
+              <button 
+                className={`btn ${isFollowingUser ? 'btn-secondary' : 'btn-primary'}`} 
+                style={{ width: '100%', marginBottom: '1rem' }}
+                onClick={handleFollow}
+                disabled={isProcessing}
+              >
+                {isProcessing ? '⏳' : isFollowingUser ? '✓ กำลังติดตาม' : '➕ ติดตาม'}
+              </button>
+            )}
+            
+            <div className="profile-stats-grid">
+              <div className="profile-stat"><span className="stat-value">{profile.total_predictions || 0}</span><span className="stat-label">ทายทั้งหมด</span></div>
+              <div className="profile-stat"><span className="stat-value">{profile.correct_predictions || 0}</span><span className="stat-label">ถูก</span></div>
+              <div className="profile-stat"><span className="stat-value">{winRate}%</span><span className="stat-label">Win Rate</span></div>
+              <div className="profile-stat"><span className="stat-value">{profile.max_streak || 0}</span><span className="stat-label">Best Streak</span></div>
+            </div>
+            
+            <div className="profile-meta">
+              <span>🗓️ สมาชิกตั้งแต่ {new Date(profile.created_at).toLocaleDateString('th-TH')}</span>
+            </div>
+          </>
+        ) : <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>ไม่พบข้อมูล</div>}
+      </div>
+    </div>
+  )
+}
+
 // ===== Leaderboard Component with Tabs =====
-function LeaderboardSection({ darkMode }) {
+function LeaderboardSection({ darkMode, currentUser, onViewProfile }) {
   const [activeTab, setActiveTab] = useState('all')
   const [leaderboard, setLeaderboard] = useState([])
   const [isLoading, setIsLoading] = useState(true)
@@ -300,7 +397,12 @@ function LeaderboardSection({ darkMode }) {
           </div>
         ) : (
           leaderboard.map((item, i) => (
-            <div key={item.id} className="leaderboard-item">
+            <div 
+              key={item.id} 
+              className="leaderboard-item"
+              onClick={() => onViewProfile && onViewProfile(item.id)}
+              style={{ cursor: 'pointer' }}
+            >
               <span className="lb-rank">{getRankEmoji(i)}</span>
               <span className="lb-name">{item.username}</span>
               <span className={`lb-points ${activeTab !== 'all' ? (activeTab === 'week' ? (item.weeklyPoints >= 0 ? 'positive' : 'negative') : (item.monthlyPoints >= 0 ? 'positive' : 'negative')) : ''}`}>
@@ -436,6 +538,10 @@ function AccountModal({ onClose, user, darkMode, onUpdateUser }) {
   const [createdPolls, setCreatedPolls] = useState([])
   const [badges, setBadges] = useState([])
   const [isLoading, setIsLoading] = useState(true)
+  const [followCounts, setFollowCounts] = useState({ followers: 0, following: 0 })
+  const [isUploading, setIsUploading] = useState(false)
+  const [followers, setFollowers] = useState([])
+  const [following, setFollowing] = useState([])
 
   useEffect(() => { loadData() }, [])
 
@@ -452,7 +558,56 @@ function AccountModal({ onClose, user, darkMode, onUpdateUser }) {
     if (historyData) setVoteHistory(historyData)
     const { data: pollsData } = await getUserCreatedPolls(user.id)
     if (pollsData) setCreatedPolls(pollsData)
+    const counts = await getFollowCounts(user.id)
+    setFollowCounts(counts)
     setIsLoading(false)
+  }
+
+  const loadFollowers = async () => {
+    const { data } = await getFollowers(user.id)
+    setFollowers(data || [])
+  }
+
+  const loadFollowing = async () => {
+    const { data } = await getFollowing(user.id)
+    setFollowing(data || [])
+  }
+
+  useEffect(() => {
+    if (activeTab === 'followers') loadFollowers()
+    if (activeTab === 'following') loadFollowing()
+  }, [activeTab])
+
+  const handleAvatarUpload = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    
+    // ตรวจสอบขนาดไฟล์ (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      alert('ไฟล์ใหญ่เกินไป (สูงสุด 2MB)')
+      return
+    }
+    
+    // ตรวจสอบประเภทไฟล์
+    if (!file.type.startsWith('image/')) {
+      alert('กรุณาเลือกไฟล์รูปภาพ')
+      return
+    }
+    
+    setIsUploading(true)
+    const { data, error } = await uploadAvatar(user.id, file)
+    setIsUploading(false)
+    
+    if (error) {
+      alert('อัพโหลดไม่สำเร็จ: ' + error.message)
+    } else {
+      // อัพเดท user state
+      const updatedUser = { ...user, avatar_url: data.url }
+      setProfile(prev => ({ ...prev, avatar_url: data.url }))
+      localStorage.setItem('kidwa-user', JSON.stringify(updatedUser))
+      onUpdateUser(updatedUser)
+      alert('✅ อัพโหลดรูปโปรไฟล์สำเร็จ!')
+    }
   }
 
   const winRate = profile?.total_predictions > 0 ? Math.round((profile.correct_predictions / profile.total_predictions) * 100) : 0
@@ -465,11 +620,25 @@ function AccountModal({ onClose, user, darkMode, onUpdateUser }) {
         {isLoading ? <div style={{ textAlign: 'center', padding: '3rem' }}>⏳ กำลังโหลด...</div> : profile ? (
           <>
             <div className="account-header">
-              <div className="account-avatar">{profile.username[0].toUpperCase()}</div>
+              <div className="account-avatar-wrapper">
+                {profile.avatar_url ? (
+                  <img src={profile.avatar_url} alt={profile.username} className="account-avatar-img" />
+                ) : (
+                  <div className="account-avatar">{profile.username[0].toUpperCase()}</div>
+                )}
+                <label className="avatar-upload-btn" title="เปลี่ยนรูปโปรไฟล์">
+                  <input type="file" accept="image/*" onChange={handleAvatarUpload} disabled={isUploading} />
+                  {isUploading ? '⏳' : '📷'}
+                </label>
+              </div>
               <div className="account-info">
                 <h2 className="account-username">{profile.username}</h2>
                 <div className="account-level"><span className="level-badge">{level.badge}</span><span className="level-name">{level.name}</span></div>
                 <div className="account-reputation">{profile.reputation.toLocaleString()} point</div>
+                <div className="account-follow-stats">
+                  <span onClick={() => setActiveTab('followers')} style={{ cursor: 'pointer' }}><strong>{followCounts.followers}</strong> ผู้ติดตาม</span>
+                  <span onClick={() => setActiveTab('following')} style={{ cursor: 'pointer' }}><strong>{followCounts.following}</strong> กำลังติดตาม</span>
+                </div>
               </div>
             </div>
             <div className="account-stats">
@@ -486,12 +655,16 @@ function AccountModal({ onClose, user, darkMode, onUpdateUser }) {
             <div className="account-tabs">
               <button className={`account-tab ${activeTab === 'stats' ? 'active' : ''}`} onClick={() => setActiveTab('stats')}>📊 สถิติ</button>
               <button className={`account-tab ${activeTab === 'history' ? 'active' : ''}`} onClick={() => setActiveTab('history')}>📜 ประวัติ</button>
-              <button className={`account-tab ${activeTab === 'polls' ? 'active' : ''}`} onClick={() => setActiveTab('polls')}>📝 โพลของฉัน</button>
+              <button className={`account-tab ${activeTab === 'polls' ? 'active' : ''}`} onClick={() => setActiveTab('polls')}>📝 โพล</button>
+              <button className={`account-tab ${activeTab === 'followers' ? 'active' : ''}`} onClick={() => setActiveTab('followers')}>👥 ผู้ติดตาม</button>
+              <button className={`account-tab ${activeTab === 'following' ? 'active' : ''}`} onClick={() => setActiveTab('following')}>➡️ กำลังติดตาม</button>
             </div>
             <div className="account-content">
               {activeTab === 'stats' && <div className="stats-detail"><div className="stats-row"><span>สมาชิกตั้งแต่</span><span>{new Date(profile.created_at).toLocaleDateString('th-TH')}</span></div><div className="stats-row"><span>Point เริ่มต้น</span><span>1,000</span></div><div className="stats-row"><span>ได้/เสีย รวม</span><span style={{ color: profile.reputation >= 1000 ? 'var(--green)' : 'var(--red)' }}>{profile.reputation >= 1000 ? '+' : ''}{profile.reputation - 1000}</span></div></div>}
               {activeTab === 'history' && <div className="history-list">{voteHistory.length > 0 ? voteHistory.map(vote => <div key={vote.id} className={`history-item ${vote.is_correct === true ? 'correct' : vote.is_correct === false ? 'wrong' : ''}`}><div className="history-question">{vote.polls?.question || 'โพลถูกลบ'}</div><div className="history-answer"><span>เลือก: {vote.options?.text || '-'}</span>{vote.is_correct !== null && <span className={`history-result ${vote.is_correct ? 'correct' : 'wrong'}`}>{vote.is_correct ? '✅ ถูก' : '❌ ผิด'} ({vote.points_earned > 0 ? '+' : ''}{vote.points_earned})</span>}{vote.is_correct === null && vote.polls && <span className="history-pending">⏳ รอเฉลย</span>}</div></div>) : <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '2rem' }}>ยังไม่มีประวัติการโหวต</div>}</div>}
               {activeTab === 'polls' && <div className="polls-list">{createdPolls.length > 0 ? createdPolls.map(poll => <div key={poll.id} className="created-poll-item"><div className="created-poll-question">{poll.resolved && '✅ '}{poll.question}</div><div className="created-poll-meta"><span>👥 {poll.options?.reduce((s, o) => s + o.votes, 0) || 0} โหวต</span><span>⏱️ {getDaysRemaining(poll.ends_at)}</span></div></div>) : <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '2rem' }}>ยังไม่ได้สร้างโพล</div>}</div>}
+              {activeTab === 'followers' && <div className="follow-list">{followers.length > 0 ? followers.map(f => <div key={f.id} className="follow-item"><div className="follow-avatar">{f.avatar_url ? <img src={f.avatar_url} alt={f.username} /> : f.username[0].toUpperCase()}</div><div className="follow-info"><span className="follow-name">{f.username}</span><span className="follow-rep">{getReputationLevel(f.reputation).badge} {f.reputation} pt</span></div></div>) : <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '2rem' }}>ยังไม่มีผู้ติดตาม</div>}</div>}
+              {activeTab === 'following' && <div className="follow-list">{following.length > 0 ? following.map(f => <div key={f.id} className="follow-item"><div className="follow-avatar">{f.avatar_url ? <img src={f.avatar_url} alt={f.username} /> : f.username[0].toUpperCase()}</div><div className="follow-info"><span className="follow-name">{f.username}</span><span className="follow-rep">{getReputationLevel(f.reputation).badge} {f.reputation} pt</span></div></div>) : <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '2rem' }}>ยังไม่ได้ติดตามใคร</div>}</div>}
             </div>
           </>
         ) : <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>ไม่พบข้อมูล</div>}
@@ -518,6 +691,7 @@ export default function Home() {
   const [showAccount, setShowAccount] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
+  const [viewProfileUserId, setViewProfileUserId] = useState(null)
 
   useEffect(() => { loadPolls(); const u = localStorage.getItem('kidwa-user'); if (u) setUser(JSON.parse(u)); const d = localStorage.getItem('kidwa-darkmode'); if (d) setDarkMode(JSON.parse(d)) }, [])
   useEffect(() => { if (user) { loadUserVotes(); loadUnreadCount() }}, [user])
@@ -580,7 +754,11 @@ export default function Home() {
                   {showNotifications && <NotificationDropdown user={user} onClose={() => { setShowNotifications(false); loadUnreadCount() }} />}
                 </div>
                 <div className="user-badge hide-mobile" onClick={() => { setShowAccount(true); setShowMenu(false) }}>
-                  <div className="user-avatar">{user.username[0].toUpperCase()}</div>
+                  {user.avatar_url ? (
+                    <img src={user.avatar_url} alt={user.username} className="user-avatar-img" />
+                  ) : (
+                    <div className="user-avatar">{user.username[0].toUpperCase()}</div>
+                  )}
                   <div><span style={{ color: 'var(--text)' }}>{user.username}</span><div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{getReputationLevel(user.reputation).badge} {user.reputation} pt</div></div>
                 </div>
               </>
@@ -604,7 +782,7 @@ export default function Home() {
 
       <main className="main">
         <aside className="sidebar">
-          <LeaderboardSection darkMode={darkMode} />
+          <LeaderboardSection darkMode={darkMode} currentUser={user} onViewProfile={(userId) => setViewProfileUserId(userId)} />
         </aside>
 
         <div className="content">
@@ -661,6 +839,16 @@ export default function Home() {
             <NotificationDropdown user={user} onClose={() => { setShowNotifications(false); loadUnreadCount() }} />
           </div>
         </div>
+      )}
+
+      {/* User Profile Modal */}
+      {viewProfileUserId && (
+        <UserProfileModal 
+          userId={viewProfileUserId} 
+          currentUser={user} 
+          onClose={() => setViewProfileUserId(null)} 
+          darkMode={darkMode} 
+        />
       )}
     </div>
   )
