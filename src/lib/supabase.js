@@ -80,15 +80,20 @@ export async function getLeaderboard(limit = 10) {
   return { data, error }
 }
 
-// Leaderboard รายสัปดาห์ - คำนวณจาก points ที่ได้ใน 7 วันล่าสุด
+// Leaderboard รายสัปดาห์ - ตัดรอบจันทร์-อาทิตย์
 export async function getWeeklyLeaderboard(limit = 10) {
-  const weekAgo = new Date()
-  weekAgo.setDate(weekAgo.getDate() - 7)
+  // หาวันจันทร์ของสัปดาห์นี้
+  const now = new Date()
+  const dayOfWeek = now.getDay() // 0 = อาทิตย์, 1 = จันทร์, ...
+  const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
+  const monday = new Date(now)
+  monday.setDate(now.getDate() + mondayOffset)
+  monday.setHours(0, 0, 0, 0)
   
   const { data: votes, error } = await supabase
     .from('votes')
     .select('user_id, points_earned, users!inner(id, username, reputation)')
-    .gte('created_at', weekAgo.toISOString())
+    .gte('created_at', monday.toISOString())
     .not('points_earned', 'is', null)
 
   if (error) return { data: null, error }
@@ -116,15 +121,17 @@ export async function getWeeklyLeaderboard(limit = 10) {
   return { data: sorted, error: null }
 }
 
-// Leaderboard รายเดือน - คำนวณจาก points ที่ได้ใน 30 วันล่าสุด
+// Leaderboard รายเดือน - ตัดรอบตามเดือนปฏิทิน (วันที่ 1 - สิ้นเดือน)
 export async function getMonthlyLeaderboard(limit = 10) {
-  const monthAgo = new Date()
-  monthAgo.setDate(monthAgo.getDate() - 30)
+  // หาวันที่ 1 ของเดือนนี้
+  const now = new Date()
+  const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+  firstDayOfMonth.setHours(0, 0, 0, 0)
   
   const { data: votes, error } = await supabase
     .from('votes')
     .select('user_id, points_earned, users!inner(id, username, reputation)')
-    .gte('created_at', monthAgo.toISOString())
+    .gte('created_at', firstDayOfMonth.toISOString())
     .not('points_earned', 'is', null)
 
   if (error) return { data: null, error }
@@ -417,4 +424,137 @@ export async function markAllNotificationsAsRead(userId) {
     .eq('user_id', userId)
     .eq('is_read', false)
   return { error }
+}
+
+// ===== ฟังก์ชัน Follow System =====
+
+export async function followUser(followerId, followingId) {
+  // ตรวจสอบว่าติดตามอยู่แล้วหรือไม่
+  const { data: existing } = await supabase
+    .from('follows')
+    .select('*')
+    .eq('follower_id', followerId)
+    .eq('following_id', followingId)
+    .single()
+  
+  if (existing) return { data: existing, error: null, alreadyFollowing: true }
+  
+  const { data, error } = await supabase
+    .from('follows')
+    .insert([{ follower_id: followerId, following_id: followingId }])
+    .select()
+    .single()
+  
+  return { data, error, alreadyFollowing: false }
+}
+
+export async function unfollowUser(followerId, followingId) {
+  const { error } = await supabase
+    .from('follows')
+    .delete()
+    .eq('follower_id', followerId)
+    .eq('following_id', followingId)
+  
+  return { error }
+}
+
+export async function isFollowing(followerId, followingId) {
+  const { data } = await supabase
+    .from('follows')
+    .select('*')
+    .eq('follower_id', followerId)
+    .eq('following_id', followingId)
+    .single()
+  
+  return !!data
+}
+
+export async function getFollowers(userId) {
+  const { data, error } = await supabase
+    .from('follows')
+    .select('follower_id, users!follows_follower_id_fkey(id, username, reputation, avatar_url)')
+    .eq('following_id', userId)
+  
+  return { data: data?.map(d => d.users) || [], error }
+}
+
+export async function getFollowing(userId) {
+  const { data, error } = await supabase
+    .from('follows')
+    .select('following_id, users!follows_following_id_fkey(id, username, reputation, avatar_url)')
+    .eq('follower_id', userId)
+  
+  return { data: data?.map(d => d.users) || [], error }
+}
+
+export async function getFollowCounts(userId) {
+  const { count: followersCount } = await supabase
+    .from('follows')
+    .select('*', { count: 'exact', head: true })
+    .eq('following_id', userId)
+  
+  const { count: followingCount } = await supabase
+    .from('follows')
+    .select('*', { count: 'exact', head: true })
+    .eq('follower_id', userId)
+  
+  return { followers: followersCount || 0, following: followingCount || 0 }
+}
+
+// ===== ฟังก์ชัน Avatar Upload =====
+
+export async function uploadAvatar(userId, file) {
+  const fileExt = file.name.split('.').pop()
+  const fileName = `${userId}-${Date.now()}.${fileExt}`
+  const filePath = `avatars/${fileName}`
+
+  // อัพโหลดไฟล์ไปยัง Supabase Storage
+  const { error: uploadError } = await supabase.storage
+    .from('avatars')
+    .upload(filePath, file, { upsert: true })
+
+  if (uploadError) return { error: uploadError }
+
+  // รับ public URL
+  const { data: { publicUrl } } = supabase.storage
+    .from('avatars')
+    .getPublicUrl(filePath)
+
+  // อัพเดท avatar_url ใน users table
+  const { error: updateError } = await supabase
+    .from('users')
+    .update({ avatar_url: publicUrl })
+    .eq('id', userId)
+
+  if (updateError) return { error: updateError }
+
+  return { data: { url: publicUrl }, error: null }
+}
+
+export async function getUserPublicProfile(userId) {
+  const { data: user, error } = await supabase
+    .from('users')
+    .select('id, username, reputation, avatar_url, current_streak, max_streak, total_predictions, correct_predictions, created_at')
+    .eq('id', userId)
+    .single()
+  
+  if (error) return { data: null, error }
+  
+  const { followers, following } = await getFollowCounts(userId)
+  
+  return { 
+    data: { ...user, followers, following }, 
+    error: null 
+  }
+}
+
+export async function searchUsers(query, limit = 10) {
+  const { data, error } = await supabase
+    .from('users')
+    .select('id, username, reputation, avatar_url')
+    .ilike('username', `%${query}%`)
+    .order('reputation', { ascending: false })
+    .limit(limit)
+  
+  return { data, error }
 }
