@@ -201,10 +201,12 @@ select.form-input { appearance: none; background-image: url("data:image/svg+xml,
 .tag-suggestion:hover { border-color: var(--primary); background: var(--primary-light); }
 .toggle-label { display: flex; align-items: center; gap: 0.75rem; cursor: pointer; font-weight: 500 !important; }
 .toggle-label input[type="checkbox"] { display: none; }
-.toggle-switch { position: relative; width: 50px; height: 28px; background: var(--border); border-radius: 14px; transition: all 0.3s; flex-shrink: 0; }
+.toggle-switch { position: relative; width: 50px; height: 28px; background: #d1d5db; border-radius: 14px; transition: all 0.3s; flex-shrink: 0; }
 .toggle-switch::after { content: ''; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; background: white; border-radius: 50%; transition: all 0.3s; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); }
-.toggle-label input:checked + .toggle-switch { background: #3b82f6; }
+.toggle-label input:checked + .toggle-switch { background: #3b82f6 !important; }
 .toggle-label input:checked + .toggle-switch::after { left: 25px; }
+.dark .toggle-switch { background: #4b5563; }
+.dark .toggle-label input:checked + .toggle-switch { background: #3b82f6 !important; }
 
 /* ===== Admin Panel ===== */
 .admin-modal { max-width: 800px; max-height: 90vh; overflow-y: auto; }
@@ -326,14 +328,18 @@ select.form-input { appearance: none; background-image: url("data:image/svg+xml,
 .lb-points.negative { color: var(--red); }
 
 /* ===== Share Buttons ===== */
-.share-buttons { display: flex; align-items: center; gap: 0.75rem; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border); }
+.share-buttons { display: flex; align-items: center; gap: 0.75rem; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border); position: relative; }
 .share-label { font-size: 0.9rem; color: var(--text-secondary); font-weight: 500; }
 .share-btn { width: 40px; height: 40px; border-radius: 50%; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
 .share-btn svg { width: 20px; height: 20px; }
+.share-btn.copy { background: var(--bg); border: 2px solid var(--border); color: var(--text); font-size: 1.1rem; }
+.share-btn.copy:hover { border-color: var(--primary); background: var(--primary-light); }
 .share-btn.facebook { background: #1877f2; color: white; }
 .share-btn.facebook:hover { background: #166fe5; transform: scale(1.1); }
 .share-btn.twitter { background: #000000; color: white; }
 .share-btn.twitter:hover { background: #333; transform: scale(1.1); }
+.copy-toast { position: absolute; bottom: -30px; left: 50%; transform: translateX(-50%); background: var(--green); color: white; padding: 0.4rem 0.8rem; border-radius: 6px; font-size: 0.8rem; font-weight: 500; animation: fadeInOut 2s ease; }
+@keyframes fadeInOut { 0% { opacity: 0; transform: translateX(-50%) translateY(10px); } 10% { opacity: 1; transform: translateX(-50%) translateY(0); } 90% { opacity: 1; } 100% { opacity: 0; } }
 
 /* ===== Notification Button & Dropdown ===== */
 .notification-btn-wrapper { position: relative; }
