@@ -69,6 +69,8 @@ export async function getUserVotes(userId) {
   return { data, error }
 }
 
+// ===== Leaderboard Functions =====
+
 export async function getLeaderboard(limit = 10) {
   const { data, error } = await supabase
     .from('users')
@@ -76,6 +78,78 @@ export async function getLeaderboard(limit = 10) {
     .order('reputation', { ascending: false })
     .limit(limit)
   return { data, error }
+}
+
+// Leaderboard รายสัปดาห์ - คำนวณจาก points ที่ได้ใน 7 วันล่าสุด
+export async function getWeeklyLeaderboard(limit = 10) {
+  const weekAgo = new Date()
+  weekAgo.setDate(weekAgo.getDate() - 7)
+  
+  const { data: votes, error } = await supabase
+    .from('votes')
+    .select('user_id, points_earned, users!inner(id, username, reputation)')
+    .gte('created_at', weekAgo.toISOString())
+    .not('points_earned', 'is', null)
+
+  if (error) return { data: null, error }
+
+  // รวมคะแนนตาม user
+  const userPoints = {}
+  votes?.forEach(vote => {
+    const userId = vote.user_id
+    if (!userPoints[userId]) {
+      userPoints[userId] = {
+        id: userId,
+        username: vote.users.username,
+        reputation: vote.users.reputation,
+        weeklyPoints: 0
+      }
+    }
+    userPoints[userId].weeklyPoints += vote.points_earned || 0
+  })
+
+  // เรียงลำดับและ return
+  const sorted = Object.values(userPoints)
+    .sort((a, b) => b.weeklyPoints - a.weeklyPoints)
+    .slice(0, limit)
+
+  return { data: sorted, error: null }
+}
+
+// Leaderboard รายเดือน - คำนวณจาก points ที่ได้ใน 30 วันล่าสุด
+export async function getMonthlyLeaderboard(limit = 10) {
+  const monthAgo = new Date()
+  monthAgo.setDate(monthAgo.getDate() - 30)
+  
+  const { data: votes, error } = await supabase
+    .from('votes')
+    .select('user_id, points_earned, users!inner(id, username, reputation)')
+    .gte('created_at', monthAgo.toISOString())
+    .not('points_earned', 'is', null)
+
+  if (error) return { data: null, error }
+
+  // รวมคะแนนตาม user
+  const userPoints = {}
+  votes?.forEach(vote => {
+    const userId = vote.user_id
+    if (!userPoints[userId]) {
+      userPoints[userId] = {
+        id: userId,
+        username: vote.users.username,
+        reputation: vote.users.reputation,
+        monthlyPoints: 0
+      }
+    }
+    userPoints[userId].monthlyPoints += vote.points_earned || 0
+  })
+
+  // เรียงลำดับและ return
+  const sorted = Object.values(userPoints)
+    .sort((a, b) => b.monthlyPoints - a.monthlyPoints)
+    .slice(0, limit)
+
+  return { data: sorted, error: null }
 }
 
 // ===== ฟังก์ชันสำหรับสร้างโพล =====
@@ -144,12 +218,26 @@ export async function getPendingPolls() {
 
 export async function resolvePoll(pollId, correctOptionId) {
   try {
+    // ดึงข้อมูล poll ก่อน
+    const { data: pollData } = await supabase
+      .from('polls')
+      .select('question')
+      .eq('id', pollId)
+      .single()
+
     const { error: pollError } = await supabase
       .from('polls')
       .update({ resolved: true, correct_option_id: correctOptionId, resolved_at: new Date().toISOString() })
       .eq('id', pollId)
     
     if (pollError) throw pollError
+
+    // ดึงข้อมูล correct option
+    const { data: correctOption } = await supabase
+      .from('options')
+      .select('text')
+      .eq('id', correctOptionId)
+      .single()
 
     const { data: votes } = await supabase.from('votes').select('id, user_id, option_id, confidence').eq('poll_id', pollId)
 
@@ -174,6 +262,19 @@ export async function resolvePoll(pollId, correctOptionId) {
           reputation: newRep, total_predictions: newTotal, correct_predictions: newCorrect,
           current_streak: newCurrentStreak, max_streak: newMaxStreak
         }).eq('id', vote.user_id)
+
+        // สร้าง Notification สำหรับผู้โหวต
+        const notifMessage = isCorrect 
+          ? `🎉 ทายถูก! "${pollData?.question?.substring(0, 50)}..." คำตอบคือ "${correctOption?.text}" (+${vote.confidence} pt)`
+          : `😢 ทายผิด "${pollData?.question?.substring(0, 50)}..." คำตอบคือ "${correctOption?.text}" (${change} pt)`
+        
+        await createNotification({
+          userId: vote.user_id,
+          type: isCorrect ? 'points_earned' : 'points_lost',
+          message: notifMessage,
+          pollId: pollId,
+          pointsChange: change
+        })
       }
 
       await supabase.from('votes').update({ is_correct: isCorrect, points_earned: change }).eq('id', vote.id)
@@ -190,6 +291,7 @@ export async function deletePoll(pollId) {
     await supabase.from('votes').delete().eq('poll_id', pollId)
     await supabase.from('poll_tags').delete().eq('poll_id', pollId)
     await supabase.from('options').delete().eq('poll_id', pollId)
+    await supabase.from('notifications').delete().eq('poll_id', pollId)
     const { error } = await supabase.from('polls').delete().eq('id', pollId)
     return { error }
   } catch (error) {
@@ -261,4 +363,58 @@ export function calculateBadges(user) {
   else if (user.total_predictions >= 10) badges.push({ id: 'rising', name: 'ดาวรุ่ง', icon: '🌟', description: 'ทายครบ 10 ครั้ง' })
   
   return badges
+}
+
+// ===== ฟังก์ชัน Notification =====
+
+export async function createNotification({ userId, type, message, pollId = null, pointsChange = null }) {
+  const { data, error } = await supabase
+    .from('notifications')
+    .insert([{
+      user_id: userId,
+      type,
+      message,
+      poll_id: pollId,
+      points_change: pointsChange,
+      is_read: false
+    }])
+    .select()
+    .single()
+  return { data, error }
+}
+
+export async function getUserNotifications(userId, limit = 20) {
+  const { data, error } = await supabase
+    .from('notifications')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  return { data, error }
+}
+
+export async function getUnreadNotificationCount(userId) {
+  const { count, error } = await supabase
+    .from('notifications')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('is_read', false)
+  return { count: count || 0, error }
+}
+
+export async function markNotificationAsRead(notificationId) {
+  const { error } = await supabase
+    .from('notifications')
+    .update({ is_read: true })
+    .eq('id', notificationId)
+  return { error }
+}
+
+export async function markAllNotificationsAsRead(userId) {
+  const { error } = await supabase
+    .from('notifications')
+    .update({ is_read: true })
+    .eq('user_id', userId)
+    .eq('is_read', false)
+  return { error }
 }
