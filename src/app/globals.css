@@ -255,13 +255,27 @@ select.form-input { appearance: none; background-image: url("data:image/svg+xml,
 /* ===== Account Modal ===== */
 .account-modal { max-width: 500px; max-height: 90vh; overflow-y: auto; }
 .account-header { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border); }
+
+/* Avatar Wrapper & Upload */
+.account-avatar-wrapper { position: relative; }
 .account-avatar { width: 70px; height: 70px; border-radius: 50%; background: linear-gradient(135deg, var(--primary), var(--primary-dark)); color: white; display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: 700; }
+.account-avatar-img { width: 70px; height: 70px; border-radius: 50%; object-fit: cover; }
+.avatar-upload-btn { position: absolute; bottom: -5px; right: -5px; width: 28px; height: 28px; border-radius: 50%; background: var(--bg-card); border: 2px solid var(--border); display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 0.8rem; transition: all 0.2s; }
+.avatar-upload-btn:hover { background: var(--primary-light); border-color: var(--primary); }
+.avatar-upload-btn input { display: none; }
+
+/* User Avatar in Header */
+.user-avatar-img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; }
+
 .account-info { flex: 1; }
 .account-username { font-size: 1.5rem; font-weight: 700; color: var(--text); margin-bottom: 0.25rem; }
 .account-level { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem; }
 .level-badge { font-size: 1.2rem; }
 .level-name { font-size: 0.9rem; color: var(--text-secondary); font-weight: 500; }
 .account-reputation { font-size: 1.1rem; color: var(--primary); font-weight: 600; }
+.account-follow-stats { display: flex; gap: 1rem; margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-secondary); }
+.account-follow-stats span:hover { color: var(--primary); }
+.account-follow-stats strong { color: var(--text); }
 
 .account-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; margin-bottom: 1.5rem; }
 .account-stat-card { background: var(--bg); border-radius: 12px; padding: 0.75rem; text-align: center; border: 1px solid var(--border); }
@@ -286,8 +300,8 @@ select.form-input { appearance: none; background-image: url("data:image/svg+xml,
 .badge-name { font-weight: 500; color: #92400e; }
 .dark .badge-name { color: #fde68a; }
 
-.account-tabs { display: flex; gap: 0.5rem; margin-bottom: 1rem; border-bottom: 2px solid var(--border); padding-bottom: 0.5rem; }
-.account-tab { padding: 0.5rem 1rem; border: none; background: transparent; color: var(--text-secondary); cursor: pointer; font-family: inherit; font-weight: 500; border-radius: 8px; transition: all 0.2s; }
+.account-tabs { display: flex; gap: 0.25rem; margin-bottom: 1rem; border-bottom: 2px solid var(--border); padding-bottom: 0.5rem; overflow-x: auto; }
+.account-tab { padding: 0.4rem 0.6rem; border: none; background: transparent; color: var(--text-secondary); cursor: pointer; font-family: inherit; font-weight: 500; border-radius: 8px; transition: all 0.2s; white-space: nowrap; font-size: 0.8rem; }
 .account-tab:hover { background: var(--bg); color: var(--text); }
 .account-tab.active { background: var(--primary); color: white; }
 
@@ -311,6 +325,39 @@ select.form-input { appearance: none; background-image: url("data:image/svg+xml,
 .created-poll-item { padding: 0.75rem; background: var(--bg); border-radius: 10px; }
 .created-poll-question { font-weight: 500; color: var(--text); font-size: 0.9rem; margin-bottom: 0.25rem; }
 .created-poll-meta { display: flex; gap: 1rem; font-size: 0.8rem; color: var(--text-secondary); }
+
+/* ===== Follow List ===== */
+.follow-list { display: flex; flex-direction: column; gap: 0.5rem; }
+.follow-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--bg); border-radius: 10px; cursor: pointer; transition: all 0.2s; }
+.follow-item:hover { background: var(--primary-light); }
+.follow-avatar { width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, var(--primary), var(--primary-dark)); color: white; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 1rem; overflow: hidden; }
+.follow-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.follow-info { flex: 1; }
+.follow-name { display: block; font-weight: 500; color: var(--text); font-size: 0.9rem; }
+.follow-rep { display: block; font-size: 0.8rem; color: var(--text-secondary); }
+
+/* ===== User Profile Modal ===== */
+.user-profile-modal { max-width: 400px; }
+.profile-header { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem; }
+.profile-avatar { width: 80px; height: 80px; border-radius: 50%; background: linear-gradient(135deg, var(--primary), var(--primary-dark)); color: white; display: flex; align-items: center; justify-content: center; font-size: 2.5rem; font-weight: 700; overflow: hidden; }
+.profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.profile-avatar span { font-size: 2.5rem; }
+.profile-info { flex: 1; }
+.profile-username { font-size: 1.3rem; font-weight: 700; color: var(--text); margin-bottom: 0.25rem; }
+.profile-level { font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 0.25rem; }
+.profile-reputation { font-size: 1.1rem; color: var(--primary); font-weight: 600; }
+
+.profile-follow-stats { display: flex; justify-content: center; gap: 2rem; padding: 1rem; background: var(--bg); border-radius: 12px; margin-bottom: 1rem; }
+.follow-stat { text-align: center; }
+.follow-stat strong { display: block; font-size: 1.2rem; color: var(--text); }
+.follow-stat span { font-size: 0.8rem; color: var(--text-secondary); }
+
+.profile-stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; margin-bottom: 1rem; }
+.profile-stat { text-align: center; padding: 0.75rem 0.5rem; background: var(--bg); border-radius: 10px; }
+.profile-stat .stat-value { display: block; font-size: 1.1rem; font-weight: 700; color: var(--text); }
+.profile-stat .stat-label { display: block; font-size: 0.7rem; color: var(--text-secondary); margin-top: 0.25rem; }
+
+.profile-meta { text-align: center; font-size: 0.85rem; color: var(--text-secondary); }
 
 /* ===== Leaderboard Tabs ===== */
 .leaderboard-tabs { display: flex; gap: 0.25rem; margin-bottom: 1rem; background: var(--bg); border-radius: 8px; padding: 0.25rem; }
