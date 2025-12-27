@@ -139,31 +139,53 @@ function ConfidenceSelector({ selectedConfidence, onSelect, disabled }) {
 
 // ===== Share Social Component =====
 function ShareButtons({ poll }) {
+  const [copied, setCopied] = useState(false)
   const baseUrl = 'https://kidwa.vercel.app'
   const totalVotes = poll.options?.reduce((sum, o) => sum + o.votes, 0) || 0
   const timeInfo = getDaysRemaining(poll.ends_at)
   
-  // สร้างข้อความแชร์: ชื่อโพล + จำนวนคนโหวต + เวลาที่เหลือ
-  const shareText = encodeURIComponent(`🎯 ${poll.question}\n\n👥 ${totalVotes.toLocaleString()} คนโหวตแล้ว | ⏱️ ${timeInfo}\n\nมาร่วมทายกันที่ คิดว่า..`)
-  const shareUrl = encodeURIComponent(`${baseUrl}`)
+  // สร้างข้อความแชร์
+  const shareText = `🎯 ${poll.question}\n\n👥 ${totalVotes.toLocaleString()} คนโหวตแล้ว | ⏱️ ${timeInfo}\n\nมาร่วมทายกันที่ คิดว่า..\n${baseUrl}`
+  
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(shareText)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch (err) {
+      // Fallback
+      const textArea = document.createElement('textarea')
+      textArea.value = shareText
+      document.body.appendChild(textArea)
+      textArea.select()
+      document.execCommand('copy')
+      document.body.removeChild(textArea)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
   
   const handleShareFacebook = () => {
-    window.open(`https://www.facebook.com/sharer/sharer.php?u=${shareUrl}&quote=${shareText}`, '_blank', 'width=600,height=400')
+    window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(baseUrl)}`, '_blank', 'width=600,height=400')
   }
   
   const handleShareX = () => {
-    window.open(`https://twitter.com/intent/tweet?text=${shareText}&url=${shareUrl}`, '_blank', 'width=600,height=400')
+    window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`, '_blank', 'width=600,height=400')
   }
   
   return (
     <div className="share-buttons">
       <span className="share-label">แชร์:</span>
+      <button className="share-btn copy" onClick={handleCopy} title="คัดลอกข้อความ">
+        {copied ? '✓' : '📋'}
+      </button>
       <button className="share-btn facebook" onClick={handleShareFacebook} title="แชร์ไป Facebook">
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
       </button>
       <button className="share-btn twitter" onClick={handleShareX} title="แชร์ไป X">
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
       </button>
+      {copied && <span className="copy-toast">คัดลอกแล้ว!</span>}
     </div>
   )
 }
@@ -545,7 +567,7 @@ export default function Home() {
       <header className="header">
         <div className="header-content">
           <div className="logo" onClick={() => setActiveCategory('home')}>คิดว่า..</div>
-          <div className="search-box"><span className="search-icon">🔍</span><input type="text" placeholder="ค้นหาหัวข้อ..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} /></div>
+          <div className="search-box"><span className="search-icon">🔍</span><input type="text" placeholder="ค้นหา.." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} /></div>
           <div className="header-actions">
             {user ? (
               <>
