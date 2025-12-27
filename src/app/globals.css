@@ -145,44 +145,14 @@ body { font-family: 'IBM Plex Sans Thai', sans-serif; background: var(--bg); col
   .hide-mobile { display: none; }
   .poll-grid { grid-template-columns: 1fr; }
 }
-/* ===== Dark Mode Fixes ===== */
 
-/* Fix: Leaderboard text in dark mode */
+/* ===== Dark Mode Fixes ===== */
 .leaderboard-item { color: var(--text); }
 .leaderboard-name { color: var(--text); }
 .leaderboard-score { color: var(--text-secondary); }
 .leaderboard-rank { color: var(--text); font-size: 1rem; }
-
-/* Fix: User badge text in header */
 .user-badge span { color: var(--text); }
 .user-badge div { color: var(--text); }
-
-/* Leaderboard styling */
-.leaderboard-item {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.5rem 0;
-  border-bottom: 1px solid var(--border);
-}
-.leaderboard-item:last-child { border-bottom: none; }
-.leaderboard-rank { min-width: 24px; text-align: center; }
-.leaderboard-avatar {
-  width: 28px;
-  height: 28px;
-  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-.leaderboard-info { flex: 1; }
-.leaderboard-name { font-weight: 500; font-size: 0.9rem; }
-.leaderboard-score { font-size: 0.75rem; color: var(--text-secondary); }
-/* ===== เพิ่มต่อท้าย globals.css ===== */
 
 /* ===== Confidence Selector ===== */
 .confidence-selector { margin: 1rem 0; padding: 1rem; background: var(--bg); border-radius: 12px; border: 1px solid var(--border); }
@@ -279,7 +249,6 @@ select.form-input { appearance: none; background-image: url("data:image/svg+xml,
 
 /* ===== Account Modal ===== */
 .account-modal { max-width: 500px; max-height: 90vh; overflow-y: auto; }
-
 .account-header { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border); }
 .account-avatar { width: 70px; height: 70px; border-radius: 50%; background: linear-gradient(135deg, var(--primary), var(--primary-dark)); color: white; display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: 700; }
 .account-info { flex: 1; }
@@ -338,11 +307,67 @@ select.form-input { appearance: none; background-image: url("data:image/svg+xml,
 .created-poll-question { font-weight: 500; color: var(--text); font-size: 0.9rem; margin-bottom: 0.25rem; }
 .created-poll-meta { display: flex; gap: 1rem; font-size: 0.8rem; color: var(--text-secondary); }
 
+/* ===== Leaderboard Tabs ===== */
+.leaderboard-tabs { display: flex; gap: 0.25rem; margin-bottom: 1rem; background: var(--bg); border-radius: 8px; padding: 0.25rem; }
+.lb-tab { flex: 1; padding: 0.5rem 0.25rem; border: none; background: transparent; color: var(--text-secondary); cursor: pointer; font-family: inherit; font-size: 0.75rem; font-weight: 500; border-radius: 6px; transition: all 0.2s; }
+.lb-tab:hover { color: var(--text); }
+.lb-tab.active { background: var(--primary); color: white; }
+
+.leaderboard-list { display: flex; flex-direction: column; gap: 0.5rem; }
+.leaderboard-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0; border-bottom: 1px solid var(--border); }
+.leaderboard-item:last-child { border-bottom: none; }
+.lb-rank { min-width: 28px; font-size: 0.9rem; }
+.lb-name { flex: 1; font-weight: 500; font-size: 0.9rem; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lb-points { font-size: 0.85rem; font-weight: 600; color: var(--primary); }
+.lb-points.positive { color: var(--green); }
+.lb-points.negative { color: var(--red); }
+
+/* ===== Share Buttons ===== */
+.share-buttons { display: flex; align-items: center; gap: 0.75rem; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border); }
+.share-label { font-size: 0.9rem; color: var(--text-secondary); font-weight: 500; }
+.share-btn { width: 40px; height: 40px; border-radius: 50%; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+.share-btn svg { width: 20px; height: 20px; }
+.share-btn.facebook { background: #1877f2; color: white; }
+.share-btn.facebook:hover { background: #166fe5; transform: scale(1.1); }
+.share-btn.twitter { background: #000000; color: white; }
+.share-btn.twitter:hover { background: #333; transform: scale(1.1); }
+
+/* ===== Notification Button & Dropdown ===== */
+.notification-btn-wrapper { position: relative; }
+.notification-btn { width: 40px; height: 40px; border-radius: 50%; border: 2px solid var(--border); background: var(--bg); cursor: pointer; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; position: relative; transition: all 0.2s; }
+.notification-btn:hover { border-color: var(--primary); background: var(--primary-light); }
+.notification-badge-count { position: absolute; top: -5px; right: -5px; background: var(--red); color: white; font-size: 0.65rem; font-weight: 700; min-width: 18px; height: 18px; border-radius: 9px; display: flex; align-items: center; justify-content: center; padding: 0 4px; }
+
+.notification-dropdown { position: absolute; top: 50px; right: 0; width: 320px; background: var(--bg-card); border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); border: 1px solid var(--border); z-index: 300; overflow: hidden; }
+.notification-header { display: flex; justify-content: space-between; align-items: center; padding: 1rem; border-bottom: 1px solid var(--border); }
+.notification-header h3 { font-size: 1rem; font-weight: 600; color: var(--text); margin: 0; }
+.mark-all-read { background: none; border: none; color: var(--primary); font-size: 0.8rem; cursor: pointer; font-family: inherit; font-weight: 500; }
+.mark-all-read:hover { text-decoration: underline; }
+
+.notification-list { max-height: 350px; overflow-y: auto; }
+.notification-loading, .notification-empty { padding: 2rem; text-align: center; color: var(--text-secondary); font-size: 0.9rem; }
+.notification-item { padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.2s; }
+.notification-item:hover { background: var(--bg); }
+.notification-item:last-child { border-bottom: none; }
+.notification-item.unread { background: rgba(255, 107, 157, 0.05); }
+.notification-item.unread::before { content: ''; position: absolute; left: 0.5rem; top: 50%; transform: translateY(-50%); width: 8px; height: 8px; background: var(--primary); border-radius: 50%; }
+.notification-item.success .notification-message { color: var(--green); }
+.notification-item.danger .notification-message { color: var(--red); }
+.notification-message { font-size: 0.85rem; color: var(--text); line-height: 1.4; margin-bottom: 0.25rem; }
+.notification-time { font-size: 0.75rem; color: var(--text-secondary); }
+
+/* Mobile notification modal */
+.notification-modal { max-width: 400px; padding: 0; overflow: hidden; }
+.notification-modal .notification-dropdown { position: static; width: 100%; box-shadow: none; border: none; border-radius: 0; }
+
+.mobile-notif-badge { background: var(--red); color: white; font-size: 0.7rem; padding: 0.15rem 0.5rem; border-radius: 10px; margin-left: auto; }
+
 /* Dark mode fixes */
 .dark .confidence-selector { background: var(--bg-card); }
 .dark .confidence-btn { background: var(--bg); }
 .dark .tag-chip { background: linear-gradient(135deg, #4a1942, #3d1a35); color: var(--primary-light); }
 .dark select.form-input { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23aaa'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E"); }
+.dark .section-title { color: #f3f4f6 !important; }
 
 /* Mobile responsive */
 @media (max-width: 600px) {
@@ -356,12 +381,6 @@ select.form-input { appearance: none; background-image: url("data:image/svg+xml,
   .account-stats { grid-template-columns: repeat(2, 1fr); }
   .account-streak { flex-direction: column; }
   .account-header { flex-direction: column; text-align: center; }
-}
-/* แก้ไข: หัวข้อ "หัวข้อเด่น" และ "ล่าสุด" ใน dark mode */
-.section-title {
-  color: var(--text);
-}
-
-.dark .section-title {
-  color: #f3f4f6 !important;
+  .share-buttons { justify-content: center; }
+  .notification-dropdown { width: 100vw; right: -1rem; border-radius: 0 0 16px 16px; }
 }
