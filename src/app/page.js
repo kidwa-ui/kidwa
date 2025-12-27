@@ -5,7 +5,9 @@ import {
   supabase, getPolls, createUser, getUserByUsername, vote, getLeaderboard, getUserVotes, 
   createPoll, getTags, createTag, getAllPollsAdmin, getPendingPolls, resolvePoll, 
   deletePoll, getAllUsers, toggleBanUser, toggleFeatured, getAdminStats,
-  getUserProfile, getUserVoteHistory, getUserCreatedPolls, calculateBadges
+  getUserProfile, getUserVoteHistory, getUserCreatedPolls, calculateBadges,
+  getWeeklyLeaderboard, getMonthlyLeaderboard,
+  getUserNotifications, getUnreadNotificationCount, markNotificationAsRead, markAllNotificationsAsRead
 } from '@/lib/supabase'
 
 const categories = [
@@ -59,6 +61,21 @@ const getTopTwo = (options) => {
   if (!options || options.length === 0) return [null, null]
   const sorted = [...options].sort((a, b) => b.votes - a.votes)
   return [sorted[0], sorted[1] || sorted[0]]
+}
+
+const getTimeAgo = (date) => {
+  const now = new Date()
+  const past = new Date(date)
+  const diffMs = now - past
+  const diffMins = Math.floor(diffMs / 60000)
+  const diffHours = Math.floor(diffMs / 3600000)
+  const diffDays = Math.floor(diffMs / 86400000)
+  
+  if (diffMins < 1) return 'เมื่อสักครู่'
+  if (diffMins < 60) return `${diffMins} นาทีที่แล้ว`
+  if (diffHours < 24) return `${diffHours} ชั่วโมงที่แล้ว`
+  if (diffDays < 7) return `${diffDays} วันที่แล้ว`
+  return past.toLocaleDateString('th-TH')
 }
 
 function PollCard({ poll, onClick, userVotes }) {
@@ -115,6 +132,157 @@ function ConfidenceSelector({ selectedConfidence, onSelect, disabled }) {
             <span className="confidence-desc">{level.description}</span>
           </button>
         ))}
+      </div>
+    </div>
+  )
+}
+
+// ===== Share Social Component =====
+function ShareButtons({ poll, userVote }) {
+  const baseUrl = 'https://kidwa.vercel.app'
+  const shareText = encodeURIComponent('คิดว่า..')
+  const shareUrl = encodeURIComponent(`${baseUrl}`)
+  
+  const handleShareFacebook = () => {
+    window.open(`https://www.facebook.com/sharer/sharer.php?u=${shareUrl}&quote=${shareText}`, '_blank', 'width=600,height=400')
+  }
+  
+  const handleShareX = () => {
+    window.open(`https://twitter.com/intent/tweet?text=${shareText}&url=${shareUrl}`, '_blank', 'width=600,height=400')
+  }
+  
+  return (
+    <div className="share-buttons">
+      <span className="share-label">แชร์:</span>
+      <button className="share-btn facebook" onClick={handleShareFacebook} title="แชร์ไป Facebook">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+      </button>
+      <button className="share-btn twitter" onClick={handleShareX} title="แชร์ไป X">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+      </button>
+    </div>
+  )
+}
+
+// ===== Notification Dropdown Component =====
+function NotificationDropdown({ user, onClose }) {
+  const [notifications, setNotifications] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    loadNotifications()
+  }, [])
+
+  const loadNotifications = async () => {
+    setIsLoading(true)
+    const { data } = await getUserNotifications(user.id, 20)
+    if (data) setNotifications(data)
+    setIsLoading(false)
+  }
+
+  const handleMarkAsRead = async (notifId) => {
+    await markNotificationAsRead(notifId)
+    setNotifications(prev => prev.map(n => n.id === notifId ? { ...n, is_read: true } : n))
+  }
+
+  const handleMarkAllAsRead = async () => {
+    await markAllNotificationsAsRead(user.id)
+    setNotifications(prev => prev.map(n => ({ ...n, is_read: true })))
+  }
+
+  return (
+    <div className="notification-dropdown" onClick={e => e.stopPropagation()}>
+      <div className="notification-header">
+        <h3>🔔 การแจ้งเตือน</h3>
+        {notifications.some(n => !n.is_read) && (
+          <button className="mark-all-read" onClick={handleMarkAllAsRead}>อ่านทั้งหมด</button>
+        )}
+      </div>
+      <div className="notification-list">
+        {isLoading ? (
+          <div className="notification-loading">⏳ กำลังโหลด...</div>
+        ) : notifications.length === 0 ? (
+          <div className="notification-empty">ยังไม่มีการแจ้งเตือน</div>
+        ) : (
+          notifications.map(notif => (
+            <div 
+              key={notif.id} 
+              className={`notification-item ${!notif.is_read ? 'unread' : ''} ${notif.type === 'points_earned' ? 'success' : notif.type === 'points_lost' ? 'danger' : ''}`}
+              onClick={() => handleMarkAsRead(notif.id)}
+            >
+              <div className="notification-message">{notif.message}</div>
+              <div className="notification-time">{getTimeAgo(notif.created_at)}</div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ===== Leaderboard Component with Tabs =====
+function LeaderboardSection({ darkMode }) {
+  const [activeTab, setActiveTab] = useState('all')
+  const [leaderboard, setLeaderboard] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    loadLeaderboard()
+  }, [activeTab])
+
+  const loadLeaderboard = async () => {
+    setIsLoading(true)
+    let data = []
+    
+    if (activeTab === 'week') {
+      const result = await getWeeklyLeaderboard(10)
+      data = result.data || []
+    } else if (activeTab === 'month') {
+      const result = await getMonthlyLeaderboard(10)
+      data = result.data || []
+    } else {
+      const result = await getLeaderboard(10)
+      data = result.data || []
+    }
+    
+    setLeaderboard(data)
+    setIsLoading(false)
+  }
+
+  const getRankEmoji = (index) => ['🥇', '🥈', '🥉', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'][index] || `#${index + 1}`
+
+  const getPointsDisplay = (item) => {
+    if (activeTab === 'week') return `${item.weeklyPoints >= 0 ? '+' : ''}${item.weeklyPoints} pt`
+    if (activeTab === 'month') return `${item.monthlyPoints >= 0 ? '+' : ''}${item.monthlyPoints} pt`
+    return `${item.reputation} pt`
+  }
+
+  return (
+    <div className="sidebar-card">
+      <h3 className="sidebar-title">🏆 Leaderboard</h3>
+      <div className="leaderboard-tabs">
+        <button className={`lb-tab ${activeTab === 'week' ? 'active' : ''}`} onClick={() => setActiveTab('week')}>สัปดาห์</button>
+        <button className={`lb-tab ${activeTab === 'month' ? 'active' : ''}`} onClick={() => setActiveTab('month')}>เดือน</button>
+        <button className={`lb-tab ${activeTab === 'all' ? 'active' : ''}`} onClick={() => setActiveTab('all')}>ตลอดกาล</button>
+      </div>
+      <div className="leaderboard-list">
+        {isLoading ? (
+          <div style={{ textAlign: 'center', padding: '1rem', color: 'var(--text-secondary)' }}>⏳</div>
+        ) : leaderboard.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '1rem', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+            {activeTab === 'week' ? 'ยังไม่มีข้อมูลสัปดาห์นี้' : activeTab === 'month' ? 'ยังไม่มีข้อมูลเดือนนี้' : 'ยังไม่มีข้อมูล'}
+          </div>
+        ) : (
+          leaderboard.map((item, i) => (
+            <div key={item.id} className="leaderboard-item">
+              <span className="lb-rank">{getRankEmoji(i)}</span>
+              <span className="lb-name">{item.username}</span>
+              <span className={`lb-points ${activeTab !== 'all' ? (activeTab === 'week' ? (item.weeklyPoints >= 0 ? 'positive' : 'negative') : (item.monthlyPoints >= 0 ? 'positive' : 'negative')) : ''}`}>
+                {getPointsDisplay(item)}
+              </span>
+            </div>
+          ))
+        )}
       </div>
     </div>
   )
@@ -317,26 +485,28 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedPoll, setSelectedPoll] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [leaderboard, setLeaderboard] = useState([])
   const [selectedConfidence, setSelectedConfidence] = useState(50)
   const [selectedOption, setSelectedOption] = useState(null)
   const [showCreatePoll, setShowCreatePoll] = useState(false)
   const [showAdminPanel, setShowAdminPanel] = useState(false)
   const [showAccount, setShowAccount] = useState(false)
+  const [showNotifications, setShowNotifications] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
 
-  useEffect(() => { loadPolls(); loadLeaderboard(); const u = localStorage.getItem('kidwa-user'); if (u) setUser(JSON.parse(u)); const d = localStorage.getItem('kidwa-darkmode'); if (d) setDarkMode(JSON.parse(d)) }, [])
-  useEffect(() => { if (user) loadUserVotes() }, [user])
+  useEffect(() => { loadPolls(); const u = localStorage.getItem('kidwa-user'); if (u) setUser(JSON.parse(u)); const d = localStorage.getItem('kidwa-darkmode'); if (d) setDarkMode(JSON.parse(d)) }, [])
+  useEffect(() => { if (user) { loadUserVotes(); loadUnreadCount() }}, [user])
   useEffect(() => { localStorage.setItem('kidwa-darkmode', JSON.stringify(darkMode)) }, [darkMode])
   useEffect(() => { if (selectedPoll) { const v = userVotes[selectedPoll.id]; if (v) { setSelectedOption(v.optionId); setSelectedConfidence(v.confidence || 50) } else { setSelectedOption(null); setSelectedConfidence(50) }}}, [selectedPoll, userVotes])
 
   const loadPolls = async () => { setIsLoading(true); const { data } = await getPolls(); if (data) setPolls(data); setIsLoading(false) }
-  const loadLeaderboard = async () => { const { data } = await getLeaderboard(10); if (data) setLeaderboard(data) }
   const loadUserVotes = async () => { if (!user) return; const { data } = await getUserVotes(user.id); if (data) { const m = {}; data.forEach(v => { m[v.poll_id] = { optionId: v.option_id, confidence: v.confidence } }); setUserVotes(m) }}
+  const loadUnreadCount = async () => { if (!user) return; const { count } = await getUnreadNotificationCount(user.id); setUnreadCount(count) }
 
   const handleAuth = async (e) => { e.preventDefault(); const username = e.target.username.value.trim(); if (!username) return; let { data } = await getUserByUsername(username); if (data) { setUser(data); localStorage.setItem('kidwa-user', JSON.stringify(data)) } else { const { data: newUser } = await createUser(username); if (newUser) { setUser(newUser); localStorage.setItem('kidwa-user', JSON.stringify(newUser)) }}; setShowAuthModal(false) }
-  const handleLogout = () => { setUser(null); setUserVotes({}); localStorage.removeItem('kidwa-user'); setShowMenu(false) }
+  const handleLogout = () => { setUser(null); setUserVotes({}); setUnreadCount(0); localStorage.removeItem('kidwa-user'); setShowMenu(false) }
 
   const handleVote = async (pollId, optionId, confidence) => { if (!user) { setShowAuthModal(true); return }; const poll = polls.find(p => p.id === pollId); if (poll && isExpired(poll.ends_at)) { alert('โพลนี้หมดเวลาแล้ว'); return }; const { error } = await vote(user.id, pollId, optionId, confidence); if (!error) { setUserVotes(prev => ({ ...prev, [pollId]: { optionId, confidence } })); loadPolls(); const c = confidenceLevels.find(c => c.value === confidence); alert(`✅ โหวตสำเร็จ!\n\n${c?.emoji} ${c?.label} (±${confidence})`) }}
+
   const confirmVote = () => { if (!selectedOption) { alert('กรุณาเลือกตัวเลือกก่อน'); return }; handleVote(selectedPoll.id, selectedOption, selectedConfidence) }
 
   const filteredPolls = polls.filter(poll => { if (activeCategory !== 'home' && poll.category !== activeCategory) return false; if (searchQuery) { const q = searchQuery.toLowerCase(); return poll.question.toLowerCase().includes(q) || poll.tags?.some(t => t.name.toLowerCase().includes(q)) }; return true })
@@ -355,6 +525,13 @@ export default function Home() {
             {user ? (
               <>
                 <button className="btn btn-create hide-mobile" onClick={() => { setShowCreatePoll(true); setShowMenu(false) }}>➕ สร้างโพล</button>
+                <div className="notification-btn-wrapper hide-mobile">
+                  <button className="notification-btn" onClick={() => { setShowNotifications(!showNotifications); setShowMenu(false) }}>
+                    🔔
+                    {unreadCount > 0 && <span className="notification-badge-count">{unreadCount > 9 ? '9+' : unreadCount}</span>}
+                  </button>
+                  {showNotifications && <NotificationDropdown user={user} onClose={() => { setShowNotifications(false); loadUnreadCount() }} />}
+                </div>
                 <div className="user-badge hide-mobile" onClick={() => setShowMenu(!showMenu)}>
                   <div className="user-avatar">{user.username[0].toUpperCase()}</div>
                   <div><span style={{ color: 'var(--text)' }}>{user.username}</span><div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{getReputationLevel(user.reputation).badge} {user.reputation} pt</div></div>
@@ -369,7 +546,7 @@ export default function Home() {
         {showMenu && (
           <div className="dropdown-menu">
             {!user && <><button className="dropdown-item" onClick={() => { setShowAuthModal(true); setShowMenu(false) }}>🔐 เข้าสู่ระบบ</button><button className="dropdown-item" onClick={() => { setShowAuthModal(true); setShowMenu(false) }}>✨ สมัครสมาชิก</button><div className="dropdown-divider"></div></>}
-            {user && <><div className="dropdown-item user-info-mobile"><div className="user-avatar">{user.username[0].toUpperCase()}</div><div><span style={{ color: 'var(--text)' }}>{user.username}</span><div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{getReputationLevel(user.reputation).badge} {user.reputation} pt</div></div></div><button className="dropdown-item" onClick={() => { setShowAccount(true); setShowMenu(false) }}>👤 บัญชีของฉัน</button><button className="dropdown-item" onClick={() => { setShowCreatePoll(true); setShowMenu(false) }}>➕ สร้างโพล</button>{user.is_admin && <button className="dropdown-item" onClick={() => { setShowAdminPanel(true); setShowMenu(false) }}>🔧 Admin Panel</button>}<div className="dropdown-divider"></div></>}
+            {user && <><div className="dropdown-item user-info-mobile"><div className="user-avatar">{user.username[0].toUpperCase()}</div><div><span style={{ color: 'var(--text)' }}>{user.username}</span><div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{getReputationLevel(user.reputation).badge} {user.reputation} pt</div></div></div><button className="dropdown-item" onClick={() => { setShowNotifications(true); setShowMenu(false) }}>🔔 การแจ้งเตือน {unreadCount > 0 && <span className="mobile-notif-badge">{unreadCount}</span>}</button><button className="dropdown-item" onClick={() => { setShowAccount(true); setShowMenu(false) }}>👤 บัญชีของฉัน</button><button className="dropdown-item" onClick={() => { setShowCreatePoll(true); setShowMenu(false) }}>➕ สร้างโพล</button>{user.is_admin && <button className="dropdown-item" onClick={() => { setShowAdminPanel(true); setShowMenu(false) }}>🔧 Admin Panel</button>}<div className="dropdown-divider"></div></>}
             <button className="dropdown-item" onClick={() => { setDarkMode(!darkMode); setShowMenu(false) }}>{darkMode ? '☀️ โหมดสว่าง' : '🌙 โหมดมืด'}</button>
             {user && <><div className="dropdown-divider"></div><button className="dropdown-item" onClick={handleLogout}>🚪 ออกจากระบบ</button></>}
           </div>
@@ -380,13 +557,7 @@ export default function Home() {
 
       <main className="main">
         <aside className="sidebar">
-          <div className="sidebar-card">
-            <h3 className="sidebar-title">🏆 Leaderboard</h3>
-            {leaderboard.map((item, i) => {
-              const rankEmoji = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'][i] || `#${i + 1}`
-              return <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid var(--border)' }}><span style={{ color: 'var(--text)' }}>{rankEmoji} {item.username}</span><span style={{ color: 'var(--primary)', fontWeight: 600 }}>{item.reputation} pt</span></div>
-            })}
-          </div>
+          <LeaderboardSection darkMode={darkMode} />
         </aside>
 
         <div className="content">
@@ -424,13 +595,26 @@ export default function Home() {
             </div>
             {!userVotes[selectedPoll.id] && !isExpired(selectedPoll.ends_at) && user && <><ConfidenceSelector selectedConfidence={selectedConfidence} onSelect={setSelectedConfidence} disabled={!selectedOption} /><button className="btn btn-primary" style={{ width: '100%', marginTop: '1rem', padding: '1rem' }} onClick={confirmVote} disabled={!selectedOption}>{selectedOption ? <>🎯 ยืนยันโหวต ({confidenceLevels.find(c => c.value === selectedConfidence)?.emoji} ±{selectedConfidence} คะแนน)</> : <>👆 เลือกตัวเลือกก่อน</>}</button></>}
             {!user && !isExpired(selectedPoll.ends_at) && <div onClick={() => { setSelectedPoll(null); setShowAuthModal(true) }} className="login-prompt">🔒 เข้าสู่ระบบเพื่อโหวต</div>}
+            
+            {/* Share Buttons */}
+            <ShareButtons poll={selectedPoll} userVote={userVotes[selectedPoll.id]} />
           </div>
         </div>
       )}
 
       {showCreatePoll && <CreatePollModal onClose={() => setShowCreatePoll(false)} user={user} onSuccess={loadPolls} darkMode={darkMode} />}
-      {showAdminPanel && <AdminPanel onClose={() => setShowAdminPanel(false)} darkMode={darkMode} onRefresh={() => { loadPolls(); loadLeaderboard() }} />}
+      {showAdminPanel && <AdminPanel onClose={() => setShowAdminPanel(false)} darkMode={darkMode} onRefresh={loadPolls} />}
       {showAccount && <AccountModal onClose={() => setShowAccount(false)} user={user} darkMode={darkMode} onUpdateUser={setUser} />}
+      
+      {/* Mobile Notification Modal */}
+      {showNotifications && (
+        <div className="modal-overlay" onClick={() => { setShowNotifications(false); loadUnreadCount() }}>
+          <div className={`modal notification-modal ${darkMode ? 'dark' : ''}`} onClick={e => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => { setShowNotifications(false); loadUnreadCount() }}>✕</button>
+            <NotificationDropdown user={user} onClose={() => { setShowNotifications(false); loadUnreadCount() }} />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
