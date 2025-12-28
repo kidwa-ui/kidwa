@@ -558,3 +558,134 @@ export async function searchUsers(query, limit = 10) {
   
   return { data, error }
 }
+
+// ===== Time Capsule Functions =====
+
+export async function createTimeCapsule({ question, options, tags, endsAt, createdBy }) {
+  try {
+    const { data: poll, error: pollError } = await supabase
+      .from('polls')
+      .insert([{ 
+        question, 
+        category: 'time_capsule',
+        blind_mode: true, // Time Capsule บังคับ Blind Mode
+        poll_type: 'time_capsule',
+        ends_at: endsAt, 
+        created_by: createdBy, 
+        featured: true, // Time Capsule แสดงเด่นเสมอ
+        resolved: false 
+      }])
+      .select()
+      .single()
+    
+    if (pollError) throw pollError
+
+    const optionsData = options.map(opt => ({ poll_id: poll.id, text: opt, votes: 0 }))
+    const { error: optionsError } = await supabase.from('options').insert(optionsData)
+    if (optionsError) throw optionsError
+
+    if (tags && tags.length > 0) {
+      const tagLinks = tags.map(tagId => ({ poll_id: poll.id, tag_id: tagId }))
+      await supabase.from('poll_tags').insert(tagLinks)
+    }
+
+    return { data: poll, error: null }
+  } catch (error) {
+    return { data: null, error }
+  }
+}
+
+export async function getTimeCapsules(limit = 20) {
+  const { data, error } = await supabase
+    .from('polls')
+    .select('*, options(*), tags(*)')
+    .eq('poll_type', 'time_capsule')
+    .order('ends_at', { ascending: true })
+    .limit(limit)
+  
+  return { data, error }
+}
+
+// ===== Live Battle Functions =====
+
+export async function createLiveBattle({ question, options, category, tags, durationMinutes, createdBy }) {
+  try {
+    const now = new Date()
+    const endsAt = new Date(now.getTime() + durationMinutes * 60 * 1000)
+    
+    const { data: poll, error: pollError } = await supabase
+      .from('polls')
+      .insert([{ 
+        question, 
+        category,
+        blind_mode: false, // Live Battle เห็นผลแบบ real-time
+        poll_type: 'live_battle',
+        ends_at: endsAt.toISOString(),
+        created_by: createdBy, 
+        featured: false,
+        resolved: false,
+        is_live: true,
+        live_started_at: now.toISOString(),
+        live_duration_minutes: durationMinutes
+      }])
+      .select()
+      .single()
+    
+    if (pollError) throw pollError
+
+    const optionsData = options.map(opt => ({ poll_id: poll.id, text: opt, votes: 0 }))
+    const { error: optionsError } = await supabase.from('options').insert(optionsData)
+    if (optionsError) throw optionsError
+
+    if (tags && tags.length > 0) {
+      const tagLinks = tags.map(tagId => ({ poll_id: poll.id, tag_id: tagId }))
+      await supabase.from('poll_tags').insert(tagLinks)
+    }
+
+    return { data: poll, error: null }
+  } catch (error) {
+    return { data: null, error }
+  }
+}
+
+export async function getLiveBattles() {
+  const now = new Date().toISOString()
+  
+  const { data, error } = await supabase
+    .from('polls')
+    .select('*, options(*), tags(*), users:created_by(username, avatar_url)')
+    .eq('poll_type', 'live_battle')
+    .eq('is_live', true)
+    .gt('ends_at', now) // ยังไม่หมดเวลา
+    .order('created_at', { ascending: false })
+  
+  return { data, error }
+}
+
+export async function endLiveBattle(pollId) {
+  const { error } = await supabase
+    .from('polls')
+    .update({ is_live: false })
+    .eq('id', pollId)
+  
+  return { error }
+}
+
+// Subscribe to live battle updates (real-time)
+export function subscribeLiveBattle(pollId, callback) {
+  const subscription = supabase
+    .channel(`live_battle_${pollId}`)
+    .on('postgres_changes', {
+      event: '*',
+      schema: 'public',
+      table: 'options',
+      filter: `poll_id=eq.${pollId}`
+    }, callback)
+    .subscribe()
+  
+  return subscription
+}
+
+export function unsubscribeLiveBattle(subscription) {
+  supabase.removeChannel(subscription)
+}
