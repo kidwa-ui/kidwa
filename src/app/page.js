@@ -554,14 +554,23 @@ function CreateLiveBattleModal({ onClose, user, onSuccess, darkMode }) {
   const [question, setQuestion] = useState('')
   const [options, setOptions] = useState(['', ''])
   const [category, setCategory] = useState('other')
-  const [duration, setDuration] = useState(30) // นาที
+  const [endDate, setEndDate] = useState('')
+  const [endTime, setEndTime] = useState('')
   const [selectedTags, setSelectedTags] = useState([])
   const [tagInput, setTagInput] = useState('')
   const [availableTags, setAvailableTags] = useState([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errors, setErrors] = useState({})
 
-  useEffect(() => { loadTags() }, [])
+  useEffect(() => { 
+    loadTags()
+    // ตั้งค่าเริ่มต้น: วันนี้ + 1 ชั่วโมง
+    const now = new Date()
+    now.setHours(now.getHours() + 1)
+    setEndDate(now.toISOString().split('T')[0])
+    setEndTime(now.toTimeString().slice(0, 5))
+  }, [])
+  
   const loadTags = async () => { const { data } = await getTags(); if (data) setAvailableTags(data) }
   const addOption = () => { if (options.length < 6) setOptions([...options, '']) }
   const removeOption = (index) => { if (options.length > 2) setOptions(options.filter((_, i) => i !== index)) }
@@ -579,6 +588,14 @@ function CreateLiveBattleModal({ onClose, user, onSuccess, darkMode }) {
     const e = {}
     if (!question.trim()) e.question = 'กรุณาใส่คำถาม'
     if (options.filter(o => o.trim()).length < 2) e.options = 'ต้องมีตัวเลือกอย่างน้อย 2 ตัว'
+    if (!endDate || !endTime) e.endDateTime = 'กรุณาเลือกวันที่และเวลาสิ้นสุด'
+    
+    // ตรวจสอบว่าเวลาสิ้นสุดต้องอยู่ในอนาคต
+    const endDateTime = new Date(`${endDate}T${endTime}`)
+    if (endDateTime <= new Date()) {
+      e.endDateTime = 'เวลาสิ้นสุดต้องอยู่ในอนาคต'
+    }
+    
     setErrors(e)
     return Object.keys(e).length === 0 
   }
@@ -587,18 +604,20 @@ function CreateLiveBattleModal({ onClose, user, onSuccess, darkMode }) {
     e.preventDefault()
     if (!validate()) return
     
+    const endsAt = new Date(`${endDate}T${endTime}`)
+    
     setIsSubmitting(true)
     const { error } = await createLiveBattle({ 
       question: question.trim(), 
       options: options.filter(o => o.trim()), 
       category,
       tags: selectedTags.map(t => t.id),
-      durationMinutes: duration,
+      endsAt: endsAt.toISOString(),
       createdBy: user.id 
     })
     
     setIsSubmitting(false)
-    if (error) alert('เกิดข้อผิดพลาด')
+    if (error) alert('เกิดข้อผิดพลาด: ' + error.message)
     else { alert('⚡ สร้าง Live Battle สำเร็จ!'); onSuccess(); onClose() }
   }
 
@@ -606,14 +625,13 @@ function CreateLiveBattleModal({ onClose, user, onSuccess, darkMode }) {
     tag.name.toLowerCase().includes(tagInput.toLowerCase()) && !selectedTags.find(t => t.id === tag.id)
   ).slice(0, 5)
 
-  const durationOptions = [
-    { value: 15, label: '15 นาที' },
-    { value: 30, label: '30 นาที' },
-    { value: 60, label: '1 ชั่วโมง' },
-    { value: 180, label: '3 ชั่วโมง' },
-    { value: 720, label: '12 ชั่วโมง' },
-    { value: 1440, label: '24 ชั่วโมง' }
-  ]
+  // คำนวณวันที่ต่ำสุด (วันนี้)
+  const minDate = new Date().toISOString().split('T')[0]
+  // คำนวณเวลาที่เลือก
+  const selectedEndDateTime = endDate && endTime ? new Date(`${endDate}T${endTime}`) : null
+  const formattedEndDateTime = selectedEndDateTime ? selectedEndDateTime.toLocaleString('th-TH', { 
+    weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' 
+  }) : ''
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -621,7 +639,7 @@ function CreateLiveBattleModal({ onClose, user, onSuccess, darkMode }) {
         <button className="modal-close" onClick={onClose}>✕</button>
         <h2 className="modal-title">⚡ สร้าง Live Battle</h2>
         <p style={{ textAlign: 'center', color: 'var(--text-secondary)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
-          โพลแบบ Real-time • เห็นผลโหวตทันที • จำกัดเวลา
+          โพลแบบ Real-time • เห็นผลโหวตทันที • กำหนดเวลาสิ้นสุด
         </p>
         <form onSubmit={handleSubmit}>
           <div className="form-group">
@@ -653,14 +671,28 @@ function CreateLiveBattleModal({ onClose, user, onSuccess, darkMode }) {
           </div>
 
           <div className="form-group">
-            <label>⏱️ ระยะเวลา</label>
-            <div className="duration-selector">
-              {durationOptions.map(opt => (
-                <button key={opt.value} type="button" className={`duration-btn ${duration === opt.value ? 'active' : ''}`} onClick={() => setDuration(opt.value)}>
-                  {opt.label}
-                </button>
-              ))}
+            <label>🏁 สิ้นสุดเมื่อ</label>
+            <div className="datetime-picker">
+              <input 
+                type="date" 
+                className={`form-input ${errors.endDateTime ? 'error' : ''}`}
+                value={endDate} 
+                onChange={(e) => setEndDate(e.target.value)}
+                min={minDate}
+              />
+              <input 
+                type="time" 
+                className={`form-input ${errors.endDateTime ? 'error' : ''}`}
+                value={endTime} 
+                onChange={(e) => setEndTime(e.target.value)}
+              />
             </div>
+            {errors.endDateTime && <span className="error-text">{errors.endDateTime}</span>}
+            {formattedEndDateTime && (
+              <p className="datetime-preview">
+                📅 สิ้นสุด: <strong>{formattedEndDateTime}</strong>
+              </p>
+            )}
           </div>
 
           <div className="form-group">
@@ -2252,10 +2284,10 @@ export default function Home() {
                   {showNotifications && <NotificationDropdown user={user} onClose={() => { setShowNotifications(false); loadUnreadCount() }} />}
                 </div>
                 <div className="user-badge hide-mobile" onClick={() => { setShowAccount(true); setShowMenu(false) }}>
-                  {user.avatar_url ? (
+                  {user.avatar_url && user.is_verified ? (
                     <img src={user.avatar_url} alt={user.username} className="user-avatar-img" />
                   ) : (
-                    <div className="user-avatar">{user.username[0].toUpperCase()}</div>
+                    <div className="user-avatar-character" dangerouslySetInnerHTML={{ __html: getCharacterSVG(user.selected_skin || getDefaultSkin(user.reputation || 0), 36) }} />
                   )}
                   <div>
                     <span style={{ color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -2275,7 +2307,7 @@ export default function Home() {
         {showMenu && (
           <div className="dropdown-menu">
             {!user && <><button className="dropdown-item" onClick={() => { setShowAuthModal(true); setShowMenu(false) }}>🔐 เข้าสู่ระบบ</button><button className="dropdown-item" onClick={() => { setShowAuthModal(true); setShowMenu(false) }}>✨ สมัครสมาชิก</button><div className="dropdown-divider"></div></>}
-            {user && <><div className="dropdown-item user-info-mobile"><div className="user-avatar">{user.username[0].toUpperCase()}</div><div><span style={{ color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '4px' }}>{user.username}{user.is_verified && <span className="verified-badge"><svg viewBox="0 0 24 24" className="verified-check"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg></span>}</span><div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{getReputationLevel(user.reputation).badge} {user.reputation} pt</div></div></div><button className="dropdown-item" onClick={() => { setShowNotifications(true); setShowMenu(false) }}>🔔 การแจ้งเตือน {unreadCount > 0 && <span className="mobile-notif-badge">{unreadCount}</span>}</button><button className="dropdown-item" onClick={() => { setShowAccount(true); setShowMenu(false) }}>👤 บัญชีของฉัน</button><button className="dropdown-item" onClick={() => { setShowCreatePoll(true); setShowMenu(false) }}>➕ สร้างโพล</button>{user.is_admin && <button className="dropdown-item" onClick={() => { setShowAdminPanel(true); setShowMenu(false) }}>🔧 Admin Panel</button>}<div className="dropdown-divider"></div></>}
+            {user && <><div className="dropdown-item user-info-mobile"><div className="user-avatar-character" dangerouslySetInnerHTML={{ __html: getCharacterSVG(user.selected_skin || getDefaultSkin(user.reputation || 0), 36) }} /><div><span style={{ color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '4px' }}>{user.username}{user.is_verified && <span className="verified-badge"><svg viewBox="0 0 24 24" className="verified-check"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg></span>}</span><div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{getReputationLevel(user.reputation).badge} {user.reputation} pt</div></div></div><button className="dropdown-item" onClick={() => { setShowNotifications(true); setShowMenu(false) }}>🔔 การแจ้งเตือน {unreadCount > 0 && <span className="mobile-notif-badge">{unreadCount}</span>}</button><button className="dropdown-item" onClick={() => { setShowAccount(true); setShowMenu(false) }}>👤 บัญชีของฉัน</button><button className="dropdown-item" onClick={() => { setShowCreatePoll(true); setShowMenu(false) }}>➕ สร้างโพล</button>{user.is_admin && <button className="dropdown-item" onClick={() => { setShowAdminPanel(true); setShowMenu(false) }}>🔧 Admin Panel</button>}<div className="dropdown-divider"></div></>}
             <button className="dropdown-item" onClick={() => { setDarkMode(!darkMode); setShowMenu(false) }}>{darkMode ? '☀️ โหมดสว่าง' : '🌙 โหมดมืด'}</button>
             {user && <><div className="dropdown-divider"></div><button className="dropdown-item" onClick={handleLogout} style={{ color: 'var(--red)' }}>🚪 ออกจากระบบ</button></>}
           </div>
