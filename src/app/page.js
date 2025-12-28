@@ -579,6 +579,8 @@ function VerificationModal({ onClose, user, onSuccess, darkMode }) {
   const [marketingConsent, setMarketingConsent] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const [showPdpaDetails, setShowPdpaDetails] = useState(false)
+  const [showMarketingDetails, setShowMarketingDetails] = useState(false)
 
   const calculateAge = (dateString) => {
     if (!dateString) return null
@@ -707,12 +709,26 @@ function VerificationModal({ onClose, user, onSuccess, darkMode }) {
                 onChange={e => setPdpaConsent(e.target.checked)}
               />
               <span>
-                ยอมรับ<a href="/terms" target="_blank">เงื่อนไขการใช้งาน</a>และ
-                <a href="/privacy" target="_blank">นโยบายความเป็นส่วนตัว</a> 
-                รวมถึงยินยอมให้เก็บข้อมูลส่วนบุคคลเพื่อยืนยันตัวตน (ตาม พ.ร.บ. PDPA)
+                ข้าพเจ้ายินยอมให้ คิดว่า.. เก็บรวบรวม ใช้ และเปิดเผยข้อมูลส่วนบุคคลของข้าพเจ้า 
+                ได้แก่ ชื่อ-นามสกุล วันเกิด และอีเมล เพื่อวัตถุประสงค์ในการยืนยันตัวตน 
+                และการให้บริการแพลตฟอร์ม ตามพระราชบัญญัติคุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562 (PDPA)
                 <span className="required-mark">*</span>
+                <span className="consent-details-link" onClick={(e) => { e.preventDefault(); setShowPdpaDetails(!showPdpaDetails) }}>
+                  {showPdpaDetails ? 'ซ่อนรายละเอียด' : 'ดูรายละเอียด'}
+                </span>
               </span>
             </label>
+            {showPdpaDetails && (
+              <div className="consent-full-text">
+                <strong>รายละเอียดการเก็บรวบรวมข้อมูลส่วนบุคคล</strong><br/><br/>
+                <strong>1. ข้อมูลที่เก็บรวบรวม:</strong> ชื่อ-นามสกุลจริง, วันเกิด, อีเมล, รูปโปรไฟล์ (ถ้ามี)<br/>
+                <strong>2. วัตถุประสงค์:</strong> เพื่อยืนยันตัวตนผู้ใช้, ป้องกันการใช้งานที่ไม่เหมาะสม, และปรับปรุงประสบการณ์การใช้งาน<br/>
+                <strong>3. ระยะเวลาจัดเก็บ:</strong> ตลอดระยะเวลาที่ท่านเป็นสมาชิก หรือจนกว่าท่านจะขอลบบัญชี<br/>
+                <strong>4. สิทธิของท่าน:</strong> ท่านมีสิทธิในการเข้าถึง แก้ไข ลบ หรือโอนย้ายข้อมูลของท่าน รวมถึงสิทธิในการถอนความยินยอมได้ตลอดเวลา<br/>
+                <strong>5. การเปิดเผยข้อมูล:</strong> ข้อมูลของท่านจะไม่ถูกเปิดเผยต่อบุคคลภายนอก ยกเว้นกรณีที่กฎหมายกำหนด<br/>
+                <strong>6. มาตรการความปลอดภัย:</strong> ข้อมูลของท่านจะถูกเก็บรักษาด้วยมาตรการรักษาความปลอดภัยที่เหมาะสม
+              </div>
+            )}
 
             <label className="consent-item optional">
               <input 
@@ -720,8 +736,24 @@ function VerificationModal({ onClose, user, onSuccess, darkMode }) {
                 checked={marketingConsent} 
                 onChange={e => setMarketingConsent(e.target.checked)}
               />
-              <span>ยินยอมรับข่าวสารและการแจ้งเตือนพิเศษ (ไม่บังคับ)</span>
+              <span>
+                ยินยอมรับข่าวสาร กิจกรรมพิเศษ และการแจ้งเตือนส่งเสริมการขายจาก คิดว่า.. ผ่านทางอีเมลหรือการแจ้งเตือนในแอป (ไม่บังคับ)
+                <span className="consent-details-link" onClick={(e) => { e.preventDefault(); setShowMarketingDetails(!showMarketingDetails) }}>
+                  {showMarketingDetails ? 'ซ่อนรายละเอียด' : 'ดูรายละเอียด'}
+                </span>
+              </span>
             </label>
+            {showMarketingDetails && (
+              <div className="consent-full-text">
+                <strong>รายละเอียดการรับข่าวสารการตลาด</strong><br/><br/>
+                หากท่านยินยอม ท่านจะได้รับ:<br/>
+                • ข่าวสารเกี่ยวกับฟีเจอร์ใหม่และการอัพเดทแพลตฟอร์ม<br/>
+                • กิจกรรมพิเศษและโปรโมชั่นสำหรับสมาชิก<br/>
+                • สรุปโพลยอดนิยมประจำสัปดาห์<br/>
+                • การแจ้งเตือนเมื่อมีโพลที่น่าสนใจในหมวดหมู่ที่ท่านติดตาม<br/><br/>
+                ท่านสามารถยกเลิกการรับข่าวสารได้ตลอดเวลาผ่านการตั้งค่าบัญชี หรือคลิกลิงก์ยกเลิกในอีเมลที่ได้รับ
+              </div>
+            )}
           </div>
 
           <div className="verification-note">
@@ -1629,7 +1661,7 @@ function AdminPanel({ onClose, darkMode, onRefresh }) {
   )
 }
 
-function AccountModal({ onClose, user, darkMode, onUpdateUser }) {
+function AccountModal({ onClose, user, darkMode, onUpdateUser, onOpenVerification }) {
   const [activeTab, setActiveTab] = useState('stats')
   const [profile, setProfile] = useState(null)
   const [voteHistory, setVoteHistory] = useState([])
@@ -1738,8 +1770,9 @@ function AccountModal({ onClose, user, darkMode, onUpdateUser }) {
                 <div className="account-reputation">{profile.reputation.toLocaleString()} point</div>
                 {profile.email && <div className="account-email">📧 {profile.email}</div>}
                 {!profile.is_verified && profile.email_verified && (
-                  <div className="account-verify-prompt">
+                  <div className="account-verify-prompt clickable" onClick={() => { onClose(); onOpenVerification(); }}>
                     <span>💡 ยืนยันตัวตนเพื่อรับ Verified Badge</span>
+                    <button className="verify-btn-link">ยืนยันเลย →</button>
                   </div>
                 )}
                 {!profile.email_verified && profile.email && (
@@ -2107,7 +2140,7 @@ export default function Home() {
 
       {showCreatePoll && <CreatePollModal onClose={() => setShowCreatePoll(false)} user={user} onSuccess={loadPolls} darkMode={darkMode} />}
       {showAdminPanel && <AdminPanel onClose={() => setShowAdminPanel(false)} darkMode={darkMode} onRefresh={loadPolls} />}
-      {showAccount && <AccountModal onClose={() => setShowAccount(false)} user={user} darkMode={darkMode} onUpdateUser={setUser} />}
+      {showAccount && <AccountModal onClose={() => setShowAccount(false)} user={user} darkMode={darkMode} onUpdateUser={setUser} onOpenVerification={() => setShowVerificationModal(true)} />}
       
       {/* Live Battle & Time Capsule Modals */}
       {showCreateLiveBattle && <CreateLiveBattleModal onClose={() => setShowCreateLiveBattle(false)} user={user} onSuccess={() => { loadLiveBattles(); setActiveCategory('live') }} darkMode={darkMode} />}
