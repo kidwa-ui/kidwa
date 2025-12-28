@@ -20,7 +20,7 @@ import {
 
 const categories = [
   { id: 'home', name: 'หน้าแรก', icon: '🏠' },
-  { id: 'live', name: 'Live Battle', icon: '⚡' },
+  { id: 'live', name: 'ถ่ายทอดสด', icon: '📺' },
   { id: 'timecapsule', name: 'Time Capsule', icon: '💊' },
   { id: 'sports', name: 'กีฬา', icon: '⚽' },
   { id: 'entertainment', name: 'บันเทิง', icon: '🎬' },
@@ -336,7 +336,7 @@ function ShareButtons({ poll }) {
   )
 }
 
-// ===== Live Battle Card =====
+// ===== ถ่ายทอดสด Card =====
 function LiveBattleCard({ poll, onClick, userVotes }) {
   const [timeLeft, setTimeLeft] = useState(getLiveTimeRemaining(poll.ends_at))
   const totalVotes = poll.options?.reduce((sum, opt) => sum + opt.votes, 0) || 0
@@ -360,7 +360,7 @@ function LiveBattleCard({ poll, onClick, userVotes }) {
   return (
     <div className={`poll-card live-battle-card ${timeLeft.expired ? 'expired' : ''}`} onClick={onClick}>
       <div className="poll-card-header">
-        <span className="live-badge">⚡ LIVE</span>
+        <span className="live-badge">📺 สด</span>
         <span className={`live-timer ${timeLeft.expired ? 'expired' : ''}`}>
           {timeLeft.expired ? '🏁 จบแล้ว' : `⏱️ ${timeLeft.text}`}
         </span>
@@ -549,7 +549,7 @@ function CreateTimeCapsuleModal({ onClose, user, onSuccess, darkMode }) {
   )
 }
 
-// ===== Create Live Battle Modal =====
+// ===== Create ถ่ายทอดสด Modal =====
 function CreateLiveBattleModal({ onClose, user, onSuccess, darkMode }) {
   const [question, setQuestion] = useState('')
   const [options, setOptions] = useState(['', ''])
@@ -561,6 +561,10 @@ function CreateLiveBattleModal({ onClose, user, onSuccess, darkMode }) {
   const [availableTags, setAvailableTags] = useState([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errors, setErrors] = useState({})
+  const [similarPolls, setSimilarPolls] = useState([])
+  const [showSimilarWarning, setShowSimilarWarning] = useState(false)
+  const [isCheckingSimilar, setIsCheckingSimilar] = useState(false)
+  const [similarCheckDone, setSimilarCheckDone] = useState(false)
 
   useEffect(() => { 
     loadTags()
@@ -570,6 +574,21 @@ function CreateLiveBattleModal({ onClose, user, onSuccess, darkMode }) {
     setEndDate(now.toISOString().split('T')[0])
     setEndTime(now.toTimeString().slice(0, 5))
   }, [])
+
+  // Check similar polls when question changes (debounced)
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      if (question.trim().length > 10) {
+        setIsCheckingSimilar(true)
+        const { data } = await findSimilarPolls(question)
+        setSimilarPolls(data || [])
+        setIsCheckingSimilar(false)
+      } else {
+        setSimilarPolls([])
+      }
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [question])
   
   const loadTags = async () => { const { data } = await getTags(); if (data) setAvailableTags(data) }
   const addOption = () => { if (options.length < 6) setOptions([...options, '']) }
@@ -608,16 +627,16 @@ function CreateLiveBattleModal({ onClose, user, onSuccess, darkMode }) {
   const handleSubmit = async (e) => { 
     e.preventDefault()
     if (!validate()) return
+
+    // Check similar polls warning first (ยกเว้น Admin)
+    if (similarPolls.length > 0 && !similarCheckDone && !user.is_admin) {
+      setShowSimilarWarning(true)
+      return
+    }
     
     // สร้าง ISO string พร้อม timezone Thailand (+07:00)
     // เพื่อให้ Supabase เก็บเวลาที่ถูกต้อง
     const endsAtISO = `${endDate}T${endTime}:00+07:00`
-    
-    console.log('Creating Live Battle:', {
-      selectedDate: endDate,
-      selectedTime: endTime,
-      endsAtISO
-    })
     
     setIsSubmitting(true)
     const { error } = await createLiveBattle({ 
@@ -631,7 +650,7 @@ function CreateLiveBattleModal({ onClose, user, onSuccess, darkMode }) {
     
     setIsSubmitting(false)
     if (error) alert('เกิดข้อผิดพลาด: ' + error.message)
-    else { alert('⚡ สร้าง Live Battle สำเร็จ!'); onSuccess(); onClose() }
+    else { alert('📺 สร้างถ่ายทอดสดสำเร็จ!'); onSuccess(); onClose() }
   }
 
   const filteredTags = availableTags.filter(tag => 
@@ -650,7 +669,7 @@ function CreateLiveBattleModal({ onClose, user, onSuccess, darkMode }) {
     <div className="modal-overlay" onClick={onClose}>
       <div className={`modal create-poll-modal ${darkMode ? 'dark' : ''}`} onClick={e => e.stopPropagation()}>
         <button className="modal-close" onClick={onClose}>✕</button>
-        <h2 className="modal-title">⚡ สร้าง Live Battle</h2>
+        <h2 className="modal-title">📺 สร้างถ่ายทอดสด</h2>
         <p style={{ textAlign: 'center', color: 'var(--text-secondary)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
           โพลแบบ Real-time • เห็นผลโหวตทันที • กำหนดเวลาสิ้นสุด
         </p>
@@ -718,10 +737,27 @@ function CreateLiveBattleModal({ onClose, user, onSuccess, darkMode }) {
             {filteredTags.length > 0 && tagInput && <div className="tag-suggestions">{filteredTags.map(tag => <button key={tag.id} type="button" className="tag-suggestion" onClick={() => { if (selectedTags.length < 5) setSelectedTags([...selectedTags, tag]); setTagInput('') }}>#{tag.name}</button>)}</div>}
           </div>
 
+          {/* Similar Polls Warning */}
+          {showSimilarWarning && (
+            <SimilarPollsWarning 
+              similarPolls={similarPolls}
+              onContinue={() => { setSimilarCheckDone(true); setShowSimilarWarning(false) }}
+              onViewPoll={(poll) => { window.open(`/?poll=${poll.id}`, '_blank') }}
+            />
+          )}
+
+          {/* Similar indicator */}
+          {!isCheckingSimilar && similarPolls.length > 0 && !similarCheckDone && !user.is_admin && (
+            <div className="similar-indicator">
+              <span>⚠️</span>
+              <span>พบ {similarPolls.length} โพลที่คล้ายกัน</span>
+            </div>
+          )}
+
           <div className="modal-actions">
             <button type="button" className="btn btn-secondary" onClick={onClose}>ยกเลิก</button>
             <button type="submit" className="btn btn-live" disabled={isSubmitting}>
-              {isSubmitting ? '⏳ กำลังสร้าง...' : '⚡ เริ่ม Live Battle'}
+              {isSubmitting ? '⏳ กำลังสร้าง...' : '📺 เริ่มถ่ายทอดสด'}
             </button>
           </div>
         </form>
@@ -1171,6 +1207,7 @@ function UserProfileModal({ userId, currentUser, onClose, darkMode }) {
 
   const winRate = profile?.total_predictions > 0 ? Math.round((profile.correct_predictions / profile.total_predictions) * 100) : 0
   const level = profile ? getReputationLevel(profile.reputation) : reputationLevels[0]
+  const userSkin = profile?.selected_skin || getDefaultSkin(profile?.reputation || 0)
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -1180,10 +1217,10 @@ function UserProfileModal({ userId, currentUser, onClose, darkMode }) {
           <>
             <div className="profile-header">
               <div className="profile-avatar">
-                {profile.avatar_url ? (
+                {profile.avatar_url && profile.is_verified ? (
                   <img src={profile.avatar_url} alt={profile.username} />
                 ) : (
-                  <span>{profile.username[0].toUpperCase()}</span>
+                  <div className="profile-character" dangerouslySetInnerHTML={{ __html: getCharacterSVG(userSkin, 70) }} />
                 )}
               </div>
               <div className="profile-info">
@@ -1616,8 +1653,8 @@ function CreatePollModal({ onClose, user, onSuccess, darkMode }) {
     e.preventDefault()
     if (!validate()) return
 
-    // Check similar polls warning first
-    if (similarPolls.length > 0 && !similarCheckDone) {
+    // Check similar polls warning first (ยกเว้น Admin)
+    if (similarPolls.length > 0 && !similarCheckDone && !user.is_admin) {
       setShowSimilarWarning(true)
       return
     }
@@ -1744,7 +1781,7 @@ function CreatePollModal({ onClose, user, onSuccess, darkMode }) {
               
               {/* Similar polls preview */}
               {isCheckingSimilar && <span className="checking-similar">🔍 กำลังตรวจสอบ...</span>}
-              {!isCheckingSimilar && similarPolls.length > 0 && !similarCheckDone && (
+              {!isCheckingSimilar && similarPolls.length > 0 && !similarCheckDone && !user.is_admin && (
                 <div className="similar-preview">
                   <span className="similar-icon">⚠️</span>
                   <span>พบ {similarPolls.length} โพลที่คล้ายกัน</span>
@@ -2335,12 +2372,12 @@ export default function Home() {
         </aside>
 
         <div className="content">
-          {/* Live Battle Section */}
+          {/* ถ่ายทอดสด Section */}
           {activeCategory === 'live' ? (
             <section>
               <div className="section-header">
-                <h2 className="section-title">⚡ Live Battle</h2>
-                {user && <button className="btn btn-live-create" onClick={() => setShowCreateLiveBattle(true)}>⚡ สร้าง Live Battle</button>}
+                <h2 className="section-title">📺 ถ่ายทอดสด</h2>
+                {user && <button className="btn btn-live-create" onClick={() => setShowCreateLiveBattle(true)}>📺 สร้างถ่ายทอดสด</button>}
               </div>
               {liveBattles.length > 0 ? (
                 <div className="poll-grid">
@@ -2350,9 +2387,9 @@ export default function Home() {
                 </div>
               ) : (
                 <div className="empty-state">
-                  <span className="empty-icon">⚡</span>
-                  <p>ยังไม่มี Live Battle ที่กำลังดำเนินอยู่</p>
-                  {user && <button className="btn btn-primary" onClick={() => setShowCreateLiveBattle(true)}>⚡ สร้าง Live Battle แรก</button>}
+                  <span className="empty-icon">📺</span>
+                  <p>ยังไม่มีถ่ายทอดสดที่กำลังดำเนินอยู่</p>
+                  {user && <button className="btn btn-primary" onClick={() => setShowCreateLiveBattle(true)}>📺 สร้างถ่ายทอดสดแรก</button>}
                 </div>
               )}
             </section>
@@ -2379,11 +2416,11 @@ export default function Home() {
             </section>
           ) : filteredPolls.length > 0 ? (
             <>
-              {/* Live Battle Preview on Home */}
+              {/* ถ่ายทอดสด Preview on Home */}
               {activeCategory === 'home' && liveBattles.length > 0 && (
                 <section>
                   <div className="section-header">
-                    <h2 className="section-title">⚡ Live Battle กำลังดำเนินอยู่</h2>
+                    <h2 className="section-title">📺 ถ่ายทอดสดกำลังดำเนินอยู่</h2>
                     <button className="btn btn-sm btn-secondary" onClick={() => setActiveCategory('live')}>ดูทั้งหมด →</button>
                   </div>
                   <div className="poll-grid">
