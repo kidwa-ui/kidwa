@@ -591,9 +591,14 @@ function CreateLiveBattleModal({ onClose, user, onSuccess, darkMode }) {
     if (!endDate || !endTime) e.endDateTime = 'กรุณาเลือกวันที่และเวลาสิ้นสุด'
     
     // ตรวจสอบว่าเวลาสิ้นสุดต้องอยู่ในอนาคต
-    const endDateTime = new Date(`${endDate}T${endTime}`)
-    if (endDateTime <= new Date()) {
-      e.endDateTime = 'เวลาสิ้นสุดต้องอยู่ในอนาคต'
+    // เปรียบเทียบโดยใช้ timestamp เพื่อความแม่นยำ
+    if (endDate && endTime) {
+      const endDateTime = new Date(`${endDate}T${endTime}:00+07:00`)
+      const nowThailand = new Date()
+      
+      if (endDateTime.getTime() <= nowThailand.getTime()) {
+        e.endDateTime = 'เวลาสิ้นสุดต้องอยู่ในอนาคต'
+      }
     }
     
     setErrors(e)
@@ -604,7 +609,15 @@ function CreateLiveBattleModal({ onClose, user, onSuccess, darkMode }) {
     e.preventDefault()
     if (!validate()) return
     
-    const endsAt = new Date(`${endDate}T${endTime}`)
+    // สร้าง ISO string พร้อม timezone Thailand (+07:00)
+    // เพื่อให้ Supabase เก็บเวลาที่ถูกต้อง
+    const endsAtISO = `${endDate}T${endTime}:00+07:00`
+    
+    console.log('Creating Live Battle:', {
+      selectedDate: endDate,
+      selectedTime: endTime,
+      endsAtISO
+    })
     
     setIsSubmitting(true)
     const { error } = await createLiveBattle({ 
@@ -612,7 +625,7 @@ function CreateLiveBattleModal({ onClose, user, onSuccess, darkMode }) {
       options: options.filter(o => o.trim()), 
       category,
       tags: selectedTags.map(t => t.id),
-      endsAt: endsAt.toISOString(),
+      endsAt: endsAtISO,
       createdBy: user.id 
     })
     
