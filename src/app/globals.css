@@ -61,7 +61,7 @@ html.dark, .dark { background: var(--bg); }
 .user-info-mobile { cursor: default; }
 .user-info-mobile:hover { background: none; }
 
-.categories { background: var(--bg-card); border-bottom: 1px solid var(--border); padding: 0.5rem 1rem; overflow-x: auto; position: sticky; top: 73px; z-index: 99; }
+.categories { background: var(--bg-card); border-bottom: 1px solid var(--border); padding: 0.5rem 1rem; overflow-x: auto; position: sticky; top: 65px; z-index: 99; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
 .categories::-webkit-scrollbar { height: 4px; }
 .categories::-webkit-scrollbar-thumb { background: var(--primary-light); border-radius: 2px; }
 .categories-content { max-width: 1400px; margin: 0 auto; display: flex; gap: 0.3rem; }
@@ -147,6 +147,8 @@ html.dark, .dark { background: var(--bg); }
   .search-box { order: 3; flex: none; width: 100%; max-width: 100%; margin-top: 0.75rem; }
   .hide-mobile { display: none; }
   .poll-grid { grid-template-columns: 1fr; }
+  /* Sticky categories for mobile */
+  .categories { position: sticky; top: 118px; z-index: 99; }
 }
 
 /* ===== Dark Mode Fixes ===== */
@@ -275,6 +277,10 @@ select.form-input { appearance: none; background-image: url("data:image/svg+xml,
 .account-reputation { font-size: 1.1rem; color: var(--primary); font-weight: 600; }
 .account-email { font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem; }
 .account-verify-prompt, .account-migrate-prompt { font-size: 0.8rem; color: #f59e0b; background: rgba(245, 158, 11, 0.1); padding: 0.4rem 0.6rem; border-radius: 6px; margin-top: 0.5rem; }
+.account-verify-prompt.clickable { cursor: pointer; display: inline-flex; align-items: center; gap: 0.5rem; transition: all 0.2s; border: 1px solid transparent; }
+.account-verify-prompt.clickable:hover { background: rgba(59, 130, 246, 0.15); color: #3b82f6; border-color: #3b82f6; }
+.verify-btn-link { background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: white; border: none; padding: 0.35rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 500; cursor: pointer; margin-left: 0.5rem; transition: all 0.2s; font-family: inherit; }
+.verify-btn-link:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3); }
 .account-migrate-prompt { color: #ef4444; background: rgba(239, 68, 68, 0.1); }
 .account-follow-stats { display: flex; gap: 1rem; margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-secondary); }
 .account-follow-stats span:hover { color: var(--primary); }
@@ -559,6 +565,9 @@ select.form-input { appearance: none; background-image: url("data:image/svg+xml,
 .consent-item a { color: var(--primary); text-decoration: underline; }
 .consent-item.required span { font-weight: 500; }
 .consent-item.optional span { color: var(--text-secondary); }
+.consent-details-link { color: var(--primary); text-decoration: underline; cursor: pointer; font-size: 0.8rem; margin-left: 0.25rem; }
+.consent-details-link:hover { color: var(--primary-dark); }
+.consent-full-text { background: var(--bg); border-radius: 8px; padding: 1rem; margin-top: 0.75rem; font-size: 0.8rem; line-height: 1.6; color: var(--text-secondary); max-height: 150px; overflow-y: auto; border: 1px solid var(--border); }
 .required-mark { color: var(--red); margin-left: 0.25rem; }
 
 .verification-note { display: flex; align-items: center; gap: 0.5rem; background: var(--bg); border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1rem; font-size: 0.8rem; color: var(--text-secondary); }
