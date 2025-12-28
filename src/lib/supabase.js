@@ -775,8 +775,15 @@ export async function getTimeCapsules(limit = 20) {
 
 export async function createLiveBattle({ question, options, category, tags, durationMinutes, createdBy }) {
   try {
+    // ใช้ UTC time เพื่อหลีกเลี่ยงปัญหา timezone
     const now = new Date()
     const endsAt = new Date(now.getTime() + durationMinutes * 60 * 1000)
+    
+    console.log('Creating Live Battle:', {
+      now: now.toISOString(),
+      endsAt: endsAt.toISOString(),
+      durationMinutes
+    })
     
     const { data: poll, error: pollError } = await supabase
       .from('polls')
@@ -809,6 +816,7 @@ export async function createLiveBattle({ question, options, category, tags, dura
 
     return { data: poll, error: null }
   } catch (error) {
+    console.error('Error creating Live Battle:', error)
     return { data: null, error }
   }
 }
@@ -816,13 +824,25 @@ export async function createLiveBattle({ question, options, category, tags, dura
 export async function getLiveBattles() {
   const now = new Date().toISOString()
   
+  console.log('Getting Live Battles, current time:', now)
+  
+  // ดึง Live Battles ที่ยังไม่หมดเวลา
   const { data, error } = await supabase
     .from('polls')
     .select('*, options(*), tags(*), users:created_by(username, avatar_url)')
     .eq('poll_type', 'live_battle')
     .eq('is_live', true)
-    .gt('ends_at', now) // ยังไม่หมดเวลา
+    .gte('ends_at', now) // ใช้ gte แทน gt เพื่อรวม exact time match
     .order('created_at', { ascending: false })
+  
+  if (data) {
+    console.log('Found Live Battles:', data.length, data.map(d => ({ 
+      id: d.id, 
+      question: d.question?.substring(0, 30),
+      ends_at: d.ends_at,
+      is_live: d.is_live
+    })))
+  }
   
   return { data, error }
 }
