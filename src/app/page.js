@@ -657,7 +657,7 @@ function VerificationModal({ onClose, user, onSuccess, darkMode }) {
 
         <div className="verification-benefits">
           <div className="benefit-item">
-            <span>🔵</span>
+            <span>✓</span>
             <span>Verified Badge แสดงข้างชื่อ</span>
           </div>
           <div className="benefit-item">
@@ -890,7 +890,7 @@ function UserProfileModal({ userId, currentUser, onClose, darkMode }) {
               <div className="profile-info">
                 <h2 className="profile-username">
                   {profile.username}
-                  {profile.email_verified && <span className="verified-badge" title="ยืนยันอีเมลแล้ว">🔵</span>}
+                  {profile.is_verified && <span className="verified-badge" title="ยืนยันตัวตนแล้ว"><svg viewBox="0 0 24 24" className="verified-check"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg></span>}
                 </h2>
                 <div className="profile-level">{level.badge} {level.name}</div>
                 <div className="profile-reputation">{profile.reputation.toLocaleString()} point</div>
@@ -1214,7 +1214,7 @@ function LeaderboardSection({ darkMode, currentUser, onViewProfile }) {
               <span className="lb-rank">{getRankEmoji(i)}</span>
               <span className="lb-name">
                 {item.username}
-                {item.email_verified && <span className="verified-badge">🔵</span>}
+                {item.is_verified && <span className="verified-badge"><svg viewBox="0 0 24 24" className="verified-check"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg></span>}
               </span>
               <span className={`lb-points ${activeTab !== 'all' ? (activeTab === 'week' ? (item.weeklyPoints >= 0 ? 'positive' : 'negative') : (item.monthlyPoints >= 0 ? 'positive' : 'negative')) : ''}`}>
                 {getPointsDisplay(item)}
@@ -1231,7 +1231,8 @@ function CreatePollModal({ onClose, user, onSuccess, darkMode }) {
   const [question, setQuestion] = useState('')
   const [options, setOptions] = useState(['', ''])
   const [category, setCategory] = useState('other')
-  const [blindMode, setBlindMode] = useState(false)
+  const [pollMode, setPollMode] = useState('prediction') // 'prediction' หรือ 'opinion'
+  const [blindMode, setBlindMode] = useState(true) // default true for prediction
   const [endsAt, setEndsAt] = useState('')
   const [selectedTags, setSelectedTags] = useState([])
   const [tagInput, setTagInput] = useState('')
@@ -1253,6 +1254,15 @@ function CreatePollModal({ onClose, user, onSuccess, darkMode }) {
     d.setDate(d.getDate() + 7)
     setEndsAt(d.toISOString().split('T')[0]) 
   }, [])
+
+  // เปลี่ยน blindMode ตาม pollMode
+  useEffect(() => {
+    if (pollMode === 'prediction') {
+      setBlindMode(true) // ทำนายอนาคต → บังคับ Blind Mode
+    } else {
+      setBlindMode(false) // ความคิดเห็น → ไม่มี Blind Mode
+    }
+  }, [pollMode])
 
   const loadTags = async () => { 
     const { data } = await getTags()
@@ -1321,7 +1331,7 @@ function CreatePollModal({ onClose, user, onSuccess, darkMode }) {
       tags: selectedTags.map(t => t.id), 
       blindMode, 
       endsAt: new Date(endsAt).toISOString(), 
-      pollType: 'prediction', 
+      pollType: pollMode, 
       createdBy: user.id 
     })
     setIsSubmitting(false)
@@ -1357,7 +1367,7 @@ function CreatePollModal({ onClose, user, onSuccess, darkMode }) {
             
             {!pollLimit.isVerified && (
               <div className="verify-upsell">
-                <p>🔵 <strong>ยืนยันตัวตน</strong> เพื่อสร้างได้ 3 โพล/วัน!</p>
+                <p>✓ <strong>ยืนยันตัวตน</strong> เพื่อสร้างได้ 3 โพล/วัน!</p>
               </div>
             )}
             
@@ -1377,7 +1387,7 @@ function CreatePollModal({ onClose, user, onSuccess, darkMode }) {
         {/* Poll Limit Indicator */}
         <div className="poll-limit-indicator">
           <span>📊 โควต้าวันนี้: {pollLimit.remaining}/{pollLimit.limit} โพล</span>
-          {!pollLimit.isVerified && <span className="verify-hint">🔵 ยืนยันตัวตนเพื่อได้ 3 โพล/วัน</span>}
+          {!pollLimit.isVerified && <span className="verify-hint">✓ ยืนยันตัวตนเพื่อได้ 3 โพล/วัน</span>}
         </div>
 
         {/* Similar Polls Warning */}
@@ -1395,12 +1405,37 @@ function CreatePollModal({ onClose, user, onSuccess, darkMode }) {
 
         {!showSimilarWarning && (
           <form onSubmit={handleSubmit}>
+            {/* Poll Mode Selector */}
+            <div className="form-group">
+              <label>🎯 ประเภทโพล</label>
+              <div className="poll-mode-selector">
+                <button 
+                  type="button" 
+                  className={`poll-mode-btn ${pollMode === 'prediction' ? 'active' : ''}`}
+                  onClick={() => setPollMode('prediction')}
+                >
+                  <span className="mode-icon">🔮</span>
+                  <span className="mode-title">ทำนายอนาคต</span>
+                  <span className="mode-desc">มีคำตอบถูก-ผิด • Blind Mode</span>
+                </button>
+                <button 
+                  type="button" 
+                  className={`poll-mode-btn ${pollMode === 'opinion' ? 'active' : ''}`}
+                  onClick={() => setPollMode('opinion')}
+                >
+                  <span className="mode-icon">💭</span>
+                  <span className="mode-title">คุณคิดว่า..</span>
+                  <span className="mode-desc">ความชอบ/ความคิดเห็น</span>
+                </button>
+              </div>
+            </div>
+
             <div className="form-group">
               <label>❓ คำถาม</label>
               <input 
                 type="text" 
                 className={`form-input ${errors.question ? 'error' : ''}`} 
-                placeholder="เช่น ทีมไหนจะชนะฟุตบอลโลก 2026?" 
+                placeholder={pollMode === 'prediction' ? 'เช่น ทีมไหนจะชนะฟุตบอลโลก 2026?' : 'เช่น คุณชอบสีอะไรมากกว่ากัน?'} 
                 value={question} 
                 onChange={(e) => setQuestion(e.target.value)} 
                 maxLength={200} 
@@ -1502,13 +1537,16 @@ function CreatePollModal({ onClose, user, onSuccess, darkMode }) {
               {errors.endsAt && <span className="error-text">{errors.endsAt}</span>}
             </div>
 
-            <div className="form-group">
-              <label className="toggle-label">
-                <input type="checkbox" checked={blindMode} onChange={(e) => setBlindMode(e.target.checked)} />
-                <span className="toggle-switch"></span>
-                <span>🔒 Blind Mode</span>
-              </label>
-            </div>
+            {/* Blind Mode - แสดงเฉพาะโหมดทำนาย และ lock ไว้ */}
+            {pollMode === 'prediction' && (
+              <div className="blind-mode-info">
+                <span className="blind-icon">🔒</span>
+                <div className="blind-text">
+                  <strong>Blind Mode เปิดอัตโนมัติ</strong>
+                  <span>ผู้คนจะไม่สามารถเห็นผลโหวตได้จนกว่าจะเฉลย</span>
+                </div>
+              </div>
+            )}
 
             <div className="modal-actions">
               <button type="button" className="btn btn-secondary" onClick={onClose}>ยกเลิก</button>
@@ -1694,11 +1732,16 @@ function AccountModal({ onClose, user, darkMode, onUpdateUser }) {
               <div className="account-info">
                 <h2 className="account-username">
                   {profile.username}
-                  {profile.email_verified && <span className="verified-badge" title="ยืนยันอีเมลแล้ว">🔵</span>}
+                  {profile.is_verified && <span className="verified-badge" title="ยืนยันตัวตนแล้ว"><svg viewBox="0 0 24 24" className="verified-check"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg></span>}
                 </h2>
                 <div className="account-level"><span className="level-badge">{level.badge}</span><span className="level-name">{level.name}</span></div>
                 <div className="account-reputation">{profile.reputation.toLocaleString()} point</div>
                 {profile.email && <div className="account-email">📧 {profile.email}</div>}
+                {!profile.is_verified && profile.email_verified && (
+                  <div className="account-verify-prompt">
+                    <span>💡 ยืนยันตัวตนเพื่อรับ Verified Badge</span>
+                  </div>
+                )}
                 {!profile.email_verified && profile.email && (
                   <div className="account-verify-prompt">
                     <span>⚠️ ยังไม่ได้ยืนยันอีเมล</span>
@@ -1831,17 +1874,12 @@ export default function Home() {
     }
   }, [activeCategory])
 
-  // PWA Install Prompt
+  // PWA Install Prompt - ปล่อยให้ user กดติดตั้งจาก browser เอง
   useEffect(() => {
     const handler = (e) => {
       e.preventDefault()
       setDeferredPrompt(e)
-      // แสดง install prompt หลังจาก user ใช้งาน 30 วินาที
-      setTimeout(() => {
-        if (!window.matchMedia('(display-mode: standalone)').matches) {
-          setShowInstallPrompt(true)
-        }
-      }, 30000)
+      // ไม่แสดง popup อัตโนมัติ - ปล่อยให้ user ติดตั้งจาก browser เอง
     }
 
     window.addEventListener('beforeinstallprompt', handler)
@@ -1933,12 +1971,11 @@ export default function Home() {
                   <div>
                     <span style={{ color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                       {user.username}
-                      {user.email_verified && <span className="verified-badge" title="ยืนยันอีเมลแล้ว">🔵</span>}
+                      {user.is_verified && <span className="verified-badge" title="ยืนยันตัวตนแล้ว"><svg viewBox="0 0 24 24" className="verified-check"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg></span>}
                     </span>
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{getReputationLevel(user.reputation).badge} {user.reputation} pt</div>
                   </div>
                 </div>
-                <button className="btn btn-secondary btn-sm hide-mobile" onClick={handleLogout} title="ออกจากระบบ">🚪</button>
               </>
             ) : (
               <><button className="btn btn-secondary hide-mobile" onClick={() => setShowAuthModal(true)}>เข้าสู่ระบบ</button><button className="btn btn-primary hide-mobile" onClick={() => setShowAuthModal(true)}>สมัครสมาชิก</button></>
@@ -1949,9 +1986,9 @@ export default function Home() {
         {showMenu && (
           <div className="dropdown-menu">
             {!user && <><button className="dropdown-item" onClick={() => { setShowAuthModal(true); setShowMenu(false) }}>🔐 เข้าสู่ระบบ</button><button className="dropdown-item" onClick={() => { setShowAuthModal(true); setShowMenu(false) }}>✨ สมัครสมาชิก</button><div className="dropdown-divider"></div></>}
-            {user && <><div className="dropdown-item user-info-mobile"><div className="user-avatar">{user.username[0].toUpperCase()}</div><div><span style={{ color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '4px' }}>{user.username}{user.email_verified && <span className="verified-badge">🔵</span>}</span><div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{getReputationLevel(user.reputation).badge} {user.reputation} pt</div></div></div><button className="dropdown-item" onClick={() => { setShowNotifications(true); setShowMenu(false) }}>🔔 การแจ้งเตือน {unreadCount > 0 && <span className="mobile-notif-badge">{unreadCount}</span>}</button><button className="dropdown-item" onClick={() => { setShowAccount(true); setShowMenu(false) }}>👤 บัญชีของฉัน</button><button className="dropdown-item" onClick={() => { setShowCreatePoll(true); setShowMenu(false) }}>➕ สร้างโพล</button>{user.is_admin && <button className="dropdown-item" onClick={() => { setShowAdminPanel(true); setShowMenu(false) }}>🔧 Admin Panel</button>}<button className="dropdown-item" onClick={handleLogout} style={{ color: 'var(--red)' }}>🚪 ออกจากระบบ</button><div className="dropdown-divider"></div></>}
+            {user && <><div className="dropdown-item user-info-mobile"><div className="user-avatar">{user.username[0].toUpperCase()}</div><div><span style={{ color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '4px' }}>{user.username}{user.is_verified && <span className="verified-badge"><svg viewBox="0 0 24 24" className="verified-check"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg></span>}</span><div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{getReputationLevel(user.reputation).badge} {user.reputation} pt</div></div></div><button className="dropdown-item" onClick={() => { setShowNotifications(true); setShowMenu(false) }}>🔔 การแจ้งเตือน {unreadCount > 0 && <span className="mobile-notif-badge">{unreadCount}</span>}</button><button className="dropdown-item" onClick={() => { setShowAccount(true); setShowMenu(false) }}>👤 บัญชีของฉัน</button><button className="dropdown-item" onClick={() => { setShowCreatePoll(true); setShowMenu(false) }}>➕ สร้างโพล</button>{user.is_admin && <button className="dropdown-item" onClick={() => { setShowAdminPanel(true); setShowMenu(false) }}>🔧 Admin Panel</button>}<div className="dropdown-divider"></div></>}
             <button className="dropdown-item" onClick={() => { setDarkMode(!darkMode); setShowMenu(false) }}>{darkMode ? '☀️ โหมดสว่าง' : '🌙 โหมดมืด'}</button>
-            {user && <><div className="dropdown-divider"></div><button className="dropdown-item" onClick={handleLogout}>🚪 ออกจากระบบ</button></>}
+            {user && <><div className="dropdown-divider"></div><button className="dropdown-item" onClick={handleLogout} style={{ color: 'var(--red)' }}>🚪 ออกจากระบบ</button></>}
           </div>
         )}
       </header>
@@ -2108,23 +2145,6 @@ export default function Home() {
           onClose={() => setViewProfileUserId(null)} 
           darkMode={darkMode} 
         />
-      )}
-
-      {/* PWA Install Prompt */}
-      {showInstallPrompt && deferredPrompt && (
-        <div className="pwa-install-banner">
-          <div className="pwa-install-content">
-            <span className="pwa-icon">📱</span>
-            <div className="pwa-text">
-              <strong>ติดตั้งแอป คิดว่า..</strong>
-              <span>เข้าถึงได้ง่ายจากหน้าจอหลัก</span>
-            </div>
-          </div>
-          <div className="pwa-actions">
-            <button className="btn btn-sm btn-secondary" onClick={() => setShowInstallPrompt(false)}>ไว้ก่อน</button>
-            <button className="btn btn-sm btn-primary" onClick={handleInstallApp}>ติดตั้ง</button>
-          </div>
-        </div>
       )}
     </div>
   )
