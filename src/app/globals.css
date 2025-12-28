@@ -61,7 +61,7 @@ html.dark, .dark { background: var(--bg); }
 .user-info-mobile { cursor: default; }
 .user-info-mobile:hover { background: none; }
 
-.categories { background: var(--bg-card); border-bottom: 1px solid var(--border); padding: 0.75rem 1rem; overflow-x: auto; position: sticky; top: 77px; z-index: 99; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+.categories { background: var(--bg-card); border-bottom: 1px solid var(--border); padding: 0.5rem 1rem; overflow-x: auto; position: sticky; top: 69px; z-index: 99; }
 .categories::-webkit-scrollbar { height: 4px; }
 .categories::-webkit-scrollbar-thumb { background: var(--primary-light); border-radius: 2px; }
 .categories-content { max-width: 1400px; margin: 0 auto; display: flex; gap: 0.3rem; }
@@ -147,8 +147,8 @@ html.dark, .dark { background: var(--bg); }
   .search-box { order: 3; flex: none; width: 100%; max-width: 100%; margin-top: 0.75rem; }
   .hide-mobile { display: none; }
   .poll-grid { grid-template-columns: 1fr; }
-  /* Sticky categories for mobile - header มี 2 แถว */
-  .categories { position: sticky; top: 120px; z-index: 99; }
+  /* Mobile: header มี 2 แถว (logo+menu ~55px + search ~50px + margins) = ~115px */
+  .categories { position: sticky; top: 113px; z-index: 99; }
 }
 
 /* ===== Dark Mode Fixes ===== */
