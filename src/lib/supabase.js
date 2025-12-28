@@ -773,21 +773,18 @@ export async function getTimeCapsules(limit = 20) {
 
 // ===== Live Battle Functions =====
 
-export async function createLiveBattle({ question, options, category, tags, durationMinutes, createdBy }) {
+export async function createLiveBattle({ question, options, category, tags, endsAt, createdBy }) {
   try {
-    // ใช้ timestamp แบบ milliseconds เพื่อความแม่นยำ
-    const nowMs = Date.now()
-    const endsAtMs = nowMs + (durationMinutes * 60 * 1000)
+    const nowISO = new Date().toISOString()
     
-    // แปลงเป็น ISO string (จะเป็น UTC โดยอัตโนมัติ)
-    const nowISO = new Date(nowMs).toISOString()
-    const endsAtISO = new Date(endsAtMs).toISOString()
+    // คำนวณ duration เป็นนาที (สำหรับ reference)
+    const durationMs = new Date(endsAt).getTime() - Date.now()
+    const durationMinutes = Math.round(durationMs / 60000)
     
     console.log('Creating Live Battle:', {
+      endsAt,
       durationMinutes,
-      nowISO,
-      endsAtISO,
-      diffMinutes: (endsAtMs - nowMs) / 60000
+      nowISO
     })
     
     const { data: poll, error: pollError } = await supabase
@@ -797,7 +794,7 @@ export async function createLiveBattle({ question, options, category, tags, dura
         category,
         blind_mode: false,
         poll_type: 'live_battle',
-        ends_at: endsAtISO,
+        ends_at: endsAt,
         created_by: createdBy, 
         featured: false,
         resolved: false,
