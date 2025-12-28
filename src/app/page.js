@@ -11,7 +11,9 @@ import {
   followUser, unfollowUser, isFollowing, getFollowers, getFollowing, getFollowCounts,
   uploadAvatar, getUserPublicProfile, searchUsers,
   createTimeCapsule, getTimeCapsules,
-  createLiveBattle, getLiveBattles, endLiveBattle, subscribeLiveBattle, unsubscribeLiveBattle
+  createLiveBattle, getLiveBattles, endLiveBattle, subscribeLiveBattle, unsubscribeLiveBattle,
+  signUpWithEmail, signInWithEmail, signInWithMagicLink, signOut, getSession, getUserFromSession, 
+  resetPassword, updatePassword, onAuthStateChange
 } from '@/lib/supabase'
 
 const categories = [
@@ -680,7 +682,10 @@ function UserProfileModal({ userId, currentUser, onClose, darkMode }) {
                 )}
               </div>
               <div className="profile-info">
-                <h2 className="profile-username">{profile.username}</h2>
+                <h2 className="profile-username">
+                  {profile.username}
+                  {profile.email_verified && <span className="verified-badge" title="ยืนยันอีเมลแล้ว">🔵</span>}
+                </h2>
                 <div className="profile-level">{level.badge} {level.name}</div>
                 <div className="profile-reputation">{profile.reputation.toLocaleString()} point</div>
               </div>
@@ -714,6 +719,210 @@ function UserProfileModal({ userId, currentUser, onClose, darkMode }) {
             </div>
           </>
         ) : <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>ไม่พบข้อมูล</div>}
+      </div>
+    </div>
+  )
+}
+
+// ===== Auth Modal (Email + Password / Magic Link) =====
+function AuthModal({ onClose, onSuccess, darkMode }) {
+  const [mode, setMode] = useState('login') // login, register, magic, forgot
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [username, setUsername] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+
+  const handleLogin = async (e) => {
+    e.preventDefault()
+    setError('')
+    setIsLoading(true)
+
+    const { data, error } = await signInWithEmail(email, password)
+    
+    if (error) {
+      setError(error.message === 'Invalid login credentials' ? 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' : error.message)
+    } else if (data?.user) {
+      onSuccess(data.user)
+    }
+    
+    setIsLoading(false)
+  }
+
+  const handleRegister = async (e) => {
+    e.preventDefault()
+    setError('')
+
+    if (password !== confirmPassword) {
+      setError('รหัสผ่านไม่ตรงกัน')
+      return
+    }
+
+    if (password.length < 8) {
+      setError('รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร')
+      return
+    }
+
+    if (username.length < 3) {
+      setError('ชื่อผู้ใช้ต้องมีอย่างน้อย 3 ตัวอักษร')
+      return
+    }
+
+    setIsLoading(true)
+
+    const { data, error } = await signUpWithEmail(email, password, username)
+    
+    if (error) {
+      setError(error.message)
+    } else {
+      setSuccess('✅ สมัครสำเร็จ! กรุณาตรวจสอบอีเมลเพื่อยืนยันบัญชี')
+    }
+    
+    setIsLoading(false)
+  }
+
+  const handleMagicLink = async (e) => {
+    e.preventDefault()
+    setError('')
+    setIsLoading(true)
+
+    const { error } = await signInWithMagicLink(email)
+    
+    if (error) {
+      setError(error.message)
+    } else {
+      setSuccess('✅ ส่งลิงก์ไปยังอีเมลแล้ว! กรุณาตรวจสอบอีเมลของคุณ')
+    }
+    
+    setIsLoading(false)
+  }
+
+  const handleForgotPassword = async (e) => {
+    e.preventDefault()
+    setError('')
+    setIsLoading(true)
+
+    const { error } = await resetPassword(email)
+    
+    if (error) {
+      setError(error.message)
+    } else {
+      setSuccess('✅ ส่งลิงก์รีเซ็ตรหัสผ่านไปยังอีเมลแล้ว!')
+    }
+    
+    setIsLoading(false)
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className={`modal auth-modal ${darkMode ? 'dark' : ''}`} onClick={e => e.stopPropagation()}>
+        <button className="modal-close" onClick={onClose}>✕</button>
+        
+        <div className="auth-header">
+          <h2 className="auth-title">🎯 คิดว่า..</h2>
+          <p className="auth-subtitle">
+            {mode === 'login' && 'เข้าสู่ระบบ'}
+            {mode === 'register' && 'สมัครสมาชิก'}
+            {mode === 'magic' && 'เข้าสู่ระบบด้วย Magic Link'}
+            {mode === 'forgot' && 'ลืมรหัสผ่าน'}
+          </p>
+        </div>
+
+        {error && <div className="auth-error">❌ {error}</div>}
+        {success && <div className="auth-success">{success}</div>}
+
+        {!success && (
+          <>
+            {mode === 'login' && (
+              <form onSubmit={handleLogin}>
+                <div className="form-group">
+                  <label>📧 อีเมล</label>
+                  <input type="email" className="form-input" placeholder="example@email.com" value={email} onChange={e => setEmail(e.target.value)} required />
+                </div>
+                <div className="form-group">
+                  <label>🔒 รหัสผ่าน</label>
+                  <input type="password" className="form-input" placeholder="รหัสผ่าน" value={password} onChange={e => setPassword(e.target.value)} required />
+                </div>
+                <button type="button" className="auth-link" onClick={() => setMode('forgot')}>ลืมรหัสผ่าน?</button>
+                <button type="submit" className="btn btn-primary btn-full" disabled={isLoading}>
+                  {isLoading ? '⏳ กำลังเข้าสู่ระบบ...' : '🚀 เข้าสู่ระบบ'}
+                </button>
+              </form>
+            )}
+
+            {mode === 'register' && (
+              <form onSubmit={handleRegister}>
+                <div className="form-group">
+                  <label>👤 ชื่อผู้ใช้</label>
+                  <input type="text" className="form-input" placeholder="ชื่อที่แสดงในเว็บ" value={username} onChange={e => setUsername(e.target.value)} required minLength={3} maxLength={20} />
+                </div>
+                <div className="form-group">
+                  <label>📧 อีเมล</label>
+                  <input type="email" className="form-input" placeholder="example@email.com" value={email} onChange={e => setEmail(e.target.value)} required />
+                </div>
+                <div className="form-group">
+                  <label>🔒 รหัสผ่าน</label>
+                  <input type="password" className="form-input" placeholder="อย่างน้อย 8 ตัวอักษร" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} />
+                </div>
+                <div className="form-group">
+                  <label>🔒 ยืนยันรหัสผ่าน</label>
+                  <input type="password" className="form-input" placeholder="พิมพ์รหัสผ่านอีกครั้ง" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required />
+                </div>
+                <p className="auth-bonus">🎁 สมัครใหม่ได้ 1,000 Point เริ่มต้น!</p>
+                <button type="submit" className="btn btn-primary btn-full" disabled={isLoading}>
+                  {isLoading ? '⏳ กำลังสมัคร...' : '✨ สมัครสมาชิก'}
+                </button>
+              </form>
+            )}
+
+            {mode === 'magic' && (
+              <form onSubmit={handleMagicLink}>
+                <div className="form-group">
+                  <label>📧 อีเมล</label>
+                  <input type="email" className="form-input" placeholder="example@email.com" value={email} onChange={e => setEmail(e.target.value)} required />
+                </div>
+                <p className="auth-hint">เราจะส่งลิงก์สำหรับเข้าสู่ระบบไปยังอีเมลของคุณ ไม่ต้องจำรหัสผ่าน!</p>
+                <button type="submit" className="btn btn-primary btn-full" disabled={isLoading}>
+                  {isLoading ? '⏳ กำลังส่ง...' : '📨 ส่ง Magic Link'}
+                </button>
+              </form>
+            )}
+
+            {mode === 'forgot' && (
+              <form onSubmit={handleForgotPassword}>
+                <div className="form-group">
+                  <label>📧 อีเมล</label>
+                  <input type="email" className="form-input" placeholder="example@email.com" value={email} onChange={e => setEmail(e.target.value)} required />
+                </div>
+                <button type="submit" className="btn btn-primary btn-full" disabled={isLoading}>
+                  {isLoading ? '⏳ กำลังส่ง...' : '🔑 รีเซ็ตรหัสผ่าน'}
+                </button>
+              </form>
+            )}
+
+            <div className="auth-divider"><span>หรือ</span></div>
+
+            {mode !== 'magic' && (
+              <button type="button" className="btn btn-magic btn-full" onClick={() => { setMode('magic'); setError(''); setSuccess('') }}>
+                ✨ เข้าสู่ระบบด้วย Magic Link
+              </button>
+            )}
+
+            <div className="auth-switch">
+              {mode === 'login' && <p>ยังไม่มีบัญชี? <button type="button" onClick={() => { setMode('register'); setError(''); setSuccess('') }}>สมัครสมาชิก</button></p>}
+              {mode === 'register' && <p>มีบัญชีแล้ว? <button type="button" onClick={() => { setMode('login'); setError(''); setSuccess('') }}>เข้าสู่ระบบ</button></p>}
+              {(mode === 'magic' || mode === 'forgot') && <p><button type="button" onClick={() => { setMode('login'); setError(''); setSuccess('') }}>← กลับไปหน้าเข้าสู่ระบบ</button></p>}
+            </div>
+          </>
+        )}
+
+        {success && (
+          <button type="button" className="btn btn-secondary btn-full" onClick={onClose}>
+            ปิด
+          </button>
+        )}
       </div>
     </div>
   )
@@ -780,7 +989,10 @@ function LeaderboardSection({ darkMode, currentUser, onViewProfile }) {
               style={{ cursor: 'pointer' }}
             >
               <span className="lb-rank">{getRankEmoji(i)}</span>
-              <span className="lb-name">{item.username}</span>
+              <span className="lb-name">
+                {item.username}
+                {item.email_verified && <span className="verified-badge">🔵</span>}
+              </span>
               <span className={`lb-points ${activeTab !== 'all' ? (activeTab === 'week' ? (item.weeklyPoints >= 0 ? 'positive' : 'negative') : (item.monthlyPoints >= 0 ? 'positive' : 'negative')) : ''}`}>
                 {getPointsDisplay(item)}
               </span>
@@ -1008,9 +1220,23 @@ function AccountModal({ onClose, user, darkMode, onUpdateUser }) {
                 </label>
               </div>
               <div className="account-info">
-                <h2 className="account-username">{profile.username}</h2>
+                <h2 className="account-username">
+                  {profile.username}
+                  {profile.email_verified && <span className="verified-badge" title="ยืนยันอีเมลแล้ว">🔵</span>}
+                </h2>
                 <div className="account-level"><span className="level-badge">{level.badge}</span><span className="level-name">{level.name}</span></div>
                 <div className="account-reputation">{profile.reputation.toLocaleString()} point</div>
+                {profile.email && <div className="account-email">📧 {profile.email}</div>}
+                {!profile.email_verified && profile.email && (
+                  <div className="account-verify-prompt">
+                    <span>⚠️ ยังไม่ได้ยืนยันอีเมล</span>
+                  </div>
+                )}
+                {!profile.auth_id && (
+                  <div className="account-migrate-prompt">
+                    <span>⚠️ บัญชีเก่า - แนะนำให้สร้างบัญชีใหม่ด้วยอีเมลเพื่อความปลอดภัย</span>
+                  </div>
+                )}
                 <div className="account-follow-stats">
                   <span onClick={() => setActiveTab('followers')} style={{ cursor: 'pointer' }}><strong>{followCounts.followers}</strong> ผู้ติดตาม</span>
                   <span onClick={() => setActiveTab('following')} style={{ cursor: 'pointer' }}><strong>{followCounts.following}</strong> กำลังติดตาม</span>
@@ -1073,7 +1299,33 @@ export default function Home() {
   const [showCreateLiveBattle, setShowCreateLiveBattle] = useState(false)
   const [showCreateTimeCapsule, setShowCreateTimeCapsule] = useState(false)
 
-  useEffect(() => { loadPolls(); loadLiveBattles(); loadTimeCapsules(); const u = localStorage.getItem('kidwa-user'); if (u) setUser(JSON.parse(u)); const d = localStorage.getItem('kidwa-darkmode'); if (d) setDarkMode(JSON.parse(d)) }, [])
+  useEffect(() => { 
+    loadPolls(); 
+    loadLiveBattles(); 
+    loadTimeCapsules(); 
+    checkAuthSession();
+    const d = localStorage.getItem('kidwa-darkmode'); 
+    if (d) setDarkMode(JSON.parse(d)) 
+  }, [])
+
+  const checkAuthSession = async () => {
+    // ตรวจสอบ Supabase Auth session ก่อน
+    const { data: userData } = await getUserFromSession()
+    if (userData) {
+      setUser(userData)
+      localStorage.setItem('kidwa-user', JSON.stringify(userData))
+    } else {
+      // ถ้าไม่มี session ให้ลองใช้ localStorage (legacy users)
+      const u = localStorage.getItem('kidwa-user')
+      if (u) {
+        const localUser = JSON.parse(u)
+        // ถ้า user เก่าไม่มี auth_id ให้แสดงเตือน migrate
+        if (!localUser.auth_id) {
+          setUser(localUser)
+        }
+      }
+    }
+  }
   useEffect(() => { if (user) { loadUserVotes(); loadUnreadCount() }}, [user])
   useEffect(() => { 
     localStorage.setItem('kidwa-darkmode', JSON.stringify(darkMode));
@@ -1104,7 +1356,13 @@ export default function Home() {
   const loadUserVotes = async () => { if (!user) return; const { data } = await getUserVotes(user.id); if (data) { const m = {}; data.forEach(v => { m[v.poll_id] = { optionId: v.option_id, confidence: v.confidence } }); setUserVotes(m) }}
   const loadUnreadCount = async () => { if (!user) return; const { count } = await getUnreadNotificationCount(user.id); setUnreadCount(count) }
 
-  const handleAuth = async (e) => { e.preventDefault(); const username = e.target.username.value.trim(); if (!username) return; let { data } = await getUserByUsername(username); if (data) { setUser(data); localStorage.setItem('kidwa-user', JSON.stringify(data)) } else { const { data: newUser } = await createUser(username); if (newUser) { setUser(newUser); localStorage.setItem('kidwa-user', JSON.stringify(newUser)) }}; setShowAuthModal(false) }
+  const handleAuth = async (e) => { e.preventDefault() } // Legacy - ใช้ AuthModal แทน
+  const handleLogout = async () => {
+    await signOut()
+    setUser(null)
+    localStorage.removeItem('kidwa-user')
+    setShowMenu(false)
+  }
   const handleLogout = () => { setUser(null); setUserVotes({}); setUnreadCount(0); localStorage.removeItem('kidwa-user'); setShowMenu(false) }
 
   const handleVote = async (pollId, optionId, confidence) => { if (!user) { setShowAuthModal(true); return }; const poll = polls.find(p => p.id === pollId); if (poll && isExpired(poll.ends_at)) { alert('โพลนี้หมดเวลาแล้ว'); return }; const { error } = await vote(user.id, pollId, optionId, confidence); if (!error) { setUserVotes(prev => ({ ...prev, [pollId]: { optionId, confidence } })); loadPolls(); const c = confidenceLevels.find(c => c.value === confidence); alert(`✅ โหวตสำเร็จ!\n\n${c?.emoji} ${c?.label} (±${confidence})`) }}
@@ -1151,8 +1409,15 @@ export default function Home() {
                   ) : (
                     <div className="user-avatar">{user.username[0].toUpperCase()}</div>
                   )}
-                  <div><span style={{ color: 'var(--text)' }}>{user.username}</span><div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{getReputationLevel(user.reputation).badge} {user.reputation} pt</div></div>
+                  <div>
+                    <span style={{ color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      {user.username}
+                      {user.email_verified && <span className="verified-badge" title="ยืนยันอีเมลแล้ว">🔵</span>}
+                    </span>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{getReputationLevel(user.reputation).badge} {user.reputation} pt</div>
+                  </div>
                 </div>
+                <button className="btn btn-secondary btn-sm hide-mobile" onClick={handleLogout} title="ออกจากระบบ">🚪</button>
               </>
             ) : (
               <><button className="btn btn-secondary hide-mobile" onClick={() => setShowAuthModal(true)}>เข้าสู่ระบบ</button><button className="btn btn-primary hide-mobile" onClick={() => setShowAuthModal(true)}>สมัครสมาชิก</button></>
@@ -1163,7 +1428,7 @@ export default function Home() {
         {showMenu && (
           <div className="dropdown-menu">
             {!user && <><button className="dropdown-item" onClick={() => { setShowAuthModal(true); setShowMenu(false) }}>🔐 เข้าสู่ระบบ</button><button className="dropdown-item" onClick={() => { setShowAuthModal(true); setShowMenu(false) }}>✨ สมัครสมาชิก</button><div className="dropdown-divider"></div></>}
-            {user && <><div className="dropdown-item user-info-mobile"><div className="user-avatar">{user.username[0].toUpperCase()}</div><div><span style={{ color: 'var(--text)' }}>{user.username}</span><div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{getReputationLevel(user.reputation).badge} {user.reputation} pt</div></div></div><button className="dropdown-item" onClick={() => { setShowNotifications(true); setShowMenu(false) }}>🔔 การแจ้งเตือน {unreadCount > 0 && <span className="mobile-notif-badge">{unreadCount}</span>}</button><button className="dropdown-item" onClick={() => { setShowAccount(true); setShowMenu(false) }}>👤 บัญชีของฉัน</button><button className="dropdown-item" onClick={() => { setShowCreatePoll(true); setShowMenu(false) }}>➕ สร้างโพล</button>{user.is_admin && <button className="dropdown-item" onClick={() => { setShowAdminPanel(true); setShowMenu(false) }}>🔧 Admin Panel</button>}<div className="dropdown-divider"></div></>}
+            {user && <><div className="dropdown-item user-info-mobile"><div className="user-avatar">{user.username[0].toUpperCase()}</div><div><span style={{ color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '4px' }}>{user.username}{user.email_verified && <span className="verified-badge">🔵</span>}</span><div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{getReputationLevel(user.reputation).badge} {user.reputation} pt</div></div></div><button className="dropdown-item" onClick={() => { setShowNotifications(true); setShowMenu(false) }}>🔔 การแจ้งเตือน {unreadCount > 0 && <span className="mobile-notif-badge">{unreadCount}</span>}</button><button className="dropdown-item" onClick={() => { setShowAccount(true); setShowMenu(false) }}>👤 บัญชีของฉัน</button><button className="dropdown-item" onClick={() => { setShowCreatePoll(true); setShowMenu(false) }}>➕ สร้างโพล</button>{user.is_admin && <button className="dropdown-item" onClick={() => { setShowAdminPanel(true); setShowMenu(false) }}>🔧 Admin Panel</button>}<button className="dropdown-item" onClick={handleLogout} style={{ color: 'var(--red)' }}>🚪 ออกจากระบบ</button><div className="dropdown-divider"></div></>}
             <button className="dropdown-item" onClick={() => { setDarkMode(!darkMode); setShowMenu(false) }}>{darkMode ? '☀️ โหมดสว่าง' : '🌙 โหมดมืด'}</button>
             {user && <><div className="dropdown-divider"></div><button className="dropdown-item" onClick={handleLogout}>🚪 ออกจากระบบ</button></>}
           </div>
@@ -1249,7 +1514,7 @@ export default function Home() {
         </div>
       </main>
 
-      {showAuthModal && <div className="modal-overlay" onClick={() => setShowAuthModal(false)}><div className="modal" onClick={e => e.stopPropagation()}><button className="modal-close" onClick={() => setShowAuthModal(false)}>✕</button><h2 className="modal-title">🎯 เข้าสู่ระบบ / สมัครสมาชิก</h2><form onSubmit={handleAuth}><div className="form-group"><label>ชื่อผู้ใช้</label><input type="text" name="username" className="form-input" placeholder="กรอกชื่อผู้ใช้" required /></div><p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>🎁 สมัครใหม่ได้ 1,000 Point เริ่มต้น!</p><div className="modal-actions"><button type="button" className="btn btn-secondary" onClick={() => setShowAuthModal(false)}>ยกเลิก</button><button type="submit" className="btn btn-primary">เข้าสู่ระบบ</button></div></form></div></div>}
+      {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} onSuccess={(userData) => { setUser(userData); localStorage.setItem('kidwa-user', JSON.stringify(userData)); setShowAuthModal(false) }} darkMode={darkMode} />}
 
       {selectedPoll && (
         <div className="modal-overlay" onClick={() => setSelectedPoll(null)}>
