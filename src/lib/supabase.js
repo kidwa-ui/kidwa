@@ -852,3 +852,245 @@ export function subscribeLiveBattle(pollId, callback) {
 export function unsubscribeLiveBattle(subscription) {
   supabase.removeChannel(subscription)
 }
+
+// ===== Verification + PDPA Functions =====
+
+export async function submitVerification(userId, { fullName, birthDate, pdpaConsent, marketingConsent }) {
+  // คำนวณอายุ
+  const today = new Date()
+  const birth = new Date(birthDate)
+  let age = today.getFullYear() - birth.getFullYear()
+  const monthDiff = today.getMonth() - birth.getMonth()
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+    age--
+  }
+
+  // ตรวจสอบอายุขั้นต่ำ (13 ปี)
+  if (age < 13) {
+    return { data: null, error: { message: 'ต้องมีอายุอย่างน้อย 13 ปี' } }
+  }
+
+  const { data, error } = await supabase
+    .from('users')
+    .update({
+      full_name: fullName,
+      birth_date: birthDate,
+      pdpa_consent: pdpaConsent,
+      pdpa_consent_at: pdpaConsent ? new Date().toISOString() : null,
+      marketing_consent: marketingConsent,
+      is_verified: true,
+      verified_at: new Date().toISOString()
+    })
+    .eq('id', userId)
+    .select()
+    .single()
+
+  return { data, error }
+}
+
+export async function skipVerification(userId) {
+  // ข้ามการ verify แต่ยังใช้งานได้ (ไม่ได้ verified badge)
+  const { data, error } = await supabase
+    .from('users')
+    .update({ verification_skipped: true })
+    .eq('id', userId)
+    .select()
+    .single()
+
+  return { data, error }
+}
+
+export async function checkNeedsVerification(userId) {
+  const { data } = await supabase
+    .from('users')
+    .select('email_verified, is_verified, verification_skipped')
+    .eq('id', userId)
+    .single()
+
+  if (!data) return false
+
+  // ต้องแสดง popup ถ้า: email verified แล้ว + ยังไม่ verify ตัวตน + ยังไม่ skip
+  return data.email_verified && !data.is_verified && !data.verification_skipped
+}
+
+// ===== Poll Limit Functions =====
+
+export async function checkPollLimit(userId) {
+  // ดึงข้อมูล user เพื่อเช็คว่า verified หรือไม่
+  const { data: user } = await supabase
+    .from('users')
+    .select('is_verified, reputation')
+    .eq('id', userId)
+    .single()
+
+  // กำหนดโควต้า: verified = 3 โพล/วัน, ไม่ verified = 1 โพล/วัน
+  const dailyLimit = user?.is_verified ? 3 : 1
+
+  // นับโพลที่สร้างวันนี้
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  const { count } = await supabase
+    .from('polls')
+    .select('*', { count: 'exact', head: true })
+    .eq('created_by', userId)
+    .gte('created_at', today.toISOString())
+
+  const used = count || 0
+  const remaining = Math.max(0, dailyLimit - used)
+
+  return {
+    canCreate: remaining > 0,
+    used,
+    limit: dailyLimit,
+    remaining,
+    isVerified: user?.is_verified || false
+  }
+}
+
+export async function getUserPollLimit(userId) {
+  const { data: user } = await supabase
+    .from('users')
+    .select('is_verified')
+    .eq('id', userId)
+    .single()
+
+  // กำหนดโควต้า: verified = 3 โพล/วัน, ไม่ verified = 1 โพล/วัน
+  const dailyLimit = user?.is_verified ? 3 : 1
+
+  // นับโพลที่สร้างวันนี้
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  const { count } = await supabase
+    .from('polls')
+    .select('*', { count: 'exact', head: true })
+    .eq('created_by', userId)
+    .gte('created_at', today.toISOString())
+
+  const used = count || 0
+  const remaining = Math.max(0, dailyLimit - used)
+
+  return {
+    canCreate: remaining > 0,
+    used,
+    limit: dailyLimit,
+    remaining,
+    isVerified: user?.is_verified || false
+  }
+}
+
+// ===== Similar Poll Detection =====
+
+export async function findSimilarPolls(question, limit = 5) {
+  // ทำให้เป็น lowercase และ trim
+  const searchQuery = question.toLowerCase().trim()
+  
+  // แยกคำสำคัญ (ตัดคำที่สั้นเกินไป)
+  const keywords = searchQuery
+    .split(/\s+/)
+    .filter(word => word.length > 2)
+    .slice(0, 5) // ใช้แค่ 5 คำแรก
+
+  if (keywords.length === 0) {
+    return { data: [], error: null }
+  }
+
+  // สร้าง search pattern สำหรับ ilike
+  // ค้นหาโพลที่มีคำคล้ายกัน
+  const { data: polls, error } = await supabase
+    .from('polls')
+    .select('id, question, ends_at, resolved, options(votes)')
+    .or(keywords.map(k => `question.ilike.%${k}%`).join(','))
+    .eq('resolved', false)
+    .gt('ends_at', new Date().toISOString()) // ยังไม่หมดอายุ
+    .order('created_at', { ascending: false })
+    .limit(limit)
+
+  if (error) return { data: [], error }
+
+  // คำนวณ similarity score
+  const scoredPolls = polls?.map(poll => {
+    const pollQuestion = poll.question.toLowerCase()
+    let matchCount = 0
+    keywords.forEach(keyword => {
+      if (pollQuestion.includes(keyword)) matchCount++
+    })
+    const similarity = matchCount / keywords.length
+    const totalVotes = poll.options?.reduce((sum, o) => sum + o.votes, 0) || 0
+    
+    return {
+      ...poll,
+      similarity,
+      totalVotes
+    }
+  }).filter(p => p.similarity >= 0.4) // แสดงเฉพาะที่คล้ายกัน 40% ขึ้นไป
+    .sort((a, b) => b.similarity - a.similarity)
+
+  return { data: scoredPolls || [], error: null }
+}
+
+// ===== Creator Engagement Points =====
+
+export async function checkAndAwardCreatorPoints(pollId) {
+  // ดึงข้อมูล poll
+  const { data: poll } = await supabase
+    .from('polls')
+    .select('id, created_by, creator_points_100, creator_points_1000, creator_points_10000, options(votes)')
+    .eq('id', pollId)
+    .single()
+
+  if (!poll) return { awarded: false }
+
+  const totalVotes = poll.options?.reduce((sum, o) => sum + o.votes, 0) || 0
+  let pointsToAward = 0
+  let milestone = null
+  const updates = {}
+
+  // ตรวจสอบ milestones
+  if (totalVotes >= 10000 && !poll.creator_points_10000) {
+    pointsToAward = 200
+    milestone = '10000'
+    updates.creator_points_10000 = true
+  } else if (totalVotes >= 1000 && !poll.creator_points_1000) {
+    pointsToAward = 50
+    milestone = '1000'
+    updates.creator_points_1000 = true
+  } else if (totalVotes >= 100 && !poll.creator_points_100) {
+    pointsToAward = 20
+    milestone = '100'
+    updates.creator_points_100 = true
+  }
+
+  if (pointsToAward > 0 && poll.created_by) {
+    // อัพเดท poll flags
+    await supabase.from('polls').update(updates).eq('id', pollId)
+
+    // เพิ่มคะแนนให้ผู้สร้าง
+    const { data: creator } = await supabase
+      .from('users')
+      .select('reputation')
+      .eq('id', poll.created_by)
+      .single()
+
+    if (creator) {
+      await supabase
+        .from('users')
+        .update({ reputation: creator.reputation + pointsToAward })
+        .eq('id', poll.created_by)
+
+      // สร้าง notification
+      await createNotification({
+        userId: poll.created_by,
+        type: 'creator_bonus',
+        message: `🎉 โพลของคุณมีคนโหวตครบ ${milestone} คน! ได้รับ +${pointsToAward} คะแนน`,
+        pollId: pollId,
+        pointsChange: pointsToAward
+      })
+    }
+
+    return { awarded: true, points: pointsToAward, milestone }
+  }
+
+  return { awarded: false }
+}
