@@ -147,8 +147,7 @@ html.dark, .dark { background: var(--bg); }
   .search-box { order: 3; flex: none; width: 100%; max-width: 100%; margin-top: 0.75rem; }
   .hide-mobile { display: none; }
   .poll-grid { grid-template-columns: 1fr; }
-  /* Mobile: header มี 2 แถว (logo+menu ~55px + search ~50px + margins) = ~115px */
-  .categories { position: sticky; top: 160px; z-index: 99; }
+  .categories { position: sticky; top: 130px; z-index: 99; }
 }
 
 /* ===== Dark Mode Fixes ===== */
@@ -277,10 +276,6 @@ select.form-input { appearance: none; background-image: url("data:image/svg+xml,
 .account-reputation { font-size: 1.1rem; color: var(--primary); font-weight: 600; }
 .account-email { font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem; }
 .account-verify-prompt, .account-migrate-prompt { font-size: 0.8rem; color: #f59e0b; background: rgba(245, 158, 11, 0.1); padding: 0.4rem 0.6rem; border-radius: 6px; margin-top: 0.5rem; }
-.account-verify-prompt.clickable { cursor: pointer; display: inline-flex; align-items: center; gap: 0.5rem; transition: all 0.2s; border: 1px solid transparent; }
-.account-verify-prompt.clickable:hover { background: rgba(59, 130, 246, 0.15); color: #3b82f6; border-color: #3b82f6; }
-.verify-btn-link { background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: white; border: none; padding: 0.35rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 500; cursor: pointer; margin-left: 0.5rem; transition: all 0.2s; font-family: inherit; }
-.verify-btn-link:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3); }
 .account-migrate-prompt { color: #ef4444; background: rgba(239, 68, 68, 0.1); }
 .account-follow-stats { display: flex; gap: 1rem; margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-secondary); }
 .account-follow-stats span:hover { color: var(--primary); }
@@ -565,9 +560,6 @@ select.form-input { appearance: none; background-image: url("data:image/svg+xml,
 .consent-item a { color: var(--primary); text-decoration: underline; }
 .consent-item.required span { font-weight: 500; }
 .consent-item.optional span { color: var(--text-secondary); }
-.consent-details-link { color: var(--primary); text-decoration: underline; cursor: pointer; font-size: 0.8rem; margin-left: 0.25rem; }
-.consent-details-link:hover { color: var(--primary-dark); }
-.consent-full-text { background: var(--bg); border-radius: 8px; padding: 1rem; margin-top: 0.75rem; font-size: 0.8rem; line-height: 1.6; color: var(--text-secondary); max-height: 150px; overflow-y: auto; border: 1px solid var(--border); }
 .required-mark { color: var(--red); margin-left: 0.25rem; }
 
 .verification-note { display: flex; align-items: center; gap: 0.5rem; background: var(--bg); border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1rem; font-size: 0.8rem; color: var(--text-secondary); }
@@ -641,3 +633,43 @@ select.form-input { appearance: none; background-image: url("data:image/svg+xml,
 .dark .blind-mode-info { background: linear-gradient(135deg, #78350f, #92400e); }
 .dark .blind-mode-info .blind-text strong { color: #fef3c7; }
 .dark .blind-mode-info .blind-text span { color: #fde68a; }
+
+/* ===== Character System Styles ===== */
+.character-picker-modal { max-width: 600px; max-height: 90vh; overflow-y: auto; }
+.character-preview { text-align: center; padding: 1.5rem; background: var(--bg); border-radius: 16px; margin-bottom: 1.5rem; }
+.character-preview-name { font-size: 1.1rem; font-weight: 600; color: var(--text); margin-top: 0.75rem; }
+.character-section { margin-bottom: 1.5rem; }
+.character-section-title { font-size: 0.95rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.75rem; }
+.character-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 0.75rem; }
+.character-option { position: relative; display: flex; flex-direction: column; align-items: center; padding: 0.75rem 0.5rem; border: 2px solid var(--border); border-radius: 12px; cursor: pointer; transition: all 0.2s; background: var(--bg); }
+.character-option:hover:not(.locked) { border-color: var(--primary); transform: translateY(-2px); }
+.character-option.selected { border-color: var(--primary); background: rgba(255, 107, 157, 0.1); }
+.character-option.locked { opacity: 0.5; cursor: not-allowed; }
+.character-option-name { font-size: 0.7rem; color: var(--text); margin-top: 0.5rem; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; }
+.lock-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 1.5rem; }
+.unlock-hint { position: absolute; bottom: 2px; left: 0; right: 0; font-size: 0.55rem; color: var(--text-secondary); text-align: center; }
+
+/* Account Character Display */
+.account-character { display: flex; align-items: center; justify-content: center; width: 70px; height: 90px; border-radius: 12px; background: var(--bg); overflow: hidden; }
+.account-character:hover { background: var(--primary-light); }
+.account-character svg { width: 60px; height: auto; }
+
+/* Live Battle End Time */
+.live-end-time { font-size: 0.8rem; color: var(--primary); font-weight: 500; }
+
+/* Consent Details */
+.consent-details-link { color: var(--primary); text-decoration: underline; cursor: pointer; font-size: 0.8rem; margin-left: 0.25rem; }
+.consent-details-link:hover { color: var(--primary-dark); }
+.consent-full-text { background: var(--bg); border-radius: 8px; padding: 1rem; margin-top: 0.75rem; font-size: 0.8rem; line-height: 1.6; color: var(--text-secondary); max-height: 150px; overflow-y: auto; border: 1px solid var(--border); }
+
+/* Verify Button in Account */
+.account-verify-prompt.clickable { cursor: pointer; display: inline-flex; align-items: center; gap: 0.5rem; transition: all 0.2s; border: 1px solid transparent; }
+.account-verify-prompt.clickable:hover { background: rgba(59, 130, 246, 0.15); color: #3b82f6; border-color: #3b82f6; }
+.verify-btn-link { background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: white; border: none; padding: 0.35rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 500; cursor: pointer; margin-left: 0.5rem; transition: all 0.2s; font-family: inherit; }
+.verify-btn-link:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3); }
+
+/* Dark mode for character */
+.dark .character-option { background: var(--bg-card); }
+.dark .character-option.selected { background: rgba(255, 107, 157, 0.15); }
+.dark .character-preview { background: var(--bg-card); }
+.dark .account-character { background: var(--bg-card); }
