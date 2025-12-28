@@ -775,14 +775,19 @@ export async function getTimeCapsules(limit = 20) {
 
 export async function createLiveBattle({ question, options, category, tags, durationMinutes, createdBy }) {
   try {
-    // ใช้ UTC time เพื่อหลีกเลี่ยงปัญหา timezone
-    const now = new Date()
-    const endsAt = new Date(now.getTime() + durationMinutes * 60 * 1000)
+    // ใช้ timestamp แบบ milliseconds เพื่อความแม่นยำ
+    const nowMs = Date.now()
+    const endsAtMs = nowMs + (durationMinutes * 60 * 1000)
+    
+    // แปลงเป็น ISO string (จะเป็น UTC โดยอัตโนมัติ)
+    const nowISO = new Date(nowMs).toISOString()
+    const endsAtISO = new Date(endsAtMs).toISOString()
     
     console.log('Creating Live Battle:', {
-      now: now.toISOString(),
-      endsAt: endsAt.toISOString(),
-      durationMinutes
+      durationMinutes,
+      nowISO,
+      endsAtISO,
+      diffMinutes: (endsAtMs - nowMs) / 60000
     })
     
     const { data: poll, error: pollError } = await supabase
@@ -790,14 +795,14 @@ export async function createLiveBattle({ question, options, category, tags, dura
       .insert([{ 
         question, 
         category,
-        blind_mode: false, // Live Battle เห็นผลแบบ real-time
+        blind_mode: false,
         poll_type: 'live_battle',
-        ends_at: endsAt.toISOString(),
+        ends_at: endsAtISO,
         created_by: createdBy, 
         featured: false,
         resolved: false,
         is_live: true,
-        live_started_at: now.toISOString(),
+        live_started_at: nowISO,
         live_duration_minutes: durationMinutes
       }])
       .select()
@@ -824,25 +829,13 @@ export async function createLiveBattle({ question, options, category, tags, dura
 export async function getLiveBattles() {
   const now = new Date().toISOString()
   
-  console.log('Getting Live Battles, current time:', now)
-  
-  // ดึง Live Battles ที่ยังไม่หมดเวลา
   const { data, error } = await supabase
     .from('polls')
     .select('*, options(*), tags(*), users:created_by(username, avatar_url)')
     .eq('poll_type', 'live_battle')
     .eq('is_live', true)
-    .gte('ends_at', now) // ใช้ gte แทน gt เพื่อรวม exact time match
+    .gt('ends_at', now) // ยังไม่หมดเวลา
     .order('created_at', { ascending: false })
-  
-  if (data) {
-    console.log('Found Live Battles:', data.length, data.map(d => ({ 
-      id: d.id, 
-      question: d.question?.substring(0, 30),
-      ends_at: d.ends_at,
-      is_live: d.is_live
-    })))
-  }
   
   return { data, error }
 }
@@ -1115,4 +1108,109 @@ export async function checkAndAwardCreatorPoints(pollId) {
   }
 
   return { awarded: false }
+}
+
+// ===== Character System Functions =====
+
+// อัพเดท skin ที่เลือก
+export async function updateSelectedSkin(userId, skinId) {
+  const { data, error } = await supabase
+    .from('users')
+    .update({ selected_skin: skinId })
+    .eq('id', userId)
+    .select()
+    .single()
+  
+  return { data, error }
+}
+
+// ดึงข้อมูล user stats สำหรับ character system
+export async function getUserCharacterStats(userId) {
+  // ดึงยอดโหวตสูงสุดของ poll ที่ user สร้าง
+  const { data: polls } = await supabase
+    .from('polls')
+    .select('id, max_votes_reached, options(votes)')
+    .eq('created_by', userId)
+  
+  let maxPollVotes = 0
+  if (polls) {
+    for (const poll of polls) {
+      const totalVotes = poll.options?.reduce((sum, o) => sum + (o.votes || 0), 0) || 0
+      const maxReached = poll.max_votes_reached || totalVotes
+      if (maxReached > maxPollVotes) {
+        maxPollVotes = maxReached
+      }
+    }
+  }
+  
+  // ดึง night_votes จาก user
+  const { data: user } = await supabase
+    .from('users')
+    .select('night_votes, created_at, max_streak, is_verified')
+    .eq('id', userId)
+    .single()
+  
+  return {
+    maxPollVotes,
+    nightVotes: user?.night_votes || 0,
+    memberSince: user?.created_at,
+    maxStreak: user?.max_streak || 0,
+    isVerified: user?.is_verified || false
+  }
+}
+
+// Track night vote (22:00 - 06:00)
+export async function trackVoteTime(userId) {
+  const hour = new Date().getHours()
+  const isNightTime = hour >= 22 || hour < 6
+  
+  if (isNightTime) {
+    await supabase.rpc('increment_night_votes', { user_uuid: userId })
+  }
+  
+  return { isNightTime }
+}
+
+// อัพโหลด avatar (สำหรับ verified users เท่านั้น, จำกัด 1MB)
+export async function uploadAvatarVerified(userId, file, isVerified) {
+  // ตรวจสอบว่า verified หรือไม่
+  if (!isVerified) {
+    return { data: null, error: { message: 'ต้องยืนยันตัวตนก่อนจึงจะอัพโหลดรูปได้' } }
+  }
+  
+  // ตรวจสอบขนาดไฟล์ (max 1MB)
+  if (file.size > 1 * 1024 * 1024) {
+    return { data: null, error: { message: 'ไฟล์ใหญ่เกินไป (สูงสุด 1MB)' } }
+  }
+  
+  // ตรวจสอบประเภทไฟล์
+  if (!file.type.startsWith('image/')) {
+    return { data: null, error: { message: 'กรุณาเลือกไฟล์รูปภาพ' } }
+  }
+
+  const fileExt = file.name.split('.').pop()
+  const fileName = `${userId}-${Date.now()}.${fileExt}`
+  const filePath = `avatars/${fileName}`
+
+  // อัพโหลดไฟล์
+  const { error: uploadError } = await supabase.storage
+    .from('avatars')
+    .upload(filePath, file, { upsert: true })
+
+  if (uploadError) return { data: null, error: uploadError }
+
+  // ดึง public URL
+  const { data: { publicUrl } } = supabase.storage
+    .from('avatars')
+    .getPublicUrl(filePath)
+
+  // อัพเดท user
+  const { error: updateError } = await supabase
+    .from('users')
+    .update({ avatar_url: publicUrl })
+    .eq('id', userId)
+
+  if (updateError) return { data: null, error: updateError }
+
+  return { data: { url: publicUrl }, error: null }
 }
