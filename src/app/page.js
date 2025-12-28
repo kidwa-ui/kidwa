@@ -14,7 +14,8 @@ import {
   createLiveBattle, getLiveBattles, endLiveBattle, subscribeLiveBattle, unsubscribeLiveBattle,
   signUpWithEmail, signInWithEmail, signInWithMagicLink, signOut, getSession, getUserFromSession, 
   resetPassword, updatePassword, onAuthStateChange, signInWithGoogle,
-  submitVerification, skipVerification, checkNeedsVerification, getUserPollLimit, findSimilarPolls, checkAndAwardCreatorPoints
+  submitVerification, skipVerification, checkNeedsVerification, getUserPollLimit, findSimilarPolls, checkAndAwardCreatorPoints,
+  updateSelectedSkin, getUserCharacterStats, trackVoteTime, uploadAvatarVerified
 } from '@/lib/supabase'
 
 const categories = [
@@ -46,6 +47,111 @@ const reputationLevels = [
   { min: 5001, max: 10000, name: 'ปรมาจารย์', badge: '🏆' },
   { min: 10001, max: Infinity, name: 'ตำนาน', badge: '👑' }
 ]
+
+// ===== Character System =====
+const characterSkins = {
+  seedling: { id: 'seedling', name: 'นักศึกษา', type: 'level', badge: '🌱', minRep: 0, maxRep: 500 },
+  beginner: { id: 'beginner', name: 'ผู้เริ่มต้น', type: 'level', badge: '🎯', minRep: 501, maxRep: 1500 },
+  analyst: { id: 'analyst', name: 'นักวิเคราะห์', type: 'level', badge: '🔮', minRep: 1501, maxRep: 3000 },
+  expert: { id: 'expert', name: 'ผู้เชี่ยวชาญ', type: 'level', badge: '⭐', minRep: 3001, maxRep: 5000 },
+  master: { id: 'master', name: 'ปรมาจารย์', type: 'level', badge: '🏆', minRep: 5001, maxRep: 10000 },
+  legend: { id: 'legend', name: 'ตำนาน', type: 'level', badge: '👑', minRep: 10001, maxRep: Infinity },
+  streak_master: { id: 'streak_master', name: 'Streak Master', type: 'achievement', badge: '🔥', condition: 'ทายถูก 10 ครั้งติด' },
+  popular_creator: { id: 'popular_creator', name: 'Popular Creator', type: 'achievement', badge: '📢', condition: 'โพล 1,000+ โหวต' },
+  og_member: { id: 'og_member', name: 'OG Member', type: 'achievement', badge: '🎩', condition: 'สมาชิก 1 ปี' },
+  night_owl: { id: 'night_owl', name: 'Night Owl', type: 'achievement', badge: '🌙', condition: 'โหวต 100 ครั้งกลางคืน' },
+  verified_star: { id: 'verified_star', name: 'Verified Star', type: 'achievement', badge: '✓', condition: 'ยืนยันตัวตนแล้ว' }
+}
+
+const getCharacterSVG = (skinId, size = 80) => {
+  const configs = {
+    seedling: { bodyColor: '#a8e6cf', bodyColorDark: '#88d4ab', eyeColor: '#2d3436', accessory: 'seedling' },
+    beginner: { bodyColor: '#74b9ff', bodyColorDark: '#0984e3', eyeColor: '#2d3436', accessory: 'target' },
+    analyst: { bodyColor: '#a29bfe', bodyColorDark: '#6c5ce7', eyeColor: '#6c5ce7', accessory: 'crystal', hasGlasses: true },
+    expert: { bodyColor: '#fdcb6e', bodyColorDark: '#f39c12', eyeColor: '#f39c12', accessory: 'star' },
+    master: { bodyColor: '#ff9ff3', bodyColorDark: '#f368e0', eyeColor: '#9b59b6', accessory: 'trophy' },
+    legend: { bodyColor: '#ff6b9d', bodyColorDark: '#e91e63', eyeColor: '#e91e63', accessory: 'crown', hasCape: true },
+    streak_master: { bodyColor: '#e74c3c', bodyColorDark: '#c0392b', eyeColor: '#e74c3c', accessory: 'fire' },
+    popular_creator: { bodyColor: '#00cec9', bodyColorDark: '#00b894', eyeColor: '#00b894', accessory: 'megaphone' },
+    og_member: { bodyColor: '#dfe6e9', bodyColorDark: '#b2bec3', eyeColor: '#636e72', accessory: 'tophat', hasMonocle: true },
+    night_owl: { bodyColor: '#2d3436', bodyColorDark: '#1e272e', eyeColor: '#636e72', accessory: 'sleephat', isSleepy: true },
+    verified_star: { bodyColor: '#3b82f6', bodyColorDark: '#1d4ed8', eyeColor: '#1d4ed8', accessory: 'checkmark' }
+  }
+  const c = configs[skinId] || configs.seedling
+  
+  const accessories = {
+    seedling: `<path d="M 50 33 Q 45 20 50 15 Q 55 20 50 33" fill="#56ab2f"/><circle cx="50" cy="12" r="4" fill="#56ab2f"/>`,
+    target: `<ellipse cx="50" cy="35" rx="18" ry="6" fill="#e74c3c"/><ellipse cx="50" cy="28" rx="12" ry="10" fill="#e74c3c"/><circle cx="50" cy="28" r="5" fill="white"/><circle cx="50" cy="28" r="2" fill="#e74c3c"/>`,
+    crystal: `<circle cx="50" cy="20" r="12" fill="#a29bfe" opacity="0.9"/><circle cx="47" cy="17" r="3" fill="white" opacity="0.6"/>`,
+    star: `<polygon points="50,8 53,18 63,18 55,24 58,34 50,28 42,34 45,24 37,18 47,18" fill="#f1c40f" stroke="#e67e22" stroke-width="1"/>`,
+    trophy: `<path d="M 40 30 L 40 20 Q 40 10 50 10 Q 60 10 60 20 L 60 30 Z" fill="#f1c40f"/><rect x="45" y="30" width="10" height="5" fill="#f1c40f"/><ellipse cx="50" cy="38" rx="8" ry="3" fill="#f1c40f"/>`,
+    crown: `<path d="M 30 32 L 35 15 L 42 28 L 50 8 L 58 28 L 65 15 L 70 32 Z" fill="#ffd700"/><ellipse cx="50" cy="35" rx="22" ry="5" fill="#ffd700"/><circle cx="50" cy="15" r="3" fill="#e74c3c"/>`,
+    fire: `<path d="M 35 30 Q 40 10 50 25 Q 60 10 65 30" fill="#f39c12"/><path d="M 40 28 Q 45 15 50 22 Q 55 15 60 28" fill="#e74c3c"/>`,
+    megaphone: `<path d="M 35 30 L 50 15 L 65 30 L 60 35 L 40 35 Z" fill="#fdcb6e"/><ellipse cx="50" cy="12" rx="8" ry="5" fill="#f39c12"/>`,
+    tophat: `<ellipse cx="50" cy="32" rx="20" ry="5" fill="#2d3436"/><rect x="38" y="10" width="24" height="22" fill="#2d3436" rx="2"/><rect x="40" y="22" width="20" height="3" fill="#f39c12"/>`,
+    sleephat: `<path d="M 30 40 Q 50 20 70 40 Q 80 30 75 15" fill="#1e272e" stroke="#ffeaa7" stroke-width="1"/><circle cx="75" cy="15" r="4" fill="#ffeaa7"/>`,
+    checkmark: `<circle cx="50" cy="22" r="14" fill="#3b82f6" stroke="#1d4ed8" stroke-width="2"/><path d="M 45 22 L 48 25 L 56 17" fill="none" stroke="white" stroke-width="3" stroke-linecap="round"/>`
+  }
+  
+  return `<svg viewBox="0 0 100 130" width="${size}" height="${size * 1.3}" xmlns="http://www.w3.org/2000/svg">
+    ${c.hasCape ? `<path d="M 18 55 Q 5 80 15 115 L 28 105 Q 22 80 28 58 Z" fill="#9b59b6"/><path d="M 82 55 Q 95 80 85 115 L 72 105 Q 78 80 72 58 Z" fill="#9b59b6"/>` : ''}
+    <ellipse cx="50" cy="75" rx="32" ry="42" fill="${c.bodyColor}"/>
+    <ellipse cx="50" cy="75" rx="27" ry="37" fill="${c.bodyColorDark}"/>
+    <ellipse cx="14" cy="72" rx="10" ry="8" fill="${c.bodyColor}" transform="rotate(-20 14 72)"/>
+    <ellipse cx="86" cy="72" rx="10" ry="8" fill="${c.bodyColor}" transform="rotate(20 86 72)"/>
+    <circle cx="8" cy="70" r="6" fill="${c.bodyColor}"/>
+    <circle cx="92" cy="70" r="6" fill="${c.bodyColor}"/>
+    <ellipse cx="38" cy="112" rx="10" ry="14" fill="${c.bodyColor}"/>
+    <ellipse cx="62" cy="112" rx="10" ry="14" fill="${c.bodyColor}"/>
+    <ellipse cx="38" cy="120" rx="11" ry="8" fill="#2d3436"/>
+    <ellipse cx="62" cy="120" rx="11" ry="8" fill="#2d3436"/>
+    <ellipse cx="38" cy="119" rx="9" ry="5" fill="#636e72"/>
+    <ellipse cx="62" cy="119" rx="9" ry="5" fill="#636e72"/>
+    <ellipse cx="50" cy="55" rx="24" ry="21" fill="#ffeaa7"/>
+    ${c.isSleepy ? `<path d="M 36 52 Q 42 48 48 52" stroke="#2d3436" stroke-width="2.5" fill="none"/><path d="M 52 52 Q 58 48 64 52" stroke="#2d3436" stroke-width="2.5" fill="none"/>` : 
+    `<ellipse cx="42" cy="52" rx="6" ry="7" fill="white"/><ellipse cx="58" cy="52" rx="6" ry="7" fill="white"/><circle cx="43" cy="53" r="3.5" fill="${c.eyeColor}"/><circle cx="59" cy="53" r="3.5" fill="${c.eyeColor}"/><circle cx="44" cy="51" r="1.5" fill="white"/><circle cx="60" cy="51" r="1.5" fill="white"/>`}
+    ${c.hasGlasses ? `<circle cx="42" cy="52" r="9" fill="none" stroke="#2d3436" stroke-width="2"/><circle cx="58" cy="52" r="9" fill="none" stroke="#2d3436" stroke-width="2"/><path d="M 51 52 L 49 52" stroke="#2d3436" stroke-width="2"/>` : ''}
+    ${c.hasMonocle ? `<circle cx="58" cy="52" r="10" fill="none" stroke="#f39c12" stroke-width="2"/><path d="M 68 52 L 78 60" stroke="#f39c12" stroke-width="1.5"/>` : ''}
+    <ellipse cx="34" cy="60" rx="4" ry="2.5" fill="#ffb6c1" opacity="0.6"/>
+    <ellipse cx="66" cy="60" rx="4" ry="2.5" fill="#ffb6c1" opacity="0.6"/>
+    <path d="M 43 64 Q 50 ${c.isSleepy ? '67' : '72'} 57 64" stroke="#2d3436" stroke-width="2" fill="none" stroke-linecap="round"/>
+    ${accessories[c.accessory] || ''}
+  </svg>`
+}
+
+const getUnlockedSkins = (user, stats) => {
+  const unlocked = []
+  const rep = user?.reputation || 0
+  
+  // Level skins - ปลดล็อคตาม level ที่ผ่านมาแล้วทั้งหมด
+  if (rep >= 0) unlocked.push('seedling')
+  if (rep >= 501) unlocked.push('beginner')
+  if (rep >= 1501) unlocked.push('analyst')
+  if (rep >= 3001) unlocked.push('expert')
+  if (rep >= 5001) unlocked.push('master')
+  if (rep >= 10001) unlocked.push('legend')
+  
+  // Achievement skins
+  if ((user?.max_streak || 0) >= 10) unlocked.push('streak_master')
+  if ((stats?.maxPollVotes || 0) >= 1000) unlocked.push('popular_creator')
+  if (stats?.memberSince) {
+    const days = Math.floor((Date.now() - new Date(stats.memberSince).getTime()) / 86400000)
+    if (days >= 365) unlocked.push('og_member')
+  }
+  if ((stats?.nightVotes || 0) >= 100) unlocked.push('night_owl')
+  if (user?.is_verified) unlocked.push('verified_star')
+  
+  return unlocked
+}
+
+const getDefaultSkin = (rep) => {
+  if (rep >= 10001) return 'legend'
+  if (rep >= 5001) return 'master'
+  if (rep >= 3001) return 'expert'
+  if (rep >= 1501) return 'analyst'
+  if (rep >= 501) return 'beginner'
+  return 'seedling'
+}
 
 const confidenceLevels = [
   { value: 20, label: 'ไม่มั่นใจ', emoji: '😅', color: '#22c55e', description: '±20 คะแนน' },
@@ -238,6 +344,11 @@ function LiveBattleCard({ poll, onClick, userVotes }) {
   const hasVoted = userVotes && userVotes[poll.id]
   const firstPercent = totalVotes > 0 && first ? Math.round((first.votes / totalVotes) * 100) : 50
   const secondPercent = totalVotes > 0 && second ? Math.round((second.votes / totalVotes) * 100) : 50
+  
+  // แสดงวัน/เวลาสิ้นสุด
+  const endDateTime = new Date(poll.ends_at)
+  const endDateStr = endDateTime.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })
+  const endTimeStr = endDateTime.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -273,6 +384,9 @@ function LiveBattleCard({ poll, onClick, userVotes }) {
       )}
       <div className="poll-footer">
         <span>👥 {totalVotes.toLocaleString()} คน</span>
+        <span className="live-end-time">🏁 สิ้นสุด {endDateStr} {endTimeStr} น.</span>
+      </div>
+      <div className="poll-footer" style={{ paddingTop: '0.5rem', borderTop: 'none' }}>
         {poll.users && <span>โดย @{poll.users.username}</span>}
         {hasVoted && <span style={{ color: 'var(--green)' }}>✓ โหวตแล้ว</span>}
       </div>
@@ -709,24 +823,21 @@ function VerificationModal({ onClose, user, onSuccess, darkMode }) {
                 onChange={e => setPdpaConsent(e.target.checked)}
               />
               <span>
-                ข้าพเจ้ายินยอมให้ คิดว่า.. เก็บรวบรวม ใช้ และเปิดเผยข้อมูลส่วนบุคคลของข้าพเจ้า 
-                ได้แก่ ชื่อ-นามสกุล วันเกิด และอีเมล เพื่อวัตถุประสงค์ในการยืนยันตัวตน 
-                และการให้บริการแพลตฟอร์ม ตามพระราชบัญญัติคุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562 (PDPA)
+                ข้าพเจ้ายินยอมให้ คิดว่า.. เก็บรวบรวม ใช้ และเปิดเผยข้อมูลส่วนบุคคล (ชื่อ-นามสกุล วันเกิด อีเมล) เพื่อยืนยันตัวตนและให้บริการแพลตฟอร์ม ตาม พ.ร.บ. PDPA
                 <span className="required-mark">*</span>
                 <span className="consent-details-link" onClick={(e) => { e.preventDefault(); setShowPdpaDetails(!showPdpaDetails) }}>
-                  {showPdpaDetails ? 'ซ่อนรายละเอียด' : 'ดูรายละเอียด'}
+                  {showPdpaDetails ? 'ซ่อน' : 'ดูรายละเอียด'}
                 </span>
               </span>
             </label>
             {showPdpaDetails && (
               <div className="consent-full-text">
-                <strong>รายละเอียดการเก็บรวบรวมข้อมูลส่วนบุคคล</strong><br/><br/>
-                <strong>1. ข้อมูลที่เก็บรวบรวม:</strong> ชื่อ-นามสกุลจริง, วันเกิด, อีเมล, รูปโปรไฟล์ (ถ้ามี)<br/>
-                <strong>2. วัตถุประสงค์:</strong> เพื่อยืนยันตัวตนผู้ใช้, ป้องกันการใช้งานที่ไม่เหมาะสม, และปรับปรุงประสบการณ์การใช้งาน<br/>
-                <strong>3. ระยะเวลาจัดเก็บ:</strong> ตลอดระยะเวลาที่ท่านเป็นสมาชิก หรือจนกว่าท่านจะขอลบบัญชี<br/>
-                <strong>4. สิทธิของท่าน:</strong> ท่านมีสิทธิในการเข้าถึง แก้ไข ลบ หรือโอนย้ายข้อมูลของท่าน รวมถึงสิทธิในการถอนความยินยอมได้ตลอดเวลา<br/>
-                <strong>5. การเปิดเผยข้อมูล:</strong> ข้อมูลของท่านจะไม่ถูกเปิดเผยต่อบุคคลภายนอก ยกเว้นกรณีที่กฎหมายกำหนด<br/>
-                <strong>6. มาตรการความปลอดภัย:</strong> ข้อมูลของท่านจะถูกเก็บรักษาด้วยมาตรการรักษาความปลอดภัยที่เหมาะสม
+                <strong>รายละเอียดการเก็บข้อมูล:</strong><br/>
+                • ข้อมูลที่เก็บ: ชื่อ-นามสกุล, วันเกิด, อีเมล, รูปโปรไฟล์<br/>
+                • วัตถุประสงค์: ยืนยันตัวตน, ป้องกันการใช้งานที่ไม่เหมาะสม<br/>
+                • ระยะเวลา: ตลอดการเป็นสมาชิก หรือจนกว่าจะลบบัญชี<br/>
+                • สิทธิ: เข้าถึง แก้ไข ลบ หรือถอนความยินยอมได้ตลอดเวลา<br/>
+                • การเปิดเผย: ไม่เปิดเผยต่อบุคคลภายนอก ยกเว้นกรณีกฎหมายกำหนด
               </div>
             )}
 
@@ -737,21 +848,19 @@ function VerificationModal({ onClose, user, onSuccess, darkMode }) {
                 onChange={e => setMarketingConsent(e.target.checked)}
               />
               <span>
-                ยินยอมรับข่าวสาร กิจกรรมพิเศษ และการแจ้งเตือนส่งเสริมการขายจาก คิดว่า.. ผ่านทางอีเมลหรือการแจ้งเตือนในแอป (ไม่บังคับ)
+                ยินยอมรับข่าวสาร กิจกรรมพิเศษ และการแจ้งเตือนจาก คิดว่า.. (ไม่บังคับ)
                 <span className="consent-details-link" onClick={(e) => { e.preventDefault(); setShowMarketingDetails(!showMarketingDetails) }}>
-                  {showMarketingDetails ? 'ซ่อนรายละเอียด' : 'ดูรายละเอียด'}
+                  {showMarketingDetails ? 'ซ่อน' : 'ดูรายละเอียด'}
                 </span>
               </span>
             </label>
             {showMarketingDetails && (
               <div className="consent-full-text">
-                <strong>รายละเอียดการรับข่าวสารการตลาด</strong><br/><br/>
-                หากท่านยินยอม ท่านจะได้รับ:<br/>
-                • ข่าวสารเกี่ยวกับฟีเจอร์ใหม่และการอัพเดทแพลตฟอร์ม<br/>
+                หากยินยอม ท่านจะได้รับ:<br/>
+                • ข่าวสารฟีเจอร์ใหม่และอัพเดทแพลตฟอร์ม<br/>
                 • กิจกรรมพิเศษและโปรโมชั่นสำหรับสมาชิก<br/>
                 • สรุปโพลยอดนิยมประจำสัปดาห์<br/>
-                • การแจ้งเตือนเมื่อมีโพลที่น่าสนใจในหมวดหมู่ที่ท่านติดตาม<br/><br/>
-                ท่านสามารถยกเลิกการรับข่าวสารได้ตลอดเวลาผ่านการตั้งค่าบัญชี หรือคลิกลิงก์ยกเลิกในอีเมลที่ได้รับ
+                ยกเลิกได้ตลอดเวลาผ่านการตั้งค่าบัญชี
               </div>
             )}
           </div>
@@ -770,6 +879,119 @@ function VerificationModal({ onClose, user, onSuccess, darkMode }) {
             </button>
           </div>
         </form>
+      </div>
+    </div>
+  )
+}
+
+// ===== Character Picker Modal =====
+function CharacterPickerModal({ onClose, user, darkMode, onUpdateUser }) {
+  const [selectedSkin, setSelectedSkin] = useState(user?.selected_skin || getDefaultSkin(user?.reputation || 0))
+  const [characterStats, setCharacterStats] = useState(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
+
+  useEffect(() => {
+    loadStats()
+  }, [])
+
+  const loadStats = async () => {
+    const stats = await getUserCharacterStats(user.id)
+    setCharacterStats(stats)
+    setIsLoading(false)
+  }
+
+  const unlockedSkins = getUnlockedSkins(user, characterStats)
+  const allSkins = Object.values(characterSkins)
+  const levelSkins = allSkins.filter(s => s.type === 'level')
+  const achievementSkins = allSkins.filter(s => s.type === 'achievement')
+
+  const handleSave = async () => {
+    setIsSaving(true)
+    const { data, error } = await updateSelectedSkin(user.id, selectedSkin)
+    setIsSaving(false)
+    
+    if (error) {
+      alert('บันทึกไม่สำเร็จ: ' + error.message)
+    } else {
+      const updatedUser = { ...user, selected_skin: selectedSkin }
+      localStorage.setItem('kidwa-user', JSON.stringify(updatedUser))
+      onUpdateUser(updatedUser)
+      alert('✅ บันทึกตัวละครสำเร็จ!')
+      onClose()
+    }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className={`modal character-picker-modal ${darkMode ? 'dark' : ''}`} onClick={e => e.stopPropagation()}>
+        <button className="modal-close" onClick={onClose}>✕</button>
+        <h2 className="modal-title">🎭 เลือกตัวละคร</h2>
+        
+        {isLoading ? (
+          <div style={{ textAlign: 'center', padding: '2rem' }}>⏳ กำลังโหลด...</div>
+        ) : (
+          <>
+            {/* Preview */}
+            <div className="character-preview">
+              <div dangerouslySetInnerHTML={{ __html: getCharacterSVG(selectedSkin, 120) }} />
+              <div className="character-preview-name">
+                {characterSkins[selectedSkin]?.badge} {characterSkins[selectedSkin]?.name}
+              </div>
+            </div>
+
+            {/* Level Characters */}
+            <div className="character-section">
+              <h3 className="character-section-title">📊 ตัวละครตามระดับ</h3>
+              <div className="character-grid">
+                {levelSkins.map(skin => {
+                  const isUnlocked = unlockedSkins.includes(skin.id)
+                  return (
+                    <div 
+                      key={skin.id}
+                      className={`character-option ${selectedSkin === skin.id ? 'selected' : ''} ${!isUnlocked ? 'locked' : ''}`}
+                      onClick={() => isUnlocked && setSelectedSkin(skin.id)}
+                    >
+                      <div dangerouslySetInnerHTML={{ __html: getCharacterSVG(skin.id, 60) }} />
+                      <span className="character-option-name">{skin.badge} {skin.name}</span>
+                      {!isUnlocked && <span className="lock-overlay">🔒</span>}
+                      {!isUnlocked && <span className="unlock-hint">{skin.minRep?.toLocaleString()}+ pt</span>}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Achievement Characters */}
+            <div className="character-section">
+              <h3 className="character-section-title">🏆 ตัวละครพิเศษ</h3>
+              <div className="character-grid">
+                {achievementSkins.map(skin => {
+                  const isUnlocked = unlockedSkins.includes(skin.id)
+                  return (
+                    <div 
+                      key={skin.id}
+                      className={`character-option ${selectedSkin === skin.id ? 'selected' : ''} ${!isUnlocked ? 'locked' : ''}`}
+                      onClick={() => isUnlocked && setSelectedSkin(skin.id)}
+                    >
+                      <div dangerouslySetInnerHTML={{ __html: getCharacterSVG(skin.id, 60) }} />
+                      <span className="character-option-name">{skin.badge} {skin.name}</span>
+                      {!isUnlocked && <span className="lock-overlay">🔒</span>}
+                      {!isUnlocked && <span className="unlock-hint">{skin.condition}</span>}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div className="modal-actions">
+              <button className="btn btn-secondary" onClick={onClose}>ยกเลิก</button>
+              <button className="btn btn-primary" onClick={handleSave} disabled={isSaving}>
+                {isSaving ? '⏳ กำลังบันทึก...' : '✅ บันทึก'}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   )
@@ -1661,7 +1883,7 @@ function AdminPanel({ onClose, darkMode, onRefresh }) {
   )
 }
 
-function AccountModal({ onClose, user, darkMode, onUpdateUser, onOpenVerification }) {
+function AccountModal({ onClose, user, darkMode, onUpdateUser, onOpenVerification, onOpenCharacterPicker }) {
   const [activeTab, setActiveTab] = useState('stats')
   const [profile, setProfile] = useState(null)
   const [voteHistory, setVoteHistory] = useState([])
@@ -1672,6 +1894,7 @@ function AccountModal({ onClose, user, darkMode, onUpdateUser, onOpenVerificatio
   const [isUploading, setIsUploading] = useState(false)
   const [followers, setFollowers] = useState([])
   const [following, setFollowing] = useState([])
+  const [characterStats, setCharacterStats] = useState(null)
 
   useEffect(() => { loadData() }, [])
 
@@ -1690,6 +1913,11 @@ function AccountModal({ onClose, user, darkMode, onUpdateUser, onOpenVerificatio
     if (pollsData) setCreatedPolls(pollsData)
     const counts = await getFollowCounts(user.id)
     setFollowCounts(counts)
+    
+    // Load character stats
+    const stats = await getUserCharacterStats(user.id)
+    setCharacterStats(stats)
+    
     setIsLoading(false)
   }
 
@@ -1712,9 +1940,15 @@ function AccountModal({ onClose, user, darkMode, onUpdateUser, onOpenVerificatio
     const file = e.target.files?.[0]
     if (!file) return
     
-    // ตรวจสอบขนาดไฟล์ (max 2MB)
-    if (file.size > 2 * 1024 * 1024) {
-      alert('ไฟล์ใหญ่เกินไป (สูงสุด 2MB)')
+    // ตรวจสอบว่า verified หรือไม่
+    if (!profile?.is_verified) {
+      alert('🔒 ต้องยืนยันตัวตนก่อนจึงจะอัพโหลดรูปได้\n\nคลิก "ยืนยันเลย" ด้านล่างเพื่อยืนยันตัวตน')
+      return
+    }
+    
+    // ตรวจสอบขนาดไฟล์ (max 1MB สำหรับ verified)
+    if (file.size > 1 * 1024 * 1024) {
+      alert('ไฟล์ใหญ่เกินไป (สูงสุด 1MB)')
       return
     }
     
@@ -1725,7 +1959,7 @@ function AccountModal({ onClose, user, darkMode, onUpdateUser, onOpenVerificatio
     }
     
     setIsUploading(true)
-    const { data, error } = await uploadAvatar(user.id, file)
+    const { data, error } = await uploadAvatarVerified(user.id, file, profile.is_verified)
     setIsUploading(false)
     
     if (error) {
@@ -1742,6 +1976,10 @@ function AccountModal({ onClose, user, darkMode, onUpdateUser, onOpenVerificatio
 
   const winRate = profile?.total_predictions > 0 ? Math.round((profile.correct_predictions / profile.total_predictions) * 100) : 0
   const level = profile ? getReputationLevel(profile.reputation) : reputationLevels[0]
+  
+  // หา current skin
+  const currentSkin = profile?.selected_skin || getDefaultSkin(profile?.reputation || 0)
+  const unlockedSkins = profile ? getUnlockedSkins(profile, characterStats) : ['seedling']
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -1751,15 +1989,33 @@ function AccountModal({ onClose, user, darkMode, onUpdateUser, onOpenVerificatio
           <>
             <div className="account-header">
               <div className="account-avatar-wrapper">
-                {profile.avatar_url ? (
+                {profile.avatar_url && profile.is_verified ? (
                   <img src={profile.avatar_url} alt={profile.username} className="account-avatar-img" />
                 ) : (
-                  <div className="account-avatar">{profile.username[0].toUpperCase()}</div>
+                  <div 
+                    className="account-character" 
+                    dangerouslySetInnerHTML={{ __html: getCharacterSVG(currentSkin, 70) }}
+                    onClick={() => onOpenCharacterPicker && onOpenCharacterPicker()}
+                    style={{ cursor: 'pointer' }}
+                    title="คลิกเพื่อเปลี่ยนตัวละคร"
+                  />
                 )}
-                <label className="avatar-upload-btn" title="เปลี่ยนรูปโปรไฟล์">
-                  <input type="file" accept="image/*" onChange={handleAvatarUpload} disabled={isUploading} />
-                  {isUploading ? '⏳' : '📷'}
-                </label>
+                {profile.is_verified && (
+                  <label className="avatar-upload-btn" title="อัพโหลดรูปโปรไฟล์ (สูงสุด 1MB)">
+                    <input type="file" accept="image/*" onChange={handleAvatarUpload} disabled={isUploading} />
+                    {isUploading ? '⏳' : '📷'}
+                  </label>
+                )}
+                {!profile.is_verified && (
+                  <button 
+                    className="avatar-upload-btn" 
+                    title="เลือกตัวละคร"
+                    onClick={() => onOpenCharacterPicker && onOpenCharacterPicker()}
+                    style={{ background: 'var(--primary)', border: 'none' }}
+                  >
+                    🎭
+                  </button>
+                )}
               </div>
               <div className="account-info">
                 <h2 className="account-username">
@@ -1770,9 +2026,8 @@ function AccountModal({ onClose, user, darkMode, onUpdateUser, onOpenVerificatio
                 <div className="account-reputation">{profile.reputation.toLocaleString()} point</div>
                 {profile.email && <div className="account-email">📧 {profile.email}</div>}
                 {!profile.is_verified && profile.email_verified && (
-                  <div className="account-verify-prompt clickable" onClick={() => { onClose(); onOpenVerification && onOpenVerification(); }}>
+                  <div className="account-verify-prompt">
                     <span>💡 ยืนยันตัวตนเพื่อรับ Verified Badge</span>
-                    <button className="verify-btn-link">ยืนยันเลย →</button>
                   </div>
                 )}
                 {!profile.email_verified && profile.email && (
@@ -1849,6 +2104,7 @@ export default function Home() {
   const [deferredPrompt, setDeferredPrompt] = useState(null)
   const [showInstallPrompt, setShowInstallPrompt] = useState(false)
   const [showVerificationModal, setShowVerificationModal] = useState(false)
+  const [showCharacterPicker, setShowCharacterPicker] = useState(false)
 
   useEffect(() => { 
     loadPolls(); 
@@ -2140,7 +2396,17 @@ export default function Home() {
 
       {showCreatePoll && <CreatePollModal onClose={() => setShowCreatePoll(false)} user={user} onSuccess={loadPolls} darkMode={darkMode} />}
       {showAdminPanel && <AdminPanel onClose={() => setShowAdminPanel(false)} darkMode={darkMode} onRefresh={loadPolls} />}
-      {showAccount && <AccountModal onClose={() => setShowAccount(false)} user={user} darkMode={darkMode} onUpdateUser={setUser} onOpenVerification={() => setShowVerificationModal(true)} />}
+      {showAccount && <AccountModal onClose={() => setShowAccount(false)} user={user} darkMode={darkMode} onUpdateUser={setUser} onOpenVerification={() => setShowVerificationModal(true)} onOpenCharacterPicker={() => { setShowAccount(false); setShowCharacterPicker(true) }} />}
+      
+      {/* Character Picker Modal */}
+      {showCharacterPicker && user && (
+        <CharacterPickerModal
+          onClose={() => setShowCharacterPicker(false)}
+          user={user}
+          darkMode={darkMode}
+          onUpdateUser={setUser}
+        />
+      )}
       
       {/* Live Battle & Time Capsule Modals */}
       {showCreateLiveBattle && <CreateLiveBattleModal onClose={() => setShowCreateLiveBattle(false)} user={user} onSuccess={() => { loadLiveBattles(); setActiveCategory('live') }} darkMode={darkMode} />}
