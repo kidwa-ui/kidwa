@@ -1363,7 +1363,6 @@ export default function Home() {
     localStorage.removeItem('kidwa-user')
     setShowMenu(false)
   }
-  const handleLogout = () => { setUser(null); setUserVotes({}); setUnreadCount(0); localStorage.removeItem('kidwa-user'); setShowMenu(false) }
 
   const handleVote = async (pollId, optionId, confidence) => { if (!user) { setShowAuthModal(true); return }; const poll = polls.find(p => p.id === pollId); if (poll && isExpired(poll.ends_at)) { alert('โพลนี้หมดเวลาแล้ว'); return }; const { error } = await vote(user.id, pollId, optionId, confidence); if (!error) { setUserVotes(prev => ({ ...prev, [pollId]: { optionId, confidence } })); loadPolls(); const c = confidenceLevels.find(c => c.value === confidence); alert(`✅ โหวตสำเร็จ!\n\n${c?.emoji} ${c?.label} (±${confidence})`) }}
 
