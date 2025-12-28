@@ -5,6 +5,155 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
+// ===== Auth Functions =====
+
+// สมัครสมาชิกด้วย Email + Password
+export async function signUpWithEmail(email, password, username) {
+  // ตรวจสอบว่า username ซ้ำไหม
+  const { data: existingUser } = await supabase
+    .from('users')
+    .select('id')
+    .eq('username', username)
+    .single()
+  
+  if (existingUser) {
+    return { data: null, error: { message: 'ชื่อผู้ใช้นี้ถูกใช้แล้ว' } }
+  }
+
+  // ตรวจสอบว่า email ซ้ำไหม
+  const { data: existingEmail } = await supabase
+    .from('users')
+    .select('id')
+    .eq('email', email)
+    .single()
+  
+  if (existingEmail) {
+    return { data: null, error: { message: 'อีเมลนี้ถูกใช้แล้ว' } }
+  }
+
+  // สมัครกับ Supabase Auth
+  const { data: authData, error: authError } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      data: { username }
+    }
+  })
+
+  if (authError) return { data: null, error: authError }
+
+  // สร้าง user ใน users table
+  const { data: userData, error: userError } = await supabase
+    .from('users')
+    .insert([{
+      username,
+      email,
+      auth_id: authData.user?.id,
+      email_verified: false,
+      reputation: 1000
+    }])
+    .select()
+    .single()
+
+  if (userError) return { data: null, error: userError }
+
+  return { data: { auth: authData, user: userData }, error: null }
+}
+
+// เข้าสู่ระบบด้วย Email + Password
+export async function signInWithEmail(email, password) {
+  const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+    email,
+    password
+  })
+
+  if (authError) return { data: null, error: authError }
+
+  // ดึงข้อมูล user จาก users table
+  const { data: userData, error: userError } = await supabase
+    .from('users')
+    .select('*')
+    .eq('auth_id', authData.user?.id)
+    .single()
+
+  if (userError || !userData) {
+    return { data: null, error: { message: 'ไม่พบข้อมูลผู้ใช้' } }
+  }
+
+  return { data: { auth: authData, user: userData }, error: null }
+}
+
+// เข้าสู่ระบบด้วย Magic Link
+export async function signInWithMagicLink(email) {
+  const { data, error } = await supabase.auth.signInWithOtp({
+    email,
+    options: {
+      emailRedirectTo: `${window.location.origin}/auth/callback`
+    }
+  })
+
+  return { data, error }
+}
+
+// ออกจากระบบ
+export async function signOut() {
+  const { error } = await supabase.auth.signOut()
+  return { error }
+}
+
+// ดึง session ปัจจุบัน
+export async function getSession() {
+  const { data: { session }, error } = await supabase.auth.getSession()
+  return { session, error }
+}
+
+// ดึงข้อมูล user จาก auth session
+export async function getUserFromSession() {
+  const { data: { session } } = await supabase.auth.getSession()
+  
+  if (!session?.user) return { data: null, error: null }
+
+  const { data: userData, error } = await supabase
+    .from('users')
+    .select('*')
+    .eq('auth_id', session.user.id)
+    .single()
+
+  // อัพเดท email_verified ถ้ายืนยันแล้ว
+  if (userData && session.user.email_confirmed_at && !userData.email_verified) {
+    await supabase
+      .from('users')
+      .update({ email_verified: true })
+      .eq('id', userData.id)
+    userData.email_verified = true
+  }
+
+  return { data: userData, error }
+}
+
+// ลืมรหัสผ่าน
+export async function resetPassword(email) {
+  const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${window.location.origin}/auth/callback?type=recovery`
+  })
+
+  return { data, error }
+}
+
+// เปลี่ยนรหัสผ่าน
+export async function updatePassword(newPassword) {
+  const { data, error } = await supabase.auth.updateUser({
+    password: newPassword
+  })
+
+  return { data, error }
+}
+
+// Subscribe to auth state changes
+export function onAuthStateChange(callback) {
+  return supabase.auth.onAuthStateChange(callback)
+}
+
 export async function getUserByUsername(username) {
   const { data, error } = await supabase
     .from('users')
@@ -74,7 +223,7 @@ export async function getUserVotes(userId) {
 export async function getLeaderboard(limit = 10) {
   const { data, error } = await supabase
     .from('users')
-    .select('id, username, reputation')
+    .select('id, username, reputation, email_verified')
     .order('reputation', { ascending: false })
     .limit(limit)
   return { data, error }
@@ -92,7 +241,7 @@ export async function getWeeklyLeaderboard(limit = 10) {
   
   const { data: votes, error } = await supabase
     .from('votes')
-    .select('user_id, points_earned, users!inner(id, username, reputation)')
+    .select('user_id, points_earned, users!inner(id, username, reputation, email_verified)')
     .gte('created_at', monday.toISOString())
     .not('points_earned', 'is', null)
 
@@ -107,6 +256,7 @@ export async function getWeeklyLeaderboard(limit = 10) {
         id: userId,
         username: vote.users.username,
         reputation: vote.users.reputation,
+        email_verified: vote.users.email_verified,
         weeklyPoints: 0
       }
     }
@@ -130,7 +280,7 @@ export async function getMonthlyLeaderboard(limit = 10) {
   
   const { data: votes, error } = await supabase
     .from('votes')
-    .select('user_id, points_earned, users!inner(id, username, reputation)')
+    .select('user_id, points_earned, users!inner(id, username, reputation, email_verified)')
     .gte('created_at', firstDayOfMonth.toISOString())
     .not('points_earned', 'is', null)
 
@@ -145,6 +295,7 @@ export async function getMonthlyLeaderboard(limit = 10) {
         id: userId,
         username: vote.users.username,
         reputation: vote.users.reputation,
+        email_verified: vote.users.email_verified,
         monthlyPoints: 0
       }
     }
