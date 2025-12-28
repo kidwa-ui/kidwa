@@ -1770,7 +1770,7 @@ function AccountModal({ onClose, user, darkMode, onUpdateUser, onOpenVerificatio
                 <div className="account-reputation">{profile.reputation.toLocaleString()} point</div>
                 {profile.email && <div className="account-email">📧 {profile.email}</div>}
                 {!profile.is_verified && profile.email_verified && (
-                  <div className="account-verify-prompt clickable" onClick={() => { onClose(); onOpenVerification(); }}>
+                  <div className="account-verify-prompt clickable" onClick={() => { onClose(); onOpenVerification && onOpenVerification(); }}>
                     <span>💡 ยืนยันตัวตนเพื่อรับ Verified Badge</span>
                     <button className="verify-btn-link">ยืนยันเลย →</button>
                   </div>
