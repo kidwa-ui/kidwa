@@ -235,7 +235,7 @@ export async function getUserVotes(userId) {
 export async function getLeaderboard(limit = 10) {
   const { data, error } = await supabase
     .from('users')
-    .select('id, username, reputation, email_verified')
+    .select('id, username, reputation, email_verified, is_verified')
     .order('reputation', { ascending: false })
     .limit(limit)
   return { data, error }
@@ -253,7 +253,7 @@ export async function getWeeklyLeaderboard(limit = 10) {
   
   const { data: votes, error } = await supabase
     .from('votes')
-    .select('user_id, points_earned, users!inner(id, username, reputation, email_verified)')
+    .select('user_id, points_earned, users!inner(id, username, reputation, email_verified, is_verified)')
     .gte('created_at', monday.toISOString())
     .not('points_earned', 'is', null)
 
@@ -269,6 +269,7 @@ export async function getWeeklyLeaderboard(limit = 10) {
         username: vote.users.username,
         reputation: vote.users.reputation,
         email_verified: vote.users.email_verified,
+        is_verified: vote.users.is_verified,
         weeklyPoints: 0
       }
     }
@@ -292,7 +293,7 @@ export async function getMonthlyLeaderboard(limit = 10) {
   
   const { data: votes, error } = await supabase
     .from('votes')
-    .select('user_id, points_earned, users!inner(id, username, reputation, email_verified)')
+    .select('user_id, points_earned, users!inner(id, username, reputation, email_verified, is_verified)')
     .gte('created_at', firstDayOfMonth.toISOString())
     .not('points_earned', 'is', null)
 
@@ -308,6 +309,7 @@ export async function getMonthlyLeaderboard(limit = 10) {
         username: vote.users.username,
         reputation: vote.users.reputation,
         email_verified: vote.users.email_verified,
+        is_verified: vote.users.is_verified,
         monthlyPoints: 0
       }
     }
