@@ -13,7 +13,8 @@ import {
   createTimeCapsule, getTimeCapsules,
   createLiveBattle, getLiveBattles, endLiveBattle, subscribeLiveBattle, unsubscribeLiveBattle,
   signUpWithEmail, signInWithEmail, signInWithMagicLink, signOut, getSession, getUserFromSession, 
-  resetPassword, updatePassword, onAuthStateChange, signInWithGoogle
+  resetPassword, updatePassword, onAuthStateChange, signInWithGoogle,
+  submitVerification, skipVerification, checkNeedsVerification, getUserPollLimit, findSimilarPolls, checkAndAwardCreatorPoints
 } from '@/lib/supabase'
 
 const categories = [
@@ -570,6 +571,211 @@ function CreateLiveBattleModal({ onClose, user, onSuccess, darkMode }) {
   )
 }
 
+// ===== Verification Modal (PDPA Consent) =====
+function VerificationModal({ onClose, user, onSuccess, darkMode }) {
+  const [fullName, setFullName] = useState('')
+  const [birthDate, setBirthDate] = useState('')
+  const [pdpaConsent, setPdpaConsent] = useState(false)
+  const [marketingConsent, setMarketingConsent] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState('')
+
+  const calculateAge = (dateString) => {
+    if (!dateString) return null
+    const today = new Date()
+    const birth = new Date(dateString)
+    let age = today.getFullYear() - birth.getFullYear()
+    const monthDiff = today.getMonth() - birth.getMonth()
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+      age--
+    }
+    return age
+  }
+
+  const age = calculateAge(birthDate)
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setError('')
+
+    if (!fullName.trim()) {
+      setError('กรุณากรอกชื่อ-นามสกุล')
+      return
+    }
+
+    if (!birthDate) {
+      setError('กรุณาเลือกวันเกิด')
+      return
+    }
+
+    if (age < 13) {
+      setError('ต้องมีอายุอย่างน้อย 13 ปี')
+      return
+    }
+
+    if (!pdpaConsent) {
+      setError('กรุณายอมรับเงื่อนไขการใช้งานและนโยบายความเป็นส่วนตัว')
+      return
+    }
+
+    setIsSubmitting(true)
+
+    const { data, error: submitError } = await submitVerification(user.id, {
+      fullName: fullName.trim(),
+      birthDate,
+      pdpaConsent,
+      marketingConsent
+    })
+
+    setIsSubmitting(false)
+
+    if (submitError) {
+      setError(submitError.message)
+    } else {
+      onSuccess({ ...user, is_verified: true, full_name: fullName })
+    }
+  }
+
+  const handleSkip = async () => {
+    await skipVerification(user.id)
+    onClose()
+  }
+
+  // คำนวณวันที่สูงสุด (ต้องอายุ 13+)
+  const maxDate = new Date()
+  maxDate.setFullYear(maxDate.getFullYear() - 13)
+  const maxDateStr = maxDate.toISOString().split('T')[0]
+
+  return (
+    <div className="modal-overlay">
+      <div className={`modal verification-modal ${darkMode ? 'dark' : ''}`} onClick={e => e.stopPropagation()}>
+        <div className="verification-header">
+          <span className="verification-icon">🔐</span>
+          <h2>ยืนยันตัวตน</h2>
+          <p>รับ Verified Badge และสิทธิพิเศษ!</p>
+        </div>
+
+        <div className="verification-benefits">
+          <div className="benefit-item">
+            <span>🔵</span>
+            <span>Verified Badge แสดงข้างชื่อ</span>
+          </div>
+          <div className="benefit-item">
+            <span>📊</span>
+            <span>สร้างโพลได้ 3 โพล/วัน (ปกติ 1 โพล)</span>
+          </div>
+          <div className="benefit-item">
+            <span>⭐</span>
+            <span>สิทธิพิเศษในอนาคต</span>
+          </div>
+        </div>
+
+        {error && <div className="auth-error">❌ {error}</div>}
+
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label>👤 ชื่อ-นามสกุล (จริง)</label>
+            <input 
+              type="text" 
+              className="form-input" 
+              placeholder="เช่น สมชาย ใจดี" 
+              value={fullName} 
+              onChange={e => setFullName(e.target.value)}
+              maxLength={100}
+            />
+          </div>
+
+          <div className="form-group">
+            <label>🎂 วันเกิด</label>
+            <input 
+              type="date" 
+              className="form-input" 
+              value={birthDate} 
+              onChange={e => setBirthDate(e.target.value)}
+              max={maxDateStr}
+            />
+            {age !== null && age >= 13 && (
+              <span className="age-display">อายุ {age} ปี</span>
+            )}
+          </div>
+
+          <div className="consent-section">
+            <label className="consent-item required">
+              <input 
+                type="checkbox" 
+                checked={pdpaConsent} 
+                onChange={e => setPdpaConsent(e.target.checked)}
+              />
+              <span>
+                ยอมรับ<a href="/terms" target="_blank">เงื่อนไขการใช้งาน</a>และ
+                <a href="/privacy" target="_blank">นโยบายความเป็นส่วนตัว</a> 
+                รวมถึงยินยอมให้เก็บข้อมูลส่วนบุคคลเพื่อยืนยันตัวตน (ตาม พ.ร.บ. PDPA)
+                <span className="required-mark">*</span>
+              </span>
+            </label>
+
+            <label className="consent-item optional">
+              <input 
+                type="checkbox" 
+                checked={marketingConsent} 
+                onChange={e => setMarketingConsent(e.target.checked)}
+              />
+              <span>ยินยอมรับข่าวสารและการแจ้งเตือนพิเศษ (ไม่บังคับ)</span>
+            </label>
+          </div>
+
+          <div className="verification-note">
+            <span>🔒</span>
+            <span>ข้อมูลของคุณจะถูกเก็บรักษาอย่างปลอดภัยและไม่เปิดเผยต่อสาธารณะ</span>
+          </div>
+
+          <div className="modal-actions">
+            <button type="button" className="btn btn-secondary" onClick={handleSkip}>
+              ข้ามไปก่อน
+            </button>
+            <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
+              {isSubmitting ? '⏳ กำลังยืนยัน...' : '✅ ยืนยันตัวตน'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ===== Similar Polls Warning Component =====
+function SimilarPollsWarning({ similarPolls, onContinue, onViewPoll }) {
+  if (!similarPolls || similarPolls.length === 0) return null
+
+  return (
+    <div className="similar-polls-warning">
+      <div className="warning-header">
+        <span>⚠️</span>
+        <span>พบโพลที่คล้ายกัน</span>
+      </div>
+      <p className="warning-text">เราพบโพลที่อาจซ้ำกับที่คุณกำลังสร้าง ลองดูโพลเหล่านี้ก่อนไหม?</p>
+      
+      <div className="similar-polls-list">
+        {similarPolls.map(poll => (
+          <div key={poll.id} className="similar-poll-item" onClick={() => onViewPoll(poll)}>
+            <div className="similar-poll-question">{poll.question}</div>
+            <div className="similar-poll-meta">
+              <span>👥 {poll.totalVotes.toLocaleString()} โหวต</span>
+              <span className="similarity-badge">{Math.round(poll.similarity * 100)}% คล้ายกัน</span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="warning-actions">
+        <button className="btn btn-secondary" onClick={onContinue}>
+          🆕 สร้างโพลใหม่ต่อ
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ===== Notification Dropdown Component =====
 function NotificationDropdown({ user, onClose }) {
   const [notifications, setNotifications] = useState([])
@@ -1032,37 +1238,286 @@ function CreatePollModal({ onClose, user, onSuccess, darkMode }) {
   const [availableTags, setAvailableTags] = useState([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errors, setErrors] = useState({})
+  
+  // New states for poll limit and similar polls
+  const [pollLimit, setPollLimit] = useState({ canCreate: true, used: 0, limit: 1, remaining: 1 })
+  const [similarPolls, setSimilarPolls] = useState([])
+  const [showSimilarWarning, setShowSimilarWarning] = useState(false)
+  const [isCheckingSimilar, setIsCheckingSimilar] = useState(false)
+  const [similarCheckDone, setSimilarCheckDone] = useState(false)
 
-  useEffect(() => { loadTags(); const d = new Date(); d.setDate(d.getDate() + 7); setEndsAt(d.toISOString().split('T')[0]) }, [])
-  const loadTags = async () => { const { data } = await getTags(); if (data) setAvailableTags(data) }
+  useEffect(() => { 
+    loadTags()
+    loadPollLimit()
+    const d = new Date()
+    d.setDate(d.getDate() + 7)
+    setEndsAt(d.toISOString().split('T')[0]) 
+  }, [])
+
+  const loadTags = async () => { 
+    const { data } = await getTags()
+    if (data) setAvailableTags(data) 
+  }
+
+  const loadPollLimit = async () => {
+    const limit = await getUserPollLimit(user.id)
+    setPollLimit(limit)
+  }
+
+  // Check similar polls when question changes (debounced)
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      if (question.trim().length > 10) {
+        setIsCheckingSimilar(true)
+        const { data } = await findSimilarPolls(question)
+        setSimilarPolls(data || [])
+        setIsCheckingSimilar(false)
+      } else {
+        setSimilarPolls([])
+      }
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [question])
+
   const addOption = () => { if (options.length < 6) setOptions([...options, '']) }
   const removeOption = (index) => { if (options.length > 2) setOptions(options.filter((_, i) => i !== index)) }
   const updateOption = (index, value) => { const n = [...options]; n[index] = value; setOptions(n) }
+  
   const addTag = async () => {
     if (!tagInput.trim() || selectedTags.length >= 5) return
     let tag = availableTags.find(t => t.name.toLowerCase() === tagInput.toLowerCase().trim())
-    if (!tag) { const { data } = await createTag(tagInput.trim()); if (data) { tag = data; setAvailableTags([...availableTags, data]) }}
+    if (!tag) { 
+      const { data } = await createTag(tagInput.trim())
+      if (data) { tag = data; setAvailableTags([...availableTags, data]) }
+    }
     if (tag && !selectedTags.find(t => t.id === tag.id)) setSelectedTags([...selectedTags, tag])
     setTagInput('')
   }
-  const validate = () => { const e = {}; if (!question.trim()) e.question = 'กรุณาใส่คำถาม'; if (options.filter(o => o.trim()).length < 2) e.options = 'ต้องมีตัวเลือกอย่างน้อย 2 ตัว'; if (!endsAt) e.endsAt = 'กรุณาเลือกวันหมดเวลา'; setErrors(e); return Object.keys(e).length === 0 }
-  const handleSubmit = async (e) => { e.preventDefault(); if (!validate()) return; setIsSubmitting(true); const { error } = await createPoll({ question: question.trim(), options: options.filter(o => o.trim()), category, tags: selectedTags.map(t => t.id), blindMode, endsAt: new Date(endsAt).toISOString(), pollType: 'prediction', createdBy: user.id }); setIsSubmitting(false); if (error) alert('เกิดข้อผิดพลาด'); else { alert('🎉 สร้างโพลสำเร็จ!'); onSuccess(); onClose() }}
-  const filteredTags = availableTags.filter(tag => tag.name.toLowerCase().includes(tagInput.toLowerCase()) && !selectedTags.find(t => t.id === tag.id)).slice(0, 5)
+
+  const validate = () => { 
+    const e = {}
+    if (!question.trim()) e.question = 'กรุณาใส่คำถาม'
+    if (options.filter(o => o.trim()).length < 2) e.options = 'ต้องมีตัวเลือกอย่างน้อย 2 ตัว'
+    if (!endsAt) e.endsAt = 'กรุณาเลือกวันหมดเวลา'
+    setErrors(e)
+    return Object.keys(e).length === 0 
+  }
+
+  const handleSubmit = async (e) => { 
+    e.preventDefault()
+    if (!validate()) return
+
+    // Check similar polls warning first
+    if (similarPolls.length > 0 && !similarCheckDone) {
+      setShowSimilarWarning(true)
+      return
+    }
+
+    setIsSubmitting(true)
+    const { error } = await createPoll({ 
+      question: question.trim(), 
+      options: options.filter(o => o.trim()), 
+      category, 
+      tags: selectedTags.map(t => t.id), 
+      blindMode, 
+      endsAt: new Date(endsAt).toISOString(), 
+      pollType: 'prediction', 
+      createdBy: user.id 
+    })
+    setIsSubmitting(false)
+    if (error) {
+      alert('เกิดข้อผิดพลาด')
+    } else { 
+      alert('🎉 สร้างโพลสำเร็จ!') 
+      onSuccess()
+      onClose()
+    }
+  }
+
+  const handleContinueAfterWarning = () => {
+    setSimilarCheckDone(true)
+    setShowSimilarWarning(false)
+  }
+
+  const filteredTags = availableTags.filter(tag => 
+    tag.name.toLowerCase().includes(tagInput.toLowerCase()) && !selectedTags.find(t => t.id === tag.id)
+  ).slice(0, 5)
+
+  // Show poll limit exceeded message
+  if (!pollLimit.canCreate) {
+    return (
+      <div className="modal-overlay" onClick={onClose}>
+        <div className={`modal create-poll-modal ${darkMode ? 'dark' : ''}`} onClick={e => e.stopPropagation()}>
+          <button className="modal-close" onClick={onClose}>✕</button>
+          <div className="poll-limit-exceeded">
+            <span className="limit-icon">⏰</span>
+            <h2>ถึงขีดจำกัดแล้ว</h2>
+            <p>คุณสร้างโพลครบ {pollLimit.limit} โพลแล้ววันนี้</p>
+            <p className="limit-reset">กลับมาสร้างใหม่ได้พรุ่งนี้ 00:00 น.</p>
+            
+            {!pollLimit.isVerified && (
+              <div className="verify-upsell">
+                <p>🔵 <strong>ยืนยันตัวตน</strong> เพื่อสร้างได้ 3 โพล/วัน!</p>
+              </div>
+            )}
+            
+            <button className="btn btn-secondary" onClick={onClose}>ปิด</button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className={`modal create-poll-modal ${darkMode ? 'dark' : ''}`} onClick={e => e.stopPropagation()}>
         <button className="modal-close" onClick={onClose}>✕</button>
         <h2 className="modal-title">➕ สร้างโพลใหม่</h2>
-        <form onSubmit={handleSubmit}>
-          <div className="form-group"><label>❓ คำถาม</label><input type="text" className={`form-input ${errors.question ? 'error' : ''}`} placeholder="เช่น ทีมไหนจะชนะฟุตบอลโลก 2026?" value={question} onChange={(e) => setQuestion(e.target.value)} maxLength={200} />{errors.question && <span className="error-text">{errors.question}</span>}<span className="char-count">{question.length}/200</span></div>
-          <div className="form-group"><label>📋 ตัวเลือก (2-6 ตัว)</label>{options.map((opt, index) => (<div key={index} className="option-input-row"><input type="text" className="form-input" placeholder={`ตัวเลือกที่ ${index + 1}`} value={opt} onChange={(e) => updateOption(index, e.target.value)} maxLength={100} />{options.length > 2 && <button type="button" className="remove-option-btn" onClick={() => removeOption(index)}>✕</button>}</div>))}{errors.options && <span className="error-text">{errors.options}</span>}{options.length < 6 && <button type="button" className="add-option-btn" onClick={addOption}>+ เพิ่มตัวเลือก</button>}</div>
-          <div className="form-group"><label>📂 หมวดหมู่</label><select className="form-input" value={category} onChange={(e) => setCategory(e.target.value)}>{categories.filter(c => c.id !== 'home').map(cat => <option key={cat.id} value={cat.id}>{cat.icon} {cat.name}</option>)}</select></div>
-          <div className="form-group"><label>🏷️ แท็ก (สูงสุด 5)</label><div className="tags-selected">{selectedTags.map(tag => <span key={tag.id} className="tag-chip">#{tag.name}<button type="button" onClick={() => setSelectedTags(selectedTags.filter(t => t.id !== tag.id))}>✕</button></span>)}</div><div className="tag-input-wrapper"><input type="text" className="form-input" placeholder="พิมพ์แท็กแล้วกด Enter" value={tagInput} onChange={(e) => setTagInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag() }}} />{tagInput && <button type="button" className="add-tag-btn" onClick={addTag}>เพิ่ม</button>}</div>{filteredTags.length > 0 && tagInput && <div className="tag-suggestions">{filteredTags.map(tag => <button key={tag.id} type="button" className="tag-suggestion" onClick={() => { if (selectedTags.length < 5 && !selectedTags.find(t => t.id === tag.id)) setSelectedTags([...selectedTags, tag]) }}>#{tag.name}</button>)}</div>}</div>
-          <div className="form-group"><label>📅 วันหมดเวลา</label><input type="date" className={`form-input ${errors.endsAt ? 'error' : ''}`} value={endsAt} onChange={(e) => setEndsAt(e.target.value)} min={new Date().toISOString().split('T')[0]} />{errors.endsAt && <span className="error-text">{errors.endsAt}</span>}</div>
-          <div className="form-group"><label className="toggle-label"><input type="checkbox" checked={blindMode} onChange={(e) => setBlindMode(e.target.checked)} /><span className="toggle-switch"></span><span>🔒 Blind Mode</span></label></div>
-          <div className="modal-actions"><button type="button" className="btn btn-secondary" onClick={onClose}>ยกเลิก</button><button type="submit" className="btn btn-primary" disabled={isSubmitting}>{isSubmitting ? '⏳ กำลังสร้าง...' : '🚀 สร้างโพล'}</button></div>
-        </form>
+        
+        {/* Poll Limit Indicator */}
+        <div className="poll-limit-indicator">
+          <span>📊 โควต้าวันนี้: {pollLimit.remaining}/{pollLimit.limit} โพล</span>
+          {!pollLimit.isVerified && <span className="verify-hint">🔵 ยืนยันตัวตนเพื่อได้ 3 โพล/วัน</span>}
+        </div>
+
+        {/* Similar Polls Warning */}
+        {showSimilarWarning && (
+          <SimilarPollsWarning 
+            similarPolls={similarPolls}
+            onContinue={handleContinueAfterWarning}
+            onViewPoll={(poll) => {
+              // Close this modal and open poll view
+              onClose()
+              // Can implement poll view here if needed
+            }}
+          />
+        )}
+
+        {!showSimilarWarning && (
+          <form onSubmit={handleSubmit}>
+            <div className="form-group">
+              <label>❓ คำถาม</label>
+              <input 
+                type="text" 
+                className={`form-input ${errors.question ? 'error' : ''}`} 
+                placeholder="เช่น ทีมไหนจะชนะฟุตบอลโลก 2026?" 
+                value={question} 
+                onChange={(e) => setQuestion(e.target.value)} 
+                maxLength={200} 
+              />
+              {errors.question && <span className="error-text">{errors.question}</span>}
+              <span className="char-count">{question.length}/200</span>
+              
+              {/* Similar polls preview */}
+              {isCheckingSimilar && <span className="checking-similar">🔍 กำลังตรวจสอบ...</span>}
+              {!isCheckingSimilar && similarPolls.length > 0 && !similarCheckDone && (
+                <div className="similar-preview">
+                  <span className="similar-icon">⚠️</span>
+                  <span>พบ {similarPolls.length} โพลที่คล้ายกัน</span>
+                </div>
+              )}
+            </div>
+
+            <div className="form-group">
+              <label>📋 ตัวเลือก (2-6 ตัว)</label>
+              {options.map((opt, index) => (
+                <div key={index} className="option-input-row">
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    placeholder={`ตัวเลือกที่ ${index + 1}`} 
+                    value={opt} 
+                    onChange={(e) => updateOption(index, e.target.value)} 
+                    maxLength={100} 
+                  />
+                  {options.length > 2 && (
+                    <button type="button" className="remove-option-btn" onClick={() => removeOption(index)}>✕</button>
+                  )}
+                </div>
+              ))}
+              {errors.options && <span className="error-text">{errors.options}</span>}
+              {options.length < 6 && (
+                <button type="button" className="add-option-btn" onClick={addOption}>+ เพิ่มตัวเลือก</button>
+              )}
+            </div>
+
+            <div className="form-group">
+              <label>📂 หมวดหมู่</label>
+              <select className="form-input" value={category} onChange={(e) => setCategory(e.target.value)}>
+                {categories.filter(c => !['home', 'live', 'timecapsule'].includes(c.id)).map(cat => (
+                  <option key={cat.id} value={cat.id}>{cat.icon} {cat.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label>🏷️ แท็ก (สูงสุด 5)</label>
+              <div className="tags-selected">
+                {selectedTags.map(tag => (
+                  <span key={tag.id} className="tag-chip">
+                    #{tag.name}
+                    <button type="button" onClick={() => setSelectedTags(selectedTags.filter(t => t.id !== tag.id))}>✕</button>
+                  </span>
+                ))}
+              </div>
+              <div className="tag-input-wrapper">
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  placeholder="พิมพ์แท็กแล้วกด Enter" 
+                  value={tagInput} 
+                  onChange={(e) => setTagInput(e.target.value)} 
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag() }}} 
+                />
+                {tagInput && <button type="button" className="add-tag-btn" onClick={addTag}>เพิ่ม</button>}
+              </div>
+              {filteredTags.length > 0 && tagInput && (
+                <div className="tag-suggestions">
+                  {filteredTags.map(tag => (
+                    <button 
+                      key={tag.id} 
+                      type="button" 
+                      className="tag-suggestion" 
+                      onClick={() => { 
+                        if (selectedTags.length < 5 && !selectedTags.find(t => t.id === tag.id)) 
+                          setSelectedTags([...selectedTags, tag]) 
+                      }}
+                    >
+                      #{tag.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="form-group">
+              <label>📅 วันหมดเวลา</label>
+              <input 
+                type="date" 
+                className={`form-input ${errors.endsAt ? 'error' : ''}`} 
+                value={endsAt} 
+                onChange={(e) => setEndsAt(e.target.value)} 
+                min={new Date().toISOString().split('T')[0]} 
+              />
+              {errors.endsAt && <span className="error-text">{errors.endsAt}</span>}
+            </div>
+
+            <div className="form-group">
+              <label className="toggle-label">
+                <input type="checkbox" checked={blindMode} onChange={(e) => setBlindMode(e.target.checked)} />
+                <span className="toggle-switch"></span>
+                <span>🔒 Blind Mode</span>
+              </label>
+            </div>
+
+            <div className="modal-actions">
+              <button type="button" className="btn btn-secondary" onClick={onClose}>ยกเลิก</button>
+              <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
+                {isSubmitting ? '⏳ กำลังสร้าง...' : '🚀 สร้างโพล'}
+              </button>
+            </div>
+          </form>
+        )}
       </div>
     </div>
   )
@@ -1317,6 +1772,7 @@ export default function Home() {
   const [showCreateTimeCapsule, setShowCreateTimeCapsule] = useState(false)
   const [deferredPrompt, setDeferredPrompt] = useState(null)
   const [showInstallPrompt, setShowInstallPrompt] = useState(false)
+  const [showVerificationModal, setShowVerificationModal] = useState(false)
 
   useEffect(() => { 
     loadPolls(); 
@@ -1333,6 +1789,12 @@ export default function Home() {
     if (userData) {
       setUser(userData)
       localStorage.setItem('kidwa-user', JSON.stringify(userData))
+      
+      // Check if user needs verification (email verified but identity not verified)
+      const needsVerification = await checkNeedsVerification(userData.id)
+      if (needsVerification) {
+        setShowVerificationModal(true)
+      }
     } else {
       // ถ้าไม่มี session ให้ลองใช้ localStorage (legacy users)
       const u = localStorage.getItem('kidwa-user')
@@ -1410,7 +1872,21 @@ export default function Home() {
     setShowMenu(false)
   }
 
-  const handleVote = async (pollId, optionId, confidence) => { if (!user) { setShowAuthModal(true); return }; const poll = polls.find(p => p.id === pollId); if (poll && isExpired(poll.ends_at)) { alert('โพลนี้หมดเวลาแล้ว'); return }; const { error } = await vote(user.id, pollId, optionId, confidence); if (!error) { setUserVotes(prev => ({ ...prev, [pollId]: { optionId, confidence } })); loadPolls(); const c = confidenceLevels.find(c => c.value === confidence); alert(`✅ โหวตสำเร็จ!\n\n${c?.emoji} ${c?.label} (±${confidence})`) }}
+  const handleVote = async (pollId, optionId, confidence) => { 
+    if (!user) { setShowAuthModal(true); return }
+    const poll = polls.find(p => p.id === pollId)
+    if (poll && isExpired(poll.ends_at)) { alert('โพลนี้หมดเวลาแล้ว'); return }
+    const { error } = await vote(user.id, pollId, optionId, confidence)
+    if (!error) { 
+      setUserVotes(prev => ({ ...prev, [pollId]: { optionId, confidence } }))
+      loadPolls()
+      const c = confidenceLevels.find(c => c.value === confidence)
+      alert(`✅ โหวตสำเร็จ!\n\n${c?.emoji} ${c?.label} (±${confidence})`)
+      
+      // Check and award creator engagement points
+      await checkAndAwardCreatorPoints(pollId)
+    }
+  }
 
   const confirmVote = () => { if (!selectedOption) { alert('กรุณาเลือกตัวเลือกก่อน'); return }; handleVote(selectedPoll.id, selectedOption, selectedConfidence) }
 
@@ -1600,6 +2076,20 @@ export default function Home() {
       {showCreateLiveBattle && <CreateLiveBattleModal onClose={() => setShowCreateLiveBattle(false)} user={user} onSuccess={() => { loadLiveBattles(); setActiveCategory('live') }} darkMode={darkMode} />}
       {showCreateTimeCapsule && <CreateTimeCapsuleModal onClose={() => setShowCreateTimeCapsule(false)} user={user} onSuccess={() => { loadTimeCapsules(); setActiveCategory('timecapsule') }} darkMode={darkMode} />}
       
+      {/* Verification Modal (PDPA) */}
+      {showVerificationModal && user && (
+        <VerificationModal
+          onClose={() => setShowVerificationModal(false)}
+          user={user}
+          onSuccess={(updatedUser) => {
+            setUser(updatedUser)
+            localStorage.setItem('kidwa-user', JSON.stringify(updatedUser))
+            setShowVerificationModal(false)
+          }}
+          darkMode={darkMode}
+        />
+      )}
+
       {/* Mobile Notification Modal */}
       {showNotifications && (
         <div className="modal-overlay" onClick={() => { setShowNotifications(false); loadUnreadCount() }}>
