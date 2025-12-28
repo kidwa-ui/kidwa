@@ -419,12 +419,14 @@ export async function resolvePoll(pollId, correctOptionId) {
       
       const { data: userData } = await supabase
         .from('users')
-        .select('reputation, current_streak, max_streak, total_predictions, correct_predictions')
+        .select('reputation, current_streak, max_streak, total_predictions, correct_predictions, is_admin')
         .eq('id', vote.user_id)
         .single()
       
       if (userData) {
-        const newRep = Math.max(0, userData.reputation + change)
+        // Admin ไม่นับคะแนน (reputation ไม่เปลี่ยน)
+        const isAdmin = userData.is_admin === true
+        const newRep = isAdmin ? userData.reputation : Math.max(0, userData.reputation + change)
         const newTotal = (userData.total_predictions || 0) + 1
         const newCorrect = (userData.correct_predictions || 0) + (isCorrect ? 1 : 0)
         const newCurrentStreak = isCorrect ? (userData.current_streak || 0) + 1 : 0
@@ -436,20 +438,30 @@ export async function resolvePoll(pollId, correctOptionId) {
         }).eq('id', vote.user_id)
 
         // สร้าง Notification สำหรับผู้โหวต
-        const notifMessage = isCorrect 
-          ? `🎉 ทายถูก! "${pollData?.question?.substring(0, 50)}..." คำตอบคือ "${correctOption?.text}" (+${vote.confidence} pt)`
-          : `😢 ทายผิด "${pollData?.question?.substring(0, 50)}..." คำตอบคือ "${correctOption?.text}" (${change} pt)`
+        let notifMessage
+        if (isAdmin) {
+          notifMessage = isCorrect 
+            ? `🎉 ทายถูก! "${pollData?.question?.substring(0, 50)}..." คำตอบคือ "${correctOption?.text}" (Admin - ไม่นับคะแนน)`
+            : `😢 ทายผิด "${pollData?.question?.substring(0, 50)}..." คำตอบคือ "${correctOption?.text}" (Admin - ไม่นับคะแนน)`
+        } else {
+          notifMessage = isCorrect 
+            ? `🎉 ทายถูก! "${pollData?.question?.substring(0, 50)}..." คำตอบคือ "${correctOption?.text}" (+${vote.confidence} pt)`
+            : `😢 ทายผิด "${pollData?.question?.substring(0, 50)}..." คำตอบคือ "${correctOption?.text}" (${change} pt)`
+        }
         
         await createNotification({
           userId: vote.user_id,
           type: isCorrect ? 'points_earned' : 'points_lost',
           message: notifMessage,
           pollId: pollId,
-          pointsChange: change
+          pointsChange: isAdmin ? 0 : change
         })
       }
 
-      await supabase.from('votes').update({ is_correct: isCorrect, points_earned: change }).eq('id', vote.id)
+      // บันทึกผลโหวต (Admin ก็ได้ 0 points)
+      const { data: voterData } = await supabase.from('users').select('is_admin').eq('id', vote.user_id).single()
+      const pointsToRecord = voterData?.is_admin ? 0 : change
+      await supabase.from('votes').update({ is_correct: isCorrect, points_earned: pointsToRecord }).eq('id', vote.id)
     }
 
     return { error: null }
@@ -963,9 +975,21 @@ export async function checkPollLimit(userId) {
 export async function getUserPollLimit(userId) {
   const { data: user } = await supabase
     .from('users')
-    .select('is_verified')
+    .select('is_verified, is_admin')
     .eq('id', userId)
     .single()
+
+  // Admin = ไม่จำกัด (Unlimited)
+  if (user?.is_admin) {
+    return {
+      canCreate: true,
+      used: 0,
+      limit: Infinity,
+      remaining: Infinity,
+      isVerified: true,
+      isAdmin: true
+    }
+  }
 
   // กำหนดโควต้า: verified = 3 โพล/วัน, ไม่ verified = 1 โพล/วัน
   const dailyLimit = user?.is_verified ? 3 : 1
@@ -988,7 +1012,8 @@ export async function getUserPollLimit(userId) {
     used,
     limit: dailyLimit,
     remaining,
-    isVerified: user?.is_verified || false
+    isVerified: user?.is_verified || false,
+    isAdmin: false
   }
 }
 
