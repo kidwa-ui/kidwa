@@ -9,11 +9,15 @@ import {
   getWeeklyLeaderboard, getMonthlyLeaderboard,
   getUserNotifications, getUnreadNotificationCount, markNotificationAsRead, markAllNotificationsAsRead,
   followUser, unfollowUser, isFollowing, getFollowers, getFollowing, getFollowCounts,
-  uploadAvatar, getUserPublicProfile, searchUsers
+  uploadAvatar, getUserPublicProfile, searchUsers,
+  createTimeCapsule, getTimeCapsules,
+  createLiveBattle, getLiveBattles, endLiveBattle, subscribeLiveBattle, unsubscribeLiveBattle
 } from '@/lib/supabase'
 
 const categories = [
   { id: 'home', name: 'หน้าแรก', icon: '🏠' },
+  { id: 'live', name: 'Live Battle', icon: '⚡' },
+  { id: 'timecapsule', name: 'Time Capsule', icon: '💊' },
   { id: 'sports', name: 'กีฬา', icon: '⚽' },
   { id: 'entertainment', name: 'บันเทิง', icon: '🎬' },
   { id: 'politics', name: 'การเมือง', icon: '🏛️' },
@@ -78,6 +82,37 @@ const getTimeAgo = (date) => {
   if (diffHours < 24) return `${diffHours} ชั่วโมงที่แล้ว`
   if (diffDays < 7) return `${diffDays} วันที่แล้ว`
   return past.toLocaleDateString('th-TH')
+}
+
+// สำหรับ Time Capsule - แสดงเวลาเป็นปี/เดือน
+const getYearsRemaining = (endDate) => {
+  const end = new Date(endDate)
+  const now = new Date()
+  const diffMs = end - now
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+  const diffMonths = Math.floor(diffDays / 30)
+  const diffYears = Math.floor(diffDays / 365)
+  
+  if (diffDays < 0) return 'เปิดแล้ว!'
+  if (diffYears >= 1) return `เปิดใน ${diffYears} ปี ${diffMonths % 12} เดือน`
+  if (diffMonths >= 1) return `เปิดใน ${diffMonths} เดือน`
+  return `เปิดใน ${diffDays} วัน`
+}
+
+// สำหรับ Live Battle - แสดงเวลาเป็นนาที/วินาที
+const getLiveTimeRemaining = (endDate) => {
+  const end = new Date(endDate)
+  const now = new Date()
+  const diffMs = end - now
+  
+  if (diffMs < 0) return { text: 'จบแล้ว', expired: true }
+  
+  const hours = Math.floor(diffMs / (1000 * 60 * 60))
+  const mins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60))
+  const secs = Math.floor((diffMs % (1000 * 60)) / 1000)
+  
+  if (hours > 0) return { text: `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`, expired: false }
+  return { text: `${mins}:${secs.toString().padStart(2, '0')}`, expired: false }
 }
 
 function PollCard({ poll, onClick, userVotes }) {
@@ -188,6 +223,347 @@ function ShareButtons({ poll }) {
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
       </button>
       {copied && <span className="copy-toast">คัดลอกแล้ว!</span>}
+    </div>
+  )
+}
+
+// ===== Live Battle Card =====
+function LiveBattleCard({ poll, onClick, userVotes }) {
+  const [timeLeft, setTimeLeft] = useState(getLiveTimeRemaining(poll.ends_at))
+  const totalVotes = poll.options?.reduce((sum, opt) => sum + opt.votes, 0) || 0
+  const [first, second] = getTopTwo(poll.options)
+  const hasVoted = userVotes && userVotes[poll.id]
+  const firstPercent = totalVotes > 0 && first ? Math.round((first.votes / totalVotes) * 100) : 50
+  const secondPercent = totalVotes > 0 && second ? Math.round((second.votes / totalVotes) * 100) : 50
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTimeLeft(getLiveTimeRemaining(poll.ends_at))
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [poll.ends_at])
+
+  return (
+    <div className={`poll-card live-battle-card ${timeLeft.expired ? 'expired' : ''}`} onClick={onClick}>
+      <div className="poll-card-header">
+        <span className="live-badge">⚡ LIVE</span>
+        <span className={`live-timer ${timeLeft.expired ? 'expired' : ''}`}>
+          {timeLeft.expired ? '🏁 จบแล้ว' : `⏱️ ${timeLeft.text}`}
+        </span>
+      </div>
+      <div className="poll-question">{poll.question}</div>
+      {first && second && (
+        <div className="dual-bar-container">
+          <div className="dual-bar-labels">
+            <span className="label-left">{first.text}</span>
+            <span className="label-right">{second.text}</span>
+          </div>
+          <div className="dual-bar live-bar">
+            <div className="dual-bar-left" style={{ width: `${firstPercent}%` }}>
+              <span className="bar-percent">{firstPercent}%</span>
+            </div>
+            <div className="dual-bar-right" style={{ width: `${secondPercent}%` }}>
+              <span className="bar-percent">{secondPercent}%</span>
+            </div>
+          </div>
+        </div>
+      )}
+      <div className="poll-footer">
+        <span>👥 {totalVotes.toLocaleString()} คน</span>
+        {poll.users && <span>โดย @{poll.users.username}</span>}
+        {hasVoted && <span style={{ color: 'var(--green)' }}>✓ โหวตแล้ว</span>}
+      </div>
+    </div>
+  )
+}
+
+// ===== Time Capsule Card =====
+function TimeCapsuleCard({ poll, onClick }) {
+  const totalVotes = poll.options?.reduce((sum, opt) => sum + opt.votes, 0) || 0
+  const yearsRemaining = getYearsRemaining(poll.ends_at)
+  const isOpened = new Date() > new Date(poll.ends_at)
+
+  return (
+    <div className={`poll-card time-capsule-card ${isOpened ? 'opened' : ''}`} onClick={onClick}>
+      <div className="poll-card-header">
+        <span className="capsule-badge">💊 Time Capsule</span>
+        {poll.resolved && <span className="resolved-badge">✅ เฉลยแล้ว</span>}
+      </div>
+      <div className="poll-question">{poll.question}</div>
+      <div className="capsule-info">
+        <div className="capsule-timer">
+          <span className="capsule-icon">{isOpened ? '🔓' : '🔒'}</span>
+          <span className="capsule-text">{yearsRemaining}</span>
+        </div>
+        <div className="capsule-meta">
+          <span>👥 {totalVotes.toLocaleString()} คนทาย</span>
+          <span>📅 หมดเขต {new Date(poll.ends_at).toLocaleDateString('th-TH', { year: 'numeric', month: 'long' })}</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ===== Create Time Capsule Modal (Admin Only) =====
+function CreateTimeCapsuleModal({ onClose, user, onSuccess, darkMode }) {
+  const [question, setQuestion] = useState('')
+  const [options, setOptions] = useState(['', ''])
+  const [years, setYears] = useState(1)
+  const [selectedTags, setSelectedTags] = useState([])
+  const [tagInput, setTagInput] = useState('')
+  const [availableTags, setAvailableTags] = useState([])
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [errors, setErrors] = useState({})
+
+  useEffect(() => { loadTags() }, [])
+  const loadTags = async () => { const { data } = await getTags(); if (data) setAvailableTags(data) }
+  const addOption = () => { if (options.length < 6) setOptions([...options, '']) }
+  const removeOption = (index) => { if (options.length > 2) setOptions(options.filter((_, i) => i !== index)) }
+  const updateOption = (index, value) => { const n = [...options]; n[index] = value; setOptions(n) }
+  
+  const addTag = async () => {
+    if (!tagInput.trim() || selectedTags.length >= 5) return
+    let tag = availableTags.find(t => t.name.toLowerCase() === tagInput.toLowerCase().trim())
+    if (!tag) { const { data } = await createTag(tagInput.trim()); if (data) { tag = data; setAvailableTags([...availableTags, data]) }}
+    if (tag && !selectedTags.find(t => t.id === tag.id)) setSelectedTags([...selectedTags, tag])
+    setTagInput('')
+  }
+
+  const validate = () => { 
+    const e = {}
+    if (!question.trim()) e.question = 'กรุณาใส่คำถาม'
+    if (options.filter(o => o.trim()).length < 2) e.options = 'ต้องมีตัวเลือกอย่างน้อย 2 ตัว'
+    if (years < 1 || years > 10) e.years = 'เลือก 1-10 ปี'
+    setErrors(e)
+    return Object.keys(e).length === 0 
+  }
+
+  const handleSubmit = async (e) => { 
+    e.preventDefault()
+    if (!validate()) return
+    
+    setIsSubmitting(true)
+    const endsAt = new Date()
+    endsAt.setFullYear(endsAt.getFullYear() + years)
+    
+    const { error } = await createTimeCapsule({ 
+      question: question.trim(), 
+      options: options.filter(o => o.trim()), 
+      tags: selectedTags.map(t => t.id),
+      endsAt: endsAt.toISOString(), 
+      createdBy: user.id 
+    })
+    
+    setIsSubmitting(false)
+    if (error) alert('เกิดข้อผิดพลาด')
+    else { alert('🎉 สร้าง Time Capsule สำเร็จ!'); onSuccess(); onClose() }
+  }
+
+  const filteredTags = availableTags.filter(tag => 
+    tag.name.toLowerCase().includes(tagInput.toLowerCase()) && !selectedTags.find(t => t.id === tag.id)
+  ).slice(0, 5)
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className={`modal create-poll-modal ${darkMode ? 'dark' : ''}`} onClick={e => e.stopPropagation()}>
+        <button className="modal-close" onClick={onClose}>✕</button>
+        <h2 className="modal-title">💊 สร้าง Time Capsule</h2>
+        <p style={{ textAlign: 'center', color: 'var(--text-secondary)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
+          ทำนายอนาคตระยะยาว 1-10 ปี • Blind Mode อัตโนมัติ
+        </p>
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label>❓ คำถามทำนายอนาคต</label>
+            <input type="text" className={`form-input ${errors.question ? 'error' : ''}`} placeholder="เช่น AI จะแทนที่งานมนุษย์ 50% ภายในปี 2030 ไหม?" value={question} onChange={(e) => setQuestion(e.target.value)} maxLength={200} />
+            {errors.question && <span className="error-text">{errors.question}</span>}
+            <span className="char-count">{question.length}/200</span>
+          </div>
+          
+          <div className="form-group">
+            <label>📋 ตัวเลือก (2-6 ตัว)</label>
+            {options.map((opt, index) => (
+              <div key={index} className="option-input-row">
+                <input type="text" className="form-input" placeholder={`ตัวเลือกที่ ${index + 1}`} value={opt} onChange={(e) => updateOption(index, e.target.value)} maxLength={100} />
+                {options.length > 2 && <button type="button" className="remove-option-btn" onClick={() => removeOption(index)}>✕</button>}
+              </div>
+            ))}
+            {errors.options && <span className="error-text">{errors.options}</span>}
+            {options.length < 6 && <button type="button" className="add-option-btn" onClick={addOption}>+ เพิ่มตัวเลือก</button>}
+          </div>
+
+          <div className="form-group">
+            <label>📅 เปิดแคปซูลใน (1-10 ปี)</label>
+            <div className="years-selector">
+              {[1, 2, 3, 5, 10].map(y => (
+                <button key={y} type="button" className={`year-btn ${years === y ? 'active' : ''}`} onClick={() => setYears(y)}>
+                  {y} ปี
+                </button>
+              ))}
+            </div>
+            {errors.years && <span className="error-text">{errors.years}</span>}
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>
+              📆 เปิดเผยวันที่: {new Date(new Date().setFullYear(new Date().getFullYear() + years)).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })}
+            </p>
+          </div>
+
+          <div className="form-group">
+            <label>🏷️ แท็ก (สูงสุด 5)</label>
+            <div className="tags-selected">{selectedTags.map(tag => <span key={tag.id} className="tag-chip">#{tag.name}<button type="button" onClick={() => setSelectedTags(selectedTags.filter(t => t.id !== tag.id))}>✕</button></span>)}</div>
+            <div className="tag-input-wrapper">
+              <input type="text" className="form-input" placeholder="พิมพ์แท็กแล้วกด Enter" value={tagInput} onChange={(e) => setTagInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag() }}} />
+              {tagInput && <button type="button" className="add-tag-btn" onClick={addTag}>เพิ่ม</button>}
+            </div>
+            {filteredTags.length > 0 && tagInput && <div className="tag-suggestions">{filteredTags.map(tag => <button key={tag.id} type="button" className="tag-suggestion" onClick={() => { if (selectedTags.length < 5) setSelectedTags([...selectedTags, tag]); setTagInput('') }}>#{tag.name}</button>)}</div>}
+          </div>
+
+          <div className="capsule-preview">
+            <span>🔒</span> Blind Mode เปิดอัตโนมัติ - ไม่มีใครเห็นผลโหวตจนกว่าจะถึงวันเปิดแคปซูล
+          </div>
+
+          <div className="modal-actions">
+            <button type="button" className="btn btn-secondary" onClick={onClose}>ยกเลิก</button>
+            <button type="submit" className="btn btn-capsule" disabled={isSubmitting}>
+              {isSubmitting ? '⏳ กำลังสร้าง...' : '💊 สร้าง Time Capsule'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ===== Create Live Battle Modal =====
+function CreateLiveBattleModal({ onClose, user, onSuccess, darkMode }) {
+  const [question, setQuestion] = useState('')
+  const [options, setOptions] = useState(['', ''])
+  const [category, setCategory] = useState('other')
+  const [duration, setDuration] = useState(30) // นาที
+  const [selectedTags, setSelectedTags] = useState([])
+  const [tagInput, setTagInput] = useState('')
+  const [availableTags, setAvailableTags] = useState([])
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [errors, setErrors] = useState({})
+
+  useEffect(() => { loadTags() }, [])
+  const loadTags = async () => { const { data } = await getTags(); if (data) setAvailableTags(data) }
+  const addOption = () => { if (options.length < 6) setOptions([...options, '']) }
+  const removeOption = (index) => { if (options.length > 2) setOptions(options.filter((_, i) => i !== index)) }
+  const updateOption = (index, value) => { const n = [...options]; n[index] = value; setOptions(n) }
+  
+  const addTag = async () => {
+    if (!tagInput.trim() || selectedTags.length >= 5) return
+    let tag = availableTags.find(t => t.name.toLowerCase() === tagInput.toLowerCase().trim())
+    if (!tag) { const { data } = await createTag(tagInput.trim()); if (data) { tag = data; setAvailableTags([...availableTags, data]) }}
+    if (tag && !selectedTags.find(t => t.id === tag.id)) setSelectedTags([...selectedTags, tag])
+    setTagInput('')
+  }
+
+  const validate = () => { 
+    const e = {}
+    if (!question.trim()) e.question = 'กรุณาใส่คำถาม'
+    if (options.filter(o => o.trim()).length < 2) e.options = 'ต้องมีตัวเลือกอย่างน้อย 2 ตัว'
+    setErrors(e)
+    return Object.keys(e).length === 0 
+  }
+
+  const handleSubmit = async (e) => { 
+    e.preventDefault()
+    if (!validate()) return
+    
+    setIsSubmitting(true)
+    const { error } = await createLiveBattle({ 
+      question: question.trim(), 
+      options: options.filter(o => o.trim()), 
+      category,
+      tags: selectedTags.map(t => t.id),
+      durationMinutes: duration,
+      createdBy: user.id 
+    })
+    
+    setIsSubmitting(false)
+    if (error) alert('เกิดข้อผิดพลาด')
+    else { alert('⚡ สร้าง Live Battle สำเร็จ!'); onSuccess(); onClose() }
+  }
+
+  const filteredTags = availableTags.filter(tag => 
+    tag.name.toLowerCase().includes(tagInput.toLowerCase()) && !selectedTags.find(t => t.id === tag.id)
+  ).slice(0, 5)
+
+  const durationOptions = [
+    { value: 15, label: '15 นาที' },
+    { value: 30, label: '30 นาที' },
+    { value: 60, label: '1 ชั่วโมง' },
+    { value: 180, label: '3 ชั่วโมง' },
+    { value: 720, label: '12 ชั่วโมง' },
+    { value: 1440, label: '24 ชั่วโมง' }
+  ]
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className={`modal create-poll-modal ${darkMode ? 'dark' : ''}`} onClick={e => e.stopPropagation()}>
+        <button className="modal-close" onClick={onClose}>✕</button>
+        <h2 className="modal-title">⚡ สร้าง Live Battle</h2>
+        <p style={{ textAlign: 'center', color: 'var(--text-secondary)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
+          โพลแบบ Real-time • เห็นผลโหวตทันที • จำกัดเวลา
+        </p>
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label>❓ คำถาม</label>
+            <input type="text" className={`form-input ${errors.question ? 'error' : ''}`} placeholder="เช่น ใครจะชนะแมตช์นี้?" value={question} onChange={(e) => setQuestion(e.target.value)} maxLength={200} />
+            {errors.question && <span className="error-text">{errors.question}</span>}
+            <span className="char-count">{question.length}/200</span>
+          </div>
+          
+          <div className="form-group">
+            <label>📋 ตัวเลือก (2-6 ตัว)</label>
+            {options.map((opt, index) => (
+              <div key={index} className="option-input-row">
+                <input type="text" className="form-input" placeholder={`ตัวเลือกที่ ${index + 1}`} value={opt} onChange={(e) => updateOption(index, e.target.value)} maxLength={100} />
+                {options.length > 2 && <button type="button" className="remove-option-btn" onClick={() => removeOption(index)}>✕</button>}
+              </div>
+            ))}
+            {errors.options && <span className="error-text">{errors.options}</span>}
+            {options.length < 6 && <button type="button" className="add-option-btn" onClick={addOption}>+ เพิ่มตัวเลือก</button>}
+          </div>
+
+          <div className="form-group">
+            <label>📂 หมวดหมู่</label>
+            <select className="form-input" value={category} onChange={(e) => setCategory(e.target.value)}>
+              {categories.filter(c => !['home', 'live', 'timecapsule'].includes(c.id)).map(cat => (
+                <option key={cat.id} value={cat.id}>{cat.icon} {cat.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label>⏱️ ระยะเวลา</label>
+            <div className="duration-selector">
+              {durationOptions.map(opt => (
+                <button key={opt.value} type="button" className={`duration-btn ${duration === opt.value ? 'active' : ''}`} onClick={() => setDuration(opt.value)}>
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label>🏷️ แท็ก (สูงสุด 5)</label>
+            <div className="tags-selected">{selectedTags.map(tag => <span key={tag.id} className="tag-chip">#{tag.name}<button type="button" onClick={() => setSelectedTags(selectedTags.filter(t => t.id !== tag.id))}>✕</button></span>)}</div>
+            <div className="tag-input-wrapper">
+              <input type="text" className="form-input" placeholder="พิมพ์แท็กแล้วกด Enter" value={tagInput} onChange={(e) => setTagInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag() }}} />
+              {tagInput && <button type="button" className="add-tag-btn" onClick={addTag}>เพิ่ม</button>}
+            </div>
+            {filteredTags.length > 0 && tagInput && <div className="tag-suggestions">{filteredTags.map(tag => <button key={tag.id} type="button" className="tag-suggestion" onClick={() => { if (selectedTags.length < 5) setSelectedTags([...selectedTags, tag]); setTagInput('') }}>#{tag.name}</button>)}</div>}
+          </div>
+
+          <div className="modal-actions">
+            <button type="button" className="btn btn-secondary" onClick={onClose}>ยกเลิก</button>
+            <button type="submit" className="btn btn-live" disabled={isSubmitting}>
+              {isSubmitting ? '⏳ กำลังสร้าง...' : '⚡ เริ่ม Live Battle'}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   )
 }
@@ -692,8 +1068,12 @@ export default function Home() {
   const [showNotifications, setShowNotifications] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
   const [viewProfileUserId, setViewProfileUserId] = useState(null)
+  const [liveBattles, setLiveBattles] = useState([])
+  const [timeCapsules, setTimeCapsules] = useState([])
+  const [showCreateLiveBattle, setShowCreateLiveBattle] = useState(false)
+  const [showCreateTimeCapsule, setShowCreateTimeCapsule] = useState(false)
 
-  useEffect(() => { loadPolls(); const u = localStorage.getItem('kidwa-user'); if (u) setUser(JSON.parse(u)); const d = localStorage.getItem('kidwa-darkmode'); if (d) setDarkMode(JSON.parse(d)) }, [])
+  useEffect(() => { loadPolls(); loadLiveBattles(); loadTimeCapsules(); const u = localStorage.getItem('kidwa-user'); if (u) setUser(JSON.parse(u)); const d = localStorage.getItem('kidwa-darkmode'); if (d) setDarkMode(JSON.parse(d)) }, [])
   useEffect(() => { if (user) { loadUserVotes(); loadUnreadCount() }}, [user])
   useEffect(() => { 
     localStorage.setItem('kidwa-darkmode', JSON.stringify(darkMode));
@@ -707,8 +1087,20 @@ export default function Home() {
     }
   }, [darkMode])
   useEffect(() => { if (selectedPoll) { const v = userVotes[selectedPoll.id]; if (v) { setSelectedOption(v.optionId); setSelectedConfidence(v.confidence || 50) } else { setSelectedOption(null); setSelectedConfidence(50) }}}, [selectedPoll, userVotes])
+  
+  // Auto-refresh Live Battles ทุก 10 วินาที
+  useEffect(() => {
+    if (activeCategory === 'live' || activeCategory === 'home') {
+      const interval = setInterval(() => {
+        loadLiveBattles()
+      }, 10000)
+      return () => clearInterval(interval)
+    }
+  }, [activeCategory])
 
-  const loadPolls = async () => { setIsLoading(true); const { data } = await getPolls(); if (data) setPolls(data); setIsLoading(false) }
+  const loadPolls = async () => { setIsLoading(true); const { data } = await getPolls(); if (data) setPolls(data.filter(p => p.poll_type !== 'time_capsule' && p.poll_type !== 'live_battle')); setIsLoading(false) }
+  const loadLiveBattles = async () => { const { data } = await getLiveBattles(); if (data) setLiveBattles(data) }
+  const loadTimeCapsules = async () => { const { data } = await getTimeCapsules(); if (data) setTimeCapsules(data) }
   const loadUserVotes = async () => { if (!user) return; const { data } = await getUserVotes(user.id); if (data) { const m = {}; data.forEach(v => { m[v.poll_id] = { optionId: v.option_id, confidence: v.confidence } }); setUserVotes(m) }}
   const loadUnreadCount = async () => { if (!user) return; const { count } = await getUnreadNotificationCount(user.id); setUnreadCount(count) }
 
@@ -786,10 +1178,73 @@ export default function Home() {
         </aside>
 
         <div className="content">
-          {filteredPolls.length > 0 ? (
-            <>{featuredPolls.length > 0 && <section><h2 className="section-title">🌟 หัวข้อเด่น</h2><div className="poll-grid">{featuredPolls.map(poll => <PollCard key={poll.id} poll={poll} onClick={() => setSelectedPoll(poll)} userVotes={userVotes} />)}</div></section>}<section><h2 className="section-title">{activeCategory === 'home' ? '🆕 ล่าสุด' : `${categories.find(c => c.id === activeCategory)?.icon} ${categories.find(c => c.id === activeCategory)?.name}`}</h2><div className="poll-grid">{latestPolls.map(poll => <PollCard key={poll.id} poll={poll} onClick={() => setSelectedPoll(poll)} userVotes={userVotes} />)}</div></section></>
+          {/* Live Battle Section */}
+          {activeCategory === 'live' ? (
+            <section>
+              <div className="section-header">
+                <h2 className="section-title">⚡ Live Battle</h2>
+                {user && <button className="btn btn-live-create" onClick={() => setShowCreateLiveBattle(true)}>⚡ สร้าง Live Battle</button>}
+              </div>
+              {liveBattles.length > 0 ? (
+                <div className="poll-grid">
+                  {liveBattles.map(battle => (
+                    <LiveBattleCard key={battle.id} poll={battle} onClick={() => setSelectedPoll(battle)} userVotes={userVotes} />
+                  ))}
+                </div>
+              ) : (
+                <div className="empty-state">
+                  <span className="empty-icon">⚡</span>
+                  <p>ยังไม่มี Live Battle ที่กำลังดำเนินอยู่</p>
+                  {user && <button className="btn btn-primary" onClick={() => setShowCreateLiveBattle(true)}>⚡ สร้าง Live Battle แรก</button>}
+                </div>
+              )}
+            </section>
+          ) : activeCategory === 'timecapsule' ? (
+            <section>
+              <div className="section-header">
+                <h2 className="section-title">💊 Time Capsule</h2>
+                {user?.is_admin && <button className="btn btn-capsule-create" onClick={() => setShowCreateTimeCapsule(true)}>💊 สร้าง Time Capsule</button>}
+              </div>
+              <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>ทำนายอนาคตระยะยาว 1-10 ปี • Blind Mode จนกว่าจะถึงวันเปิด</p>
+              {timeCapsules.length > 0 ? (
+                <div className="poll-grid">
+                  {timeCapsules.map(capsule => (
+                    <TimeCapsuleCard key={capsule.id} poll={capsule} onClick={() => setSelectedPoll(capsule)} />
+                  ))}
+                </div>
+              ) : (
+                <div className="empty-state">
+                  <span className="empty-icon">💊</span>
+                  <p>ยังไม่มี Time Capsule</p>
+                  {user?.is_admin && <button className="btn btn-primary" onClick={() => setShowCreateTimeCapsule(true)}>💊 สร้าง Time Capsule แรก</button>}
+                </div>
+              )}
+            </section>
+          ) : filteredPolls.length > 0 ? (
+            <>
+              {/* Live Battle Preview on Home */}
+              {activeCategory === 'home' && liveBattles.length > 0 && (
+                <section>
+                  <div className="section-header">
+                    <h2 className="section-title">⚡ Live Battle กำลังดำเนินอยู่</h2>
+                    <button className="btn btn-sm btn-secondary" onClick={() => setActiveCategory('live')}>ดูทั้งหมด →</button>
+                  </div>
+                  <div className="poll-grid">
+                    {liveBattles.slice(0, 3).map(battle => (
+                      <LiveBattleCard key={battle.id} poll={battle} onClick={() => setSelectedPoll(battle)} userVotes={userVotes} />
+                    ))}
+                  </div>
+                </section>
+              )}
+              {featuredPolls.length > 0 && <section><h2 className="section-title">🌟 หัวข้อเด่น</h2><div className="poll-grid">{featuredPolls.map(poll => <PollCard key={poll.id} poll={poll} onClick={() => setSelectedPoll(poll)} userVotes={userVotes} />)}</div></section>}
+              <section><h2 className="section-title">{activeCategory === 'home' ? '🆕 ล่าสุด' : `${categories.find(c => c.id === activeCategory)?.icon} ${categories.find(c => c.id === activeCategory)?.name}`}</h2><div className="poll-grid">{latestPolls.map(poll => <PollCard key={poll.id} poll={poll} onClick={() => setSelectedPoll(poll)} userVotes={userVotes} />)}</div></section>
+            </>
           ) : (
-            <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}><p style={{ fontSize: '3rem', marginBottom: '1rem' }}>🔍</p><p>ยังไม่มีโพลในหมวดนี้</p>{user && <button className="btn btn-primary" style={{ marginTop: '1rem' }} onClick={() => setShowCreatePoll(true)}>➕ สร้างโพลแรก</button>}</div>
+            <div className="empty-state">
+              <span className="empty-icon">🔍</span>
+              <p>ยังไม่มีโพลในหมวดนี้</p>
+              {user && <button className="btn btn-primary" onClick={() => setShowCreatePoll(true)}>➕ สร้างโพลแรก</button>}
+            </div>
           )}
         </div>
       </main>
@@ -830,6 +1285,10 @@ export default function Home() {
       {showCreatePoll && <CreatePollModal onClose={() => setShowCreatePoll(false)} user={user} onSuccess={loadPolls} darkMode={darkMode} />}
       {showAdminPanel && <AdminPanel onClose={() => setShowAdminPanel(false)} darkMode={darkMode} onRefresh={loadPolls} />}
       {showAccount && <AccountModal onClose={() => setShowAccount(false)} user={user} darkMode={darkMode} onUpdateUser={setUser} />}
+      
+      {/* Live Battle & Time Capsule Modals */}
+      {showCreateLiveBattle && <CreateLiveBattleModal onClose={() => setShowCreateLiveBattle(false)} user={user} onSuccess={() => { loadLiveBattles(); setActiveCategory('live') }} darkMode={darkMode} />}
+      {showCreateTimeCapsule && <CreateTimeCapsuleModal onClose={() => setShowCreateTimeCapsule(false)} user={user} onSuccess={() => { loadTimeCapsules(); setActiveCategory('timecapsule') }} darkMode={darkMode} />}
       
       {/* Mobile Notification Modal */}
       {showNotifications && (
