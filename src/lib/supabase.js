@@ -154,6 +154,18 @@ export function onAuthStateChange(callback) {
   return supabase.auth.onAuthStateChange(callback)
 }
 
+// Sign in with Google
+export async function signInWithGoogle() {
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: `${window.location.origin}/auth/callback`
+    }
+  })
+
+  return { data, error }
+}
+
 export async function getUserByUsername(username) {
   const { data, error } = await supabase
     .from('users')
