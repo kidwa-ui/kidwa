@@ -142,12 +142,16 @@ html.dark, .dark { background: var(--bg); }
 @media (max-width: 900px) {
   .main { grid-template-columns: 1fr; padding: 1rem; }
   .sidebar { display: none; }
-  .header { padding: 1rem; }
+  .header { padding: 1rem; position: sticky; top: 0; z-index: 100; }
   .header-content { flex-wrap: wrap; justify-content: space-between; }
   .search-box { order: 3; flex: none; width: 100%; max-width: 100%; margin-top: 0.75rem; }
   .hide-mobile { display: none; }
   .poll-grid { grid-template-columns: 1fr; }
-  .categories { position: sticky; top: 130px; z-index: 99; }
+  .categories { position: -webkit-sticky; position: sticky; top: 120px; z-index: 99; background: var(--bg-card); }
+}
+
+@media (max-width: 480px) {
+  .categories { top: 110px; }
 }
 
 /* ===== Dark Mode Fixes ===== */
