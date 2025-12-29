@@ -1167,6 +1167,245 @@ function NotificationDropdown({ user, onClose }) {
   )
 }
 
+// ===== Info Modal (คำแนะนำ, กฎกติกา, สิทธิ์สมาชิก, นโยบาย, โฆษณา, PWA) =====
+function InfoModal({ type, onClose, darkMode }) {
+  const content = {
+    posting: {
+      title: '📝 คำแนะนำการโพสต์',
+      content: `
+## การสร้างโพลที่ดี
+
+### ✅ ควรทำ
+• **ตั้งคำถามชัดเจน** - ระบุเหตุการณ์และเวลาที่จะเกิดขึ้น
+• **ใส่ตัวเลือกครบถ้วน** - ครอบคลุมความเป็นไปได้ทั้งหมด
+• **เลือกหมวดหมู่ถูกต้อง** - ช่วยให้คนอื่นค้นหาเจอ
+• **เพิ่มแท็ก** - ใช้คำที่เกี่ยวข้อง เช่น #บอลไทย #การเมือง
+
+### ❌ ไม่ควรทำ
+• ตั้งคำถามหยาบคาย ล่อแหลม หรือผิดกฎหมาย
+• สร้างโพลซ้ำกับที่มีอยู่แล้ว
+• ใส่ข้อมูลเท็จหรือชี้นำคำตอบ
+• โพสต์โฆษณาหรือสแปม
+
+### 📺 ถ่ายทอดสด
+• สำหรับเหตุการณ์ที่กำลังเกิดขึ้น เช่น การแข่งกีฬา
+• กำหนดเวลาสิ้นสุดให้เหมาะสมกับเหตุการณ์
+• ผลโหวตแสดง Real-time ไม่มี Blind Mode
+
+### 💊 Time Capsule
+• สำหรับการทำนายระยะยาว 1-10 ปี
+• เปิดเผยผลเมื่อถึงวันที่กำหนด
+• สร้างได้เฉพาะ Admin
+      `
+    },
+    rules: {
+      title: '📜 กฎ กติกา และการนับคะแนน',
+      content: `
+## ระบบคะแนน (Reputation)
+
+### 📊 การได้/เสียคะแนน
+| การกระทำ | คะแนน |
+|----------|-------|
+| ทายถูก | +10 ถึง +100 pt (ตาม Confidence) |
+| ทายผิด | -10 ถึง -100 pt (ตาม Confidence) |
+| สมัครสมาชิกใหม่ | +1,000 pt เริ่มต้น |
+
+### 🎚️ Confidence Level
+เลือกความมั่นใจเมื่อโหวต:
+• 🤔 ไม่แน่ใจ: ±10 pt
+• 😊 พอมั่นใจ: ±25 pt
+• 😎 มั่นใจ: ±50 pt
+• 🔥 มั่นใจมาก: ±75 pt
+• 💯 ชัวร์ 100%: ±100 pt
+
+### 🏆 ระดับสมาชิก
+| Level | คะแนน | Badge |
+|-------|-------|-------|
+| นักศึกษา | 0-500 | 🌱 |
+| ผู้เริ่มต้น | 501-1,500 | 🎯 |
+| นักวิเคราะห์ | 1,501-3,000 | 🔮 |
+| ผู้เชี่ยวชาญ | 3,001-5,000 | ⭐ |
+| ปรมาจารย์ | 5,001-10,000 | 🏆 |
+| ตำนาน | 10,000+ | 👑 |
+
+### 🎨 Achievement Skins
+ปลดล็อค Skin พิเศษเมื่อ:
+• 🌙 Dark Mode: โหวตตอนกลางคืน 10 ครั้ง
+• 🔥 Streak: ทายถูกติดต่อกัน 10 ครั้ง
+• 🏅 Champion: คะแนนสูงสุดประจำสัปดาห์
+• 💯 Perfect: ทายถูก 50 ครั้ง
+• ⭐ Veteran: เป็นสมาชิก 1 ปี
+
+### ⚠️ กฎทั่วไป
+• 1 บัญชีต่อ 1 คน
+• ห้ามใช้ Bot หรือโปรแกรมอัตโนมัติ
+• ห้ามสร้างหลายบัญชีเพื่อโกง
+• Admin มีสิทธิ์ระงับบัญชีที่ทำผิดกฎ
+      `
+    },
+    membership: {
+      title: '👑 สิทธิ์การใช้งานของสมาชิก',
+      content: `
+## เปรียบเทียบสิทธิ์
+
+### 👤 สมาชิกทั่วไป (ไม่ยืนยันตัวตน)
+• ✅ ดูโพลทั้งหมด
+• ✅ โหวตได้ไม่จำกัด
+• ✅ ดู Leaderboard
+• ✅ เปลี่ยน Skin ตัวละคร (ที่ปลดล็อค)
+• ❌ สร้างโพลไม่ได้
+• ❌ อัพโหลดรูปโปรไฟล์ไม่ได้
+
+### ✅ สมาชิก Verified (ยืนยันตัวตนแล้ว)
+• ✅ ทุกอย่างของสมาชิกทั่วไป
+• ✅ **สร้างโพลได้ 3 โพล/วัน**
+• ✅ **อัพโหลดรูปโปรไฟล์ได้**
+• ✅ แสดง Badge ✓ ยืนยันแล้ว
+• ✅ แสดงความคิดเห็น
+
+### 🔧 Admin
+• ✅ ทุกอย่างของ Verified
+• ✅ สร้างโพลไม่จำกัด
+• ✅ สร้าง Time Capsule
+• ✅ เฉลยโพล
+• ✅ Pin โพลเด่น
+• ✅ ลบโพล
+• ✅ อนุมัติการยืนยันตัวตน
+• ⚡ ไม่นับคะแนน (เพื่อความยุติธรรม)
+
+## วิธียืนยันตัวตน
+1. ไปที่ **บัญชีของฉัน** → **ยืนยันตัวตน**
+2. กรอกชื่อ-นามสกุล และวันเกิด
+3. ยอมรับข้อตกลง PDPA
+4. รอ Admin อนุมัติ (ปกติ 1-24 ชม.)
+      `
+    },
+    privacy: {
+      title: '🔒 นโยบายข้อมูลส่วนบุคคล',
+      content: `
+## นโยบายความเป็นส่วนตัว (PDPA)
+
+### 📋 ข้อมูลที่เราเก็บ
+• **ข้อมูลบัญชี**: Username, Email, Password (เข้ารหัส)
+• **ข้อมูลยืนยันตัวตน**: ชื่อ-นามสกุล, วันเกิด (เฉพาะ Verified)
+• **ข้อมูลการใช้งาน**: โพลที่สร้าง, การโหวต, คะแนน
+
+### 🎯 วัตถุประสงค์การใช้
+• ให้บริการแพลตฟอร์ม
+• ยืนยันตัวตนผู้ใช้
+• คำนวณ Leaderboard
+• ปรับปรุงบริการ
+
+### 🔐 การรักษาความปลอดภัย
+• ข้อมูลเก็บใน Supabase (มาตรฐาน SOC 2)
+• Password เข้ารหัส bcrypt
+• ใช้ HTTPS ตลอด
+• ไม่แชร์ข้อมูลกับบุคคลที่สาม
+
+### 👤 สิทธิ์ของคุณ
+• ขอดูข้อมูลของตนเอง
+• ขอแก้ไขข้อมูลที่ไม่ถูกต้อง
+• ขอลบบัญชีและข้อมูลทั้งหมด
+• ยกเลิกความยินยอมได้ทุกเมื่อ
+
+### 📧 ติดต่อเกี่ยวกับข้อมูลส่วนบุคคล
+Email: privacy@i-kidwa.com
+
+### 📅 ปรับปรุงล่าสุด
+29 ธันวาคม 2567
+      `
+    },
+    ads: {
+      title: '📢 ติดต่อลงโฆษณา',
+      content: `
+## ลงโฆษณากับ คิดว่า..
+
+### 📊 ข้อมูลแพลตฟอร์ม
+• **ประเภท**: Prediction Market / Community Platform
+• **กลุ่มเป้าหมาย**: คนไทยที่สนใจกีฬา, บันเทิง, การเมือง, เทคโนโลยี
+• **อายุ**: 18-45 ปี
+
+### 📍 ตำแหน่งโฆษณา
+• Banner หน้าแรก
+• Sponsored Poll
+• Brand Partnership
+
+### 📬 ช่องทางติดต่อ
+
+**Email**: ads@i-kidwa.com
+
+**Facebook Page**: (เร็วๆ นี้)
+
+**Line Official**: (เร็วๆ นี้)
+
+---
+
+*ทีมงานจะติดต่อกลับภายใน 1-3 วันทำการ*
+      `
+    },
+    pwa: {
+      title: '📲 ติดตั้ง App คิดว่า..',
+      content: `
+## วิธีติดตั้ง App
+
+### 📱 iPhone / iPad (Safari)
+1. เปิดเว็บ **i-kidwa.com** ใน Safari
+2. กดปุ่ม **Share** (สี่เหลี่ยมมีลูกศรชี้ขึ้น)
+3. เลื่อนลงและกด **"Add to Home Screen"**
+4. ตั้งชื่อ (หรือใช้ค่าเดิม) แล้วกด **Add**
+5. App จะปรากฏบนหน้า Home Screen
+
+### 🤖 Android (Chrome)
+1. เปิดเว็บ **i-kidwa.com** ใน Chrome
+2. กดเมนู **⋮** (มุมขวาบน)
+3. กด **"Add to Home screen"** หรือ **"Install app"**
+4. กด **Add** หรือ **Install**
+5. App จะปรากฏบนหน้า Home Screen
+
+### 💻 Desktop (Chrome/Edge)
+1. เปิดเว็บ **i-kidwa.com**
+2. คลิกไอคอน **ติดตั้ง** ในแถบ URL (ถ้ามี)
+3. หรือไปที่ **เมนู → Install คิดว่า..**
+
+### ✨ ข้อดีของ App
+• เปิดเร็วกว่าเว็บ
+• ใช้งานแบบ Full Screen
+• ไอคอนบน Home Screen
+• รองรับ Offline บางส่วน
+• ไม่ต้องดาวน์โหลดจาก App Store
+
+---
+
+*PWA (Progressive Web App) คือเว็บที่ทำงานเหมือน App*
+      `
+    }
+  }
+
+  const info = content[type]
+  if (!info) return null
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className={`modal info-modal ${darkMode ? 'dark' : ''}`} onClick={e => e.stopPropagation()}>
+        <button className="modal-close" onClick={onClose}>✕</button>
+        <h2 className="modal-title">{info.title}</h2>
+        <div className="info-content">
+          {info.content.split('\n').map((line, i) => {
+            if (line.startsWith('## ')) return <h3 key={i} style={{ marginTop: '1.5rem', marginBottom: '0.75rem', color: 'var(--primary)' }}>{line.replace('## ', '')}</h3>
+            if (line.startsWith('### ')) return <h4 key={i} style={{ marginTop: '1rem', marginBottom: '0.5rem', fontWeight: '600' }}>{line.replace('### ', '')}</h4>
+            if (line.startsWith('• ')) return <p key={i} style={{ marginLeft: '1rem', marginBottom: '0.25rem' }}>{line}</p>
+            if (line.startsWith('| ')) return <p key={i} style={{ fontFamily: 'monospace', fontSize: '0.85rem', marginBottom: '0.25rem' }}>{line}</p>
+            if (line.startsWith('---')) return <hr key={i} style={{ margin: '1rem 0', borderColor: 'var(--border)' }} />
+            if (line.startsWith('**')) return <p key={i} style={{ marginBottom: '0.5rem' }}><strong>{line.replace(/\*\*/g, '')}</strong></p>
+            if (line.trim() === '') return <br key={i} />
+            return <p key={i} style={{ marginBottom: '0.5rem' }}>{line}</p>
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ===== User Profile Modal (ดูโปรไฟล์คนอื่น) =====
 function UserProfileModal({ userId, currentUser, onClose, darkMode }) {
   const [profile, setProfile] = useState(null)
@@ -2193,6 +2432,7 @@ export default function Home() {
   const [showInstallPrompt, setShowInstallPrompt] = useState(false)
   const [showVerificationModal, setShowVerificationModal] = useState(false)
   const [showCharacterPicker, setShowCharacterPicker] = useState(false)
+  const [showInfoModal, setShowInfoModal] = useState(null) // 'posting', 'rules', 'membership', 'privacy', 'ads', 'pwa'
 
   useEffect(() => { 
     loadPolls(); 
@@ -2331,7 +2571,15 @@ export default function Home() {
           <div className="header-actions">
             {user ? (
               <>
-                <button className="btn btn-create hide-mobile" onClick={() => { setShowCreatePoll(true); setShowMenu(false) }}>➕ สร้างโพล</button>
+                <button className="btn btn-create hide-mobile" onClick={() => { 
+                  if (!user.is_verified) { 
+                    alert('⚠️ กรุณายืนยันตัวตนก่อนสร้างโพล\n\nไปที่ บัญชีของฉัน → ยืนยันตัวตน')
+                    setShowAccount(true)
+                  } else {
+                    setShowCreatePoll(true)
+                  }
+                  setShowMenu(false) 
+                }}>➕ สร้างโพล</button>
                 <div className="notification-btn-wrapper hide-mobile">
                   <button className="notification-btn" onClick={() => { setShowNotifications(!showNotifications); setShowMenu(false) }}>
                     🔔
@@ -2363,14 +2611,29 @@ export default function Home() {
         {showMenu && (
           <div className="dropdown-menu">
             {!user && <><button className="dropdown-item" onClick={() => { setShowAuthModal(true); setShowMenu(false) }}>🔐 เข้าสู่ระบบ</button><button className="dropdown-item" onClick={() => { setShowAuthModal(true); setShowMenu(false) }}>✨ สมัครสมาชิก</button><div className="dropdown-divider"></div></>}
-            {user && <><div className="dropdown-item user-info-mobile">{user.avatar_url && user.is_verified ? <img src={user.avatar_url} alt={user.username} className="mobile-avatar-img" /> : <div className="user-avatar-character" dangerouslySetInnerHTML={{ __html: getCharacterSVG(user.selected_skin || getDefaultSkin(user.reputation || 0), 36) }} />}<div><span style={{ color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '4px' }}>{user.username}{user.is_verified && <span className="verified-badge"><svg viewBox="0 0 24 24" className="verified-check"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg></span>}</span><div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{getReputationLevel(user.reputation).badge} {user.reputation} pt</div></div></div><button className="dropdown-item" onClick={() => { setShowNotifications(true); setShowMenu(false) }}>🔔 การแจ้งเตือน {unreadCount > 0 && <span className="mobile-notif-badge">{unreadCount}</span>}</button><button className="dropdown-item" onClick={() => { setShowAccount(true); setShowMenu(false) }}>👤 บัญชีของฉัน</button><button className="dropdown-item" onClick={() => { setShowCreatePoll(true); setShowMenu(false) }}>➕ สร้างโพล</button>{user.is_admin && <button className="dropdown-item" onClick={() => { setShowAdminPanel(true); setShowMenu(false) }}>🔧 Admin Panel</button>}<div className="dropdown-divider"></div></>}
+            {user && <><div className="dropdown-item user-info-mobile">{user.avatar_url && user.is_verified ? <img src={user.avatar_url} alt={user.username} className="mobile-avatar-img" /> : <div className="user-avatar-character" dangerouslySetInnerHTML={{ __html: getCharacterSVG(user.selected_skin || getDefaultSkin(user.reputation || 0), 36) }} />}<div><span style={{ color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '4px' }}>{user.username}{user.is_verified && <span className="verified-badge"><svg viewBox="0 0 24 24" className="verified-check"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg></span>}</span><div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{getReputationLevel(user.reputation).badge} {user.reputation} pt</div></div></div><button className="dropdown-item" onClick={() => { setShowNotifications(true); setShowMenu(false) }}>🔔 การแจ้งเตือน {unreadCount > 0 && <span className="mobile-notif-badge">{unreadCount}</span>}</button><button className="dropdown-item" onClick={() => { setShowAccount(true); setShowMenu(false) }}>👤 บัญชีของฉัน</button><button className="dropdown-item" onClick={() => { 
+              if (!user.is_verified) { 
+                alert('⚠️ กรุณายืนยันตัวตนก่อนสร้างโพล\n\nไปที่ บัญชีของฉัน → ยืนยันตัวตน')
+                setShowAccount(true)
+              } else {
+                setShowCreatePoll(true)
+              }
+              setShowMenu(false) 
+            }}>➕ สร้างโพล</button>{user.is_admin && <button className="dropdown-item" onClick={() => { setShowAdminPanel(true); setShowMenu(false) }}>🔧 Admin Panel</button>}<div className="dropdown-divider"></div></>}
             <button className="dropdown-item" onClick={() => { setDarkMode(!darkMode); setShowMenu(false) }}>{darkMode ? '☀️ โหมดสว่าง' : '🌙 โหมดมืด'}</button>
+            <div className="dropdown-divider"></div>
+            <button className="dropdown-item" onClick={() => { setShowInfoModal('posting'); setShowMenu(false) }}>📝 คำแนะนำการโพสต์</button>
+            <button className="dropdown-item" onClick={() => { setShowInfoModal('rules'); setShowMenu(false) }}>📜 กฎ กติกา และการนับคะแนน</button>
+            <button className="dropdown-item" onClick={() => { setShowInfoModal('membership'); setShowMenu(false) }}>👑 สิทธิ์การใช้งานของสมาชิก</button>
+            <button className="dropdown-item" onClick={() => { setShowInfoModal('privacy'); setShowMenu(false) }}>🔒 นโยบายข้อมูลส่วนบุคคล</button>
+            <button className="dropdown-item" onClick={() => { setShowInfoModal('ads'); setShowMenu(false) }}>📢 ติดต่อลงโฆษณา</button>
+            <button className="dropdown-item" onClick={() => { if (deferredPrompt) { deferredPrompt.prompt(); deferredPrompt.userChoice.then(() => setDeferredPrompt(null)) } else { setShowInfoModal('pwa'); } setShowMenu(false) }}>📲 Download App คิดว่า..</button>
             {user && <><div className="dropdown-divider"></div><button className="dropdown-item" onClick={handleLogout} style={{ color: 'var(--red)' }}>🚪 ออกจากระบบ</button></>}
           </div>
         )}
+        {/* Categories inside header for sticky */}
+        <nav className="categories-nav"><div className="categories-content">{categories.map(cat => <button key={cat.id} className={`category-btn ${activeCategory === cat.id ? 'active' : ''}`} onClick={() => setActiveCategory(cat.id)}>{cat.icon} {cat.name}</button>)}</div></nav>
       </header>
-
-      <nav className="categories"><div className="categories-content">{categories.map(cat => <button key={cat.id} className={`category-btn ${activeCategory === cat.id ? 'active' : ''}`} onClick={() => setActiveCategory(cat.id)}>{cat.icon} {cat.name}</button>)}</div></nav>
 
       <main className="main">
         <aside className="sidebar">
@@ -2530,6 +2793,15 @@ export default function Home() {
           userId={viewProfileUserId} 
           currentUser={user} 
           onClose={() => setViewProfileUserId(null)} 
+          darkMode={darkMode} 
+        />
+      )}
+
+      {/* Info Modal */}
+      {showInfoModal && (
+        <InfoModal 
+          type={showInfoModal} 
+          onClose={() => setShowInfoModal(null)} 
           darkMode={darkMode} 
         />
       )}
