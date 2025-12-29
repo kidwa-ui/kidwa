@@ -2516,19 +2516,12 @@ export default function Home() {
       return
     }
     setIsSubmittingComment(true)
-    try {
-      const { data, error } = await createComment(user.id, selectedPoll.id, newComment.trim())
-      console.log('Comment result:', { data, error })
-      if (error) {
-        console.error('Comment error:', error)
-        alert('ไม่สามารถแสดงความคิดเห็นได้: ' + (error.message || JSON.stringify(error)))
-      } else if (data) {
-        setComments(prev => [...prev, data])
-        setNewComment('')
-      }
-    } catch (err) {
-      console.error('Comment exception:', err)
-      alert('เกิดข้อผิดพลาด: ' + err.message)
+    const { data, error } = await createComment(user.id, selectedPoll.id, newComment.trim())
+    if (error) {
+      alert('ไม่สามารถแสดงความคิดเห็นได้')
+    } else if (data) {
+      setComments(prev => [...prev, data])
+      setNewComment('')
     }
     setIsSubmittingComment(false)
   }
