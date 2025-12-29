@@ -15,7 +15,8 @@ import {
   signUpWithEmail, signInWithEmail, signInWithMagicLink, signOut, getSession, getUserFromSession, 
   resetPassword, updatePassword, onAuthStateChange, signInWithGoogle,
   submitVerification, skipVerification, checkNeedsVerification, getUserPollLimit, findSimilarPolls, checkAndAwardCreatorPoints,
-  updateSelectedSkin, getUserCharacterStats, trackVoteTime, uploadAvatarVerified
+  updateSelectedSkin, getUserCharacterStats, trackVoteTime, uploadAvatarVerified,
+  getComments, createComment, deleteComment, getPollsByCreator
 } from '@/lib/supabase'
 
 const categories = [
@@ -1389,6 +1390,8 @@ function UserProfileModal({ userId, currentUser, onClose, darkMode }) {
   const [isLoading, setIsLoading] = useState(true)
   const [isFollowingUser, setIsFollowingUser] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [createdPolls, setCreatedPolls] = useState([])
+  const [activeTab, setActiveTab] = useState('stats')
 
   useEffect(() => { loadProfile() }, [userId])
 
@@ -1396,6 +1399,10 @@ function UserProfileModal({ userId, currentUser, onClose, darkMode }) {
     setIsLoading(true)
     const { data } = await getUserPublicProfile(userId)
     if (data) setProfile(data)
+    
+    // Load created polls
+    const { data: polls } = await getPollsByCreator(userId)
+    if (polls) setCreatedPolls(polls)
     
     if (currentUser && currentUser.id !== userId) {
       const following = await isFollowing(currentUser.id, userId)
@@ -1429,7 +1436,7 @@ function UserProfileModal({ userId, currentUser, onClose, darkMode }) {
     <div className="modal-overlay" onClick={onClose}>
       <div className={`modal user-profile-modal ${darkMode ? 'dark' : ''}`} onClick={e => e.stopPropagation()}>
         <button className="modal-close" onClick={onClose}>✕</button>
-        {isLoading ? <div style={{ textAlign: 'center', padding: '3rem' }}>⏳ กำลังโหลด...</div> : profile ? (
+        {isLoading ? <div style={{ textAlign: 'center', padding: '3rem' }}>กำลังโหลด...</div> : profile ? (
           <>
             <div className="profile-header">
               <div className="profile-avatar">
@@ -1451,6 +1458,7 @@ function UserProfileModal({ userId, currentUser, onClose, darkMode }) {
             
             <div className="profile-follow-stats">
               <div className="follow-stat"><strong>{profile.followers}</strong><span>ผู้ติดตาม</span></div>
+              <div className="follow-stat"><strong>{createdPolls.length}</strong><span>โพลที่สร้าง</span></div>
             </div>
             
             {currentUser && currentUser.id !== userId && (
@@ -1460,20 +1468,44 @@ function UserProfileModal({ userId, currentUser, onClose, darkMode }) {
                 onClick={handleFollow}
                 disabled={isProcessing}
               >
-                {isProcessing ? '⏳' : isFollowingUser ? '✓ กำลังติดตาม' : '➕ ติดตาม'}
+                {isProcessing ? '...' : isFollowingUser ? '✓ กำลังติดตาม' : 'ติดตาม'}
               </button>
             )}
             
-            <div className="profile-stats-grid">
-              <div className="profile-stat"><span className="stat-value">{profile.total_predictions || 0}</span><span className="stat-label">ทายทั้งหมด</span></div>
-              <div className="profile-stat"><span className="stat-value">{profile.correct_predictions || 0}</span><span className="stat-label">ถูก</span></div>
-              <div className="profile-stat"><span className="stat-value">{winRate}%</span><span className="stat-label">Win Rate</span></div>
-              <div className="profile-stat"><span className="stat-value">{profile.max_streak || 0}</span><span className="stat-label">Best Streak</span></div>
+            {/* Tabs */}
+            <div className="profile-tabs">
+              <button className={`profile-tab ${activeTab === 'stats' ? 'active' : ''}`} onClick={() => setActiveTab('stats')}>สถิติ</button>
+              <button className={`profile-tab ${activeTab === 'polls' ? 'active' : ''}`} onClick={() => setActiveTab('polls')}>โพลที่สร้าง ({createdPolls.length})</button>
             </div>
             
-            <div className="profile-meta">
-              <span>🗓️ สมาชิกตั้งแต่ {new Date(profile.created_at).toLocaleDateString('th-TH')}</span>
-            </div>
+            {activeTab === 'stats' ? (
+              <>
+                <div className="profile-stats-grid">
+                  <div className="profile-stat"><span className="stat-value">{profile.total_predictions || 0}</span><span className="stat-label">ทายทั้งหมด</span></div>
+                  <div className="profile-stat"><span className="stat-value">{profile.correct_predictions || 0}</span><span className="stat-label">ถูก</span></div>
+                  <div className="profile-stat"><span className="stat-value">{winRate}%</span><span className="stat-label">Win Rate</span></div>
+                  <div className="profile-stat"><span className="stat-value">{profile.max_streak || 0}</span><span className="stat-label">Best Streak</span></div>
+                </div>
+                
+                <div className="profile-meta">
+                  <span>สมาชิกตั้งแต่ {new Date(profile.created_at).toLocaleDateString('th-TH')}</span>
+                </div>
+              </>
+            ) : (
+              <div className="profile-polls-list">
+                {createdPolls.length > 0 ? createdPolls.map(poll => (
+                  <div key={poll.id} className="profile-poll-item">
+                    <div className="profile-poll-question">{poll.resolved && '✅ '}{poll.question}</div>
+                    <div className="profile-poll-meta">
+                      <span>{poll.options?.reduce((s, o) => s + o.votes, 0) || 0} โหวต</span>
+                      <span>{getDaysRemaining(poll.ends_at)}</span>
+                    </div>
+                  </div>
+                )) : (
+                  <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '2rem' }}>ยังไม่ได้สร้างโพล</div>
+                )}
+              </div>
+            )}
           </>
         ) : <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>ไม่พบข้อมูล</div>}
       </div>
@@ -2187,7 +2219,7 @@ function AdminPanel({ onClose, darkMode, onRefresh }) {
   )
 }
 
-function AccountModal({ onClose, user, darkMode, onUpdateUser, onOpenVerification, onOpenCharacterPicker }) {
+function AccountModal({ onClose, user, darkMode, onUpdateUser, onOpenVerification, onOpenCharacterPicker, onViewProfile }) {
   const [activeTab, setActiveTab] = useState('stats')
   const [profile, setProfile] = useState(null)
   const [voteHistory, setVoteHistory] = useState([])
@@ -2372,8 +2404,8 @@ function AccountModal({ onClose, user, darkMode, onUpdateUser, onOpenVerificatio
               {activeTab === 'stats' && <div className="stats-detail"><div className="stats-row"><span>สมาชิกตั้งแต่</span><span>{new Date(profile.created_at).toLocaleDateString('th-TH')}</span></div><div className="stats-row"><span>Point เริ่มต้น</span><span>1,000</span></div><div className="stats-row"><span>ได้/เสีย รวม</span><span style={{ color: profile.reputation >= 1000 ? 'var(--green)' : 'var(--red)' }}>{profile.reputation >= 1000 ? '+' : ''}{profile.reputation - 1000}</span></div></div>}
               {activeTab === 'history' && <div className="history-list">{voteHistory.length > 0 ? voteHistory.map(vote => <div key={vote.id} className={`history-item ${vote.is_correct === true ? 'correct' : vote.is_correct === false ? 'wrong' : ''}`}><div className="history-question">{vote.polls?.question || 'โพลถูกลบ'}</div><div className="history-answer"><span>เลือก: {vote.options?.text || '-'}</span>{vote.is_correct !== null && <span className={`history-result ${vote.is_correct ? 'correct' : 'wrong'}`}>{vote.is_correct ? '✅ ถูก' : '❌ ผิด'} ({vote.points_earned > 0 ? '+' : ''}{vote.points_earned})</span>}{vote.is_correct === null && vote.polls && <span className="history-pending">⏳ รอเฉลย</span>}</div></div>) : <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '2rem' }}>ยังไม่มีประวัติการโหวต</div>}</div>}
               {activeTab === 'polls' && <div className="polls-list">{createdPolls.length > 0 ? createdPolls.map(poll => <div key={poll.id} className="created-poll-item"><div className="created-poll-question">{poll.resolved && '✅ '}{poll.question}</div><div className="created-poll-meta"><span>👥 {poll.options?.reduce((s, o) => s + o.votes, 0) || 0} โหวต</span><span>⏱️ {getDaysRemaining(poll.ends_at)}</span></div></div>) : <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '2rem' }}>ยังไม่ได้สร้างโพล</div>}</div>}
-              {activeTab === 'followers' && <div className="follow-list">{followers.length > 0 ? followers.map(f => <div key={f.id} className="follow-item"><div className="follow-avatar">{f.avatar_url ? <img src={f.avatar_url} alt={f.username} /> : f.username[0].toUpperCase()}</div><div className="follow-info"><span className="follow-name">{f.username}</span><span className="follow-rep">{getReputationLevel(f.reputation).badge} {f.reputation} pt</span></div></div>) : <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '2rem' }}>ยังไม่มีผู้ติดตาม</div>}</div>}
-              {activeTab === 'following' && <div className="follow-list">{following.length > 0 ? following.map(f => <div key={f.id} className="follow-item"><div className="follow-avatar">{f.avatar_url ? <img src={f.avatar_url} alt={f.username} /> : f.username[0].toUpperCase()}</div><div className="follow-info"><span className="follow-name">{f.username}</span><span className="follow-rep">{getReputationLevel(f.reputation).badge} {f.reputation} pt</span></div></div>) : <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '2rem' }}>ยังไม่ได้ติดตามใคร</div>}</div>}
+              {activeTab === 'followers' && <div className="follow-list">{followers.length > 0 ? followers.map(f => <div key={f.id} className="follow-item" onClick={() => { if (onViewProfile) { onClose(); onViewProfile(f.id) }}} style={{ cursor: 'pointer' }}><div className="follow-avatar">{f.avatar_url && f.is_verified ? <img src={f.avatar_url} alt={f.username} /> : <div dangerouslySetInnerHTML={{ __html: getCharacterSVG(f.selected_skin || getDefaultSkin(f.reputation || 0), 40) }} />}</div><div className="follow-info"><span className="follow-name">{f.username}</span><span className="follow-rep">{getReputationLevel(f.reputation).badge} {f.reputation} pt</span></div></div>) : <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '2rem' }}>ยังไม่มีผู้ติดตาม</div>}</div>}
+              {activeTab === 'following' && <div className="follow-list">{following.length > 0 ? following.map(f => <div key={f.id} className="follow-item" onClick={() => { if (onViewProfile) { onClose(); onViewProfile(f.id) }}} style={{ cursor: 'pointer' }}><div className="follow-avatar">{f.avatar_url && f.is_verified ? <img src={f.avatar_url} alt={f.username} /> : <div dangerouslySetInnerHTML={{ __html: getCharacterSVG(f.selected_skin || getDefaultSkin(f.reputation || 0), 40) }} />}</div><div className="follow-info"><span className="follow-name">{f.username}</span><span className="follow-rep">{getReputationLevel(f.reputation).badge} {f.reputation} pt</span></div></div>) : <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '2rem' }}>ยังไม่ได้ติดตามใคร</div>}</div>}
             </div>
           </>
         ) : <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>ไม่พบข้อมูล</div>}
@@ -2395,6 +2427,9 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(true)
   const [selectedConfidence, setSelectedConfidence] = useState(50)
   const [selectedOption, setSelectedOption] = useState(null)
+  const [comments, setComments] = useState([])
+  const [newComment, setNewComment] = useState('')
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false)
   const [showCreatePoll, setShowCreatePoll] = useState(false)
   const [showAdminPanel, setShowAdminPanel] = useState(false)
   const [showAccount, setShowAccount] = useState(false)
@@ -2456,7 +2491,48 @@ export default function Home() {
       document.body.classList.remove('dark');
     }
   }, [darkMode])
-  useEffect(() => { if (selectedPoll) { const v = userVotes[selectedPoll.id]; if (v) { setSelectedOption(v.optionId); setSelectedConfidence(v.confidence || 50) } else { setSelectedOption(null); setSelectedConfidence(50) }}}, [selectedPoll, userVotes])
+  useEffect(() => { 
+    if (selectedPoll) { 
+      const v = userVotes[selectedPoll.id]; 
+      if (v) { setSelectedOption(v.optionId); setSelectedConfidence(v.confidence || 50) } 
+      else { setSelectedOption(null); setSelectedConfidence(50) }
+      // Load comments
+      loadPollComments(selectedPoll.id)
+    } else {
+      setComments([])
+      setNewComment('')
+    }
+  }, [selectedPoll, userVotes])
+  
+  const loadPollComments = async (pollId) => {
+    const { data } = await getComments(pollId)
+    if (data) setComments(data)
+  }
+  
+  const handleSubmitComment = async () => {
+    if (!newComment.trim() || !user || !selectedPoll) return
+    if (!user.is_verified) {
+      alert('กรุณายืนยันตัวตนก่อนแสดงความคิดเห็น')
+      return
+    }
+    setIsSubmittingComment(true)
+    const { data, error } = await createComment(user.id, selectedPoll.id, newComment.trim())
+    if (data) {
+      setComments(prev => [...prev, data])
+      setNewComment('')
+    } else if (error) {
+      alert('ไม่สามารถแสดงความคิดเห็นได้')
+    }
+    setIsSubmittingComment(false)
+  }
+  
+  const handleDeleteComment = async (commentId) => {
+    if (!confirm('ต้องการลบความคิดเห็นนี้?')) return
+    const { error } = await deleteComment(commentId, user.id)
+    if (!error) {
+      setComments(prev => prev.filter(c => c.id !== commentId))
+    }
+  }
   
   // Auto-refresh Live Battles ทุก 10 วินาที
   useEffect(() => {
@@ -2506,14 +2582,42 @@ export default function Home() {
 
   const handleVote = async (pollId, optionId, confidence) => { 
     if (!user) { setShowAuthModal(true); return }
-    const poll = polls.find(p => p.id === pollId)
+    const poll = polls.find(p => p.id === pollId) || liveBattles.find(p => p.id === pollId)
     if (poll && isExpired(poll.ends_at)) { alert('โพลนี้หมดเวลาแล้ว'); return }
     const { error } = await vote(user.id, pollId, optionId, confidence)
     if (!error) { 
       setUserVotes(prev => ({ ...prev, [pollId]: { optionId, confidence } }))
-      loadPolls()
+      
+      // Real-time update: อัพเดท % ทันทีโดยไม่ต้อง reload
+      const updatePollVotes = (pollsList) => pollsList.map(p => {
+        if (p.id === pollId) {
+          return {
+            ...p,
+            options: p.options.map(opt => ({
+              ...opt,
+              votes: opt.id === optionId ? opt.votes + 1 : opt.votes
+            }))
+          }
+        }
+        return p
+      })
+      
+      setPolls(updatePollVotes)
+      setLiveBattles(updatePollVotes)
+      
+      // อัพเดท selectedPoll ถ้าเปิดอยู่
+      if (selectedPoll && selectedPoll.id === pollId) {
+        setSelectedPoll(prev => ({
+          ...prev,
+          options: prev.options.map(opt => ({
+            ...opt,
+            votes: opt.id === optionId ? opt.votes + 1 : opt.votes
+          }))
+        }))
+      }
+      
       const c = confidenceLevels.find(c => c.value === confidence)
-      alert(`✅ โหวตสำเร็จ!\n\n${c?.emoji} ${c?.label} (±${confidence})`)
+      alert(`โหวตสำเร็จ!\n\n${c?.emoji} ${c?.label} (±${confidence})`)
       
       // Check and award creator engagement points
       await checkAndAwardCreatorPoints(pollId)
@@ -2606,17 +2710,17 @@ export default function Home() {
         </div>
         {showMenu && (
           <div className="dropdown-menu">
-            {!user && <><button className="dropdown-item" onClick={() => { setShowAuthModal(true); setShowMenu(false) }}>🔐 เข้าสู่ระบบ</button><button className="dropdown-item" onClick={() => { setShowAuthModal(true); setShowMenu(false) }}>✨ สมัครสมาชิก</button><div className="dropdown-divider"></div></>}
-            {user && <><div className="dropdown-item user-info-mobile">{user.avatar_url && user.is_verified ? <img src={user.avatar_url} alt={user.username} className="mobile-avatar-img" /> : <div className="user-avatar-character" dangerouslySetInnerHTML={{ __html: getCharacterSVG(user.selected_skin || getDefaultSkin(user.reputation || 0), 36) }} />}<div><span style={{ color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '4px' }}>{user.username}{user.is_verified && <span className="verified-badge"><svg viewBox="0 0 24 24" className="verified-check"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg></span>}</span><div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{getReputationLevel(user.reputation).badge} {user.reputation} pt</div></div></div><button className="dropdown-item" onClick={() => { setShowNotifications(true); setShowMenu(false) }}>🔔 การแจ้งเตือน {unreadCount > 0 && <span className="mobile-notif-badge">{unreadCount}</span>}</button><button className="dropdown-item" onClick={() => { setShowAccount(true); setShowMenu(false) }}>👤 บัญชีของฉัน</button><button className="dropdown-item" onClick={() => { 
+            {!user && <><button className="dropdown-item" onClick={() => { setShowAuthModal(true); setShowMenu(false) }}>เข้าสู่ระบบ</button><button className="dropdown-item" onClick={() => { setShowAuthModal(true); setShowMenu(false) }}>สมัครสมาชิก</button><div className="dropdown-divider"></div></>}
+            {user && <><div className="dropdown-item user-info-mobile">{user.avatar_url && user.is_verified ? <img src={user.avatar_url} alt={user.username} className="mobile-avatar-img" /> : <div className="user-avatar-character" dangerouslySetInnerHTML={{ __html: getCharacterSVG(user.selected_skin || getDefaultSkin(user.reputation || 0), 36) }} />}<div><span style={{ color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '4px' }}>{user.username}{user.is_verified && <span className="verified-badge"><svg viewBox="0 0 24 24" className="verified-check"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg></span>}</span><div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{getReputationLevel(user.reputation).badge} {user.reputation} pt</div></div></div><button className="dropdown-item" onClick={() => { setShowNotifications(true); setShowMenu(false) }}>การแจ้งเตือน {unreadCount > 0 && <span className="mobile-notif-badge">{unreadCount}</span>}</button><button className="dropdown-item" onClick={() => { setShowAccount(true); setShowMenu(false) }}>บัญชีของฉัน</button><button className="dropdown-item" onClick={() => { 
               if (!user.is_verified) { 
-                alert('⚠️ กรุณายืนยันตัวตนก่อนสร้างโพล\n\nไปที่ บัญชีของฉัน → ยืนยันตัวตน')
+                alert('กรุณายืนยันตัวตนก่อนสร้างโพล\n\nไปที่ บัญชีของฉัน → ยืนยันตัวตน')
                 setShowAccount(true)
               } else {
                 setShowCreatePoll(true)
               }
               setShowMenu(false) 
-            }}>➕ สร้างโพล</button>{user.is_admin && <button className="dropdown-item" onClick={() => { setShowAdminPanel(true); setShowMenu(false) }}>🔧 Admin Panel</button>}<div className="dropdown-divider"></div></>}
-            <button className="dropdown-item" onClick={() => { setDarkMode(!darkMode); setShowMenu(false) }}>{darkMode ? '☀️ โหมดสว่าง' : '🌙 โหมดมืด'}</button>
+            }}>สร้างโพล</button>{user.is_admin && <button className="dropdown-item" onClick={() => { setShowAdminPanel(true); setShowMenu(false) }}>Admin Panel</button>}<div className="dropdown-divider"></div></>}
+            <button className="dropdown-item" onClick={() => { setDarkMode(!darkMode); setShowMenu(false) }}>{darkMode ? 'โหมดสว่าง' : 'โหมดมืด'}</button>
             <div className="dropdown-divider"></div>
             <button className="dropdown-item" onClick={() => { setShowInfoModal('posting'); setShowMenu(false) }}>คำแนะนำการโพสต์</button>
             <button className="dropdown-item" onClick={() => { setShowInfoModal('rules'); setShowMenu(false) }}>กฎ กติกา และการนับคะแนน</button>
@@ -2624,7 +2728,7 @@ export default function Home() {
             <button className="dropdown-item" onClick={() => { setShowInfoModal('privacy'); setShowMenu(false) }}>นโยบายข้อมูลส่วนบุคคล</button>
             <button className="dropdown-item" onClick={() => { setShowInfoModal('ads'); setShowMenu(false) }}>ติดต่อลงโฆษณา</button>
             <button className="dropdown-item" onClick={() => { if (deferredPrompt) { deferredPrompt.prompt(); deferredPrompt.userChoice.then(() => setDeferredPrompt(null)) } else { setShowInfoModal('pwa'); } setShowMenu(false) }}>Download App คิดว่า..</button>
-            {user && <><div className="dropdown-divider"></div><button className="dropdown-item" onClick={handleLogout} style={{ color: 'var(--red)' }}>🚪 ออกจากระบบ</button></>}
+            {user && <><div className="dropdown-divider"></div><button className="dropdown-item" onClick={handleLogout} style={{ color: 'var(--red)' }}>ออกจากระบบ</button></>}
           </div>
         )}
         {/* Categories inside header for sticky */}
@@ -2714,11 +2818,11 @@ export default function Home() {
         <div className="modal-overlay" onClick={() => setSelectedPoll(null)}>
           <div className="modal" style={{ maxWidth: '550px' }} onClick={e => e.stopPropagation()}>
             <button className="modal-close" onClick={() => setSelectedPoll(null)}>✕</button>
-            <div style={{ marginBottom: '1rem' }}>{selectedPoll.blind_mode && !isExpired(selectedPoll.ends_at) && <span className="blind-badge">🔒 Blind Mode</span>}{selectedPoll.poll_type === 'prediction' && <span className="prediction-badge" style={{ marginLeft: '0.5rem' }}>🎯 ทายผล</span>}{selectedPoll.resolved && <span className="resolved-badge" style={{ marginLeft: '0.5rem' }}>✅ เฉลยแล้ว</span>}{isExpired(selectedPoll.ends_at) && !selectedPoll.resolved && <span className="resolved-badge" style={{ marginLeft: '0.5rem' }}>⏰ รอเฉลย</span>}</div>
+            <div style={{ marginBottom: '1rem' }}>{selectedPoll.blind_mode && !isExpired(selectedPoll.ends_at) && <span className="blind-badge">Blind Mode</span>}{selectedPoll.poll_type === 'prediction' && <span className="prediction-badge" style={{ marginLeft: '0.5rem' }}>ทายผล</span>}{selectedPoll.resolved && <span className="resolved-badge" style={{ marginLeft: '0.5rem' }}>เฉลยแล้ว</span>}{isExpired(selectedPoll.ends_at) && !selectedPoll.resolved && <span className="resolved-badge" style={{ marginLeft: '0.5rem' }}>รอเฉลย</span>}</div>
             <h2 style={{ fontSize: '1.2rem', marginBottom: '1rem', color: 'var(--text)' }}>{selectedPoll.question}</h2>
-            <div style={{ marginBottom: '1.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}><span>👥 {selectedPoll.options?.reduce((sum, o) => sum + o.votes, 0).toLocaleString()} คนโหวต</span><span style={{ marginLeft: '1rem' }}>⏱️ {getDaysRemaining(selectedPoll.ends_at)}</span></div>
-            {isExpired(selectedPoll.ends_at) && !selectedPoll.resolved && <div className="expired-notice">⏰ โพลนี้หมดเวลาแล้ว รอ Admin เฉลย</div>}
-            {userVotes[selectedPoll.id] && <div className="voted-notice">✅ คุณโหวตแล้ว ({confidenceLevels.find(c => c.value === userVotes[selectedPoll.id].confidence)?.emoji} {confidenceLevels.find(c => c.value === userVotes[selectedPoll.id].confidence)?.label})</div>}
+            <div style={{ marginBottom: '1.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}><span>{selectedPoll.options?.reduce((sum, o) => sum + o.votes, 0).toLocaleString()} คนโหวต</span><span style={{ marginLeft: '1rem' }}>{getDaysRemaining(selectedPoll.ends_at)}</span></div>
+            {isExpired(selectedPoll.ends_at) && !selectedPoll.resolved && <div className="expired-notice">โพลนี้หมดเวลาแล้ว รอเฉลย</div>}
+            {userVotes[selectedPoll.id] && <div className="voted-notice">คุณโหวตแล้ว ({confidenceLevels.find(c => c.value === userVotes[selectedPoll.id].confidence)?.emoji} {confidenceLevels.find(c => c.value === userVotes[selectedPoll.id].confidence)?.label})</div>}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
               {selectedPoll.options?.map(option => {
                 const totalVotes = selectedPoll.options.reduce((sum, o) => sum + o.votes, 0)
@@ -2732,18 +2836,79 @@ export default function Home() {
                 return <button key={option.id} onClick={() => !expired && !hasVoted && setSelectedOption(option.id)} disabled={expired || hasVoted} className={`option-btn ${isVoted ? 'voted' : ''} ${isSelected ? 'selected' : ''} ${expired || hasVoted ? 'disabled' : ''} ${isCorrect ? 'correct' : ''}`}>{!isBlind && <div className="option-bar" style={{ width: `${percent}%` }} />}<div className="option-content"><span>{isCorrect && '✅ '}{isVoted && '✓ '}{option.text}</span>{!isBlind && <span style={{ fontWeight: 600 }}>{percent}%</span>}</div></button>
               })}
             </div>
-            {!userVotes[selectedPoll.id] && !isExpired(selectedPoll.ends_at) && user && <><ConfidenceSelector selectedConfidence={selectedConfidence} onSelect={setSelectedConfidence} disabled={!selectedOption} /><button className="btn btn-primary" style={{ width: '100%', marginTop: '1rem', padding: '1rem' }} onClick={confirmVote} disabled={!selectedOption}>{selectedOption ? <>🎯 ยืนยันโหวต ({confidenceLevels.find(c => c.value === selectedConfidence)?.emoji} ±{selectedConfidence} คะแนน)</> : <>👆 เลือกตัวเลือกก่อน</>}</button></>}
-            {!user && !isExpired(selectedPoll.ends_at) && <div onClick={() => { setSelectedPoll(null); setShowAuthModal(true) }} className="login-prompt">🔒 เข้าสู่ระบบเพื่อโหวต</div>}
+            {!userVotes[selectedPoll.id] && !isExpired(selectedPoll.ends_at) && user && <><ConfidenceSelector selectedConfidence={selectedConfidence} onSelect={setSelectedConfidence} disabled={!selectedOption} /><button className="btn btn-primary" style={{ width: '100%', marginTop: '1rem', padding: '1rem' }} onClick={confirmVote} disabled={!selectedOption}>{selectedOption ? <>ยืนยันโหวต ({confidenceLevels.find(c => c.value === selectedConfidence)?.emoji} ±{selectedConfidence} คะแนน)</> : <>เลือกตัวเลือกก่อน</>}</button></>}
+            {!user && !isExpired(selectedPoll.ends_at) && <div onClick={() => { setSelectedPoll(null); setShowAuthModal(true) }} className="login-prompt">เข้าสู่ระบบเพื่อโหวต</div>}
             
             {/* Share Buttons */}
             <ShareButtons poll={selectedPoll} />
+            
+            {/* Comments Section */}
+            <div className="comments-section">
+              <h4 className="comments-title">ความคิดเห็น ({comments.length})</h4>
+              
+              {/* Comment Input */}
+              {user && user.is_verified ? (
+                <div className="comment-input-wrapper">
+                  <input 
+                    type="text" 
+                    className="comment-input" 
+                    placeholder="แสดงความคิดเห็น..." 
+                    value={newComment}
+                    onChange={(e) => setNewComment(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleSubmitComment()}
+                    disabled={isSubmittingComment}
+                  />
+                  <button 
+                    className="btn btn-primary comment-submit" 
+                    onClick={handleSubmitComment}
+                    disabled={!newComment.trim() || isSubmittingComment}
+                  >
+                    {isSubmittingComment ? '...' : 'ส่ง'}
+                  </button>
+                </div>
+              ) : user ? (
+                <div className="comment-login-prompt" onClick={() => setShowVerificationModal(true)}>ยืนยันตัวตนเพื่อแสดงความคิดเห็น</div>
+              ) : (
+                <div className="comment-login-prompt" onClick={() => { setSelectedPoll(null); setShowAuthModal(true) }}>เข้าสู่ระบบเพื่อแสดงความคิดเห็น</div>
+              )}
+              
+              {/* Comments List */}
+              <div className="comments-list">
+                {comments.length > 0 ? comments.map(comment => (
+                  <div key={comment.id} className="comment-item">
+                    <div className="comment-avatar">
+                      {comment.users?.avatar_url && comment.users?.is_verified ? (
+                        <img src={comment.users.avatar_url} alt={comment.users.username} />
+                      ) : (
+                        <div dangerouslySetInnerHTML={{ __html: getCharacterSVG(comment.users?.selected_skin || getDefaultSkin(comment.users?.reputation || 0), 32) }} />
+                      )}
+                    </div>
+                    <div className="comment-content">
+                      <div className="comment-header">
+                        <span className="comment-username">
+                          {comment.users?.username || 'Unknown'}
+                          {comment.users?.is_verified && <span className="verified-badge-small">✓</span>}
+                        </span>
+                        <span className="comment-time">{new Date(comment.created_at).toLocaleDateString('th-TH')}</span>
+                        {user && user.id === comment.users?.id && (
+                          <button className="comment-delete" onClick={() => handleDeleteComment(comment.id)}>✕</button>
+                        )}
+                      </div>
+                      <p className="comment-text">{comment.content}</p>
+                    </div>
+                  </div>
+                )) : (
+                  <div className="no-comments">ยังไม่มีความคิดเห็น</div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}
 
       {showCreatePoll && <CreatePollModal onClose={() => setShowCreatePoll(false)} user={user} onSuccess={loadPolls} darkMode={darkMode} />}
       {showAdminPanel && <AdminPanel onClose={() => setShowAdminPanel(false)} darkMode={darkMode} onRefresh={loadPolls} />}
-      {showAccount && <AccountModal onClose={() => setShowAccount(false)} user={user} darkMode={darkMode} onUpdateUser={setUser} onOpenVerification={() => setShowVerificationModal(true)} onOpenCharacterPicker={() => { setShowAccount(false); setShowCharacterPicker(true) }} />}
+      {showAccount && <AccountModal onClose={() => setShowAccount(false)} user={user} darkMode={darkMode} onUpdateUser={setUser} onOpenVerification={() => setShowVerificationModal(true)} onOpenCharacterPicker={() => { setShowAccount(false); setShowCharacterPicker(true) }} onViewProfile={(userId) => setViewProfileUserId(userId)} />}
       
       {/* Character Picker Modal */}
       {showCharacterPicker && user && (
