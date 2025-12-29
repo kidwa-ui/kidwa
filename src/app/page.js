@@ -9,7 +9,7 @@ import {
   getWeeklyLeaderboard, getMonthlyLeaderboard,
   getUserNotifications, getUnreadNotificationCount, markNotificationAsRead, markAllNotificationsAsRead,
   followUser, unfollowUser, isFollowing, getFollowers, getFollowing, getFollowCounts,
-  uploadAvatar, getUserPublicProfile, searchUsers,
+  uploadAvatar, getUserPublicProfile, searchUsers, searchUsersForMention,
   createTimeCapsule, getTimeCapsules,
   createLiveBattle, getLiveBattles, endLiveBattle, subscribeLiveBattle, unsubscribeLiveBattle,
   signUpWithEmail, signInWithEmail, signInWithMagicLink, signOut, getSession, getUserFromSession, 
@@ -2510,6 +2510,10 @@ export default function Home() {
   const [commentSort, setCommentSort] = useState('newest') // 'newest', 'oldest', 'popular'
   const [replyingTo, setReplyingTo] = useState(null) // comment id ที่กำลัง reply
   const [commentLikes, setCommentLikes] = useState({}) // { commentId: true/false }
+  const [mentionSuggestions, setMentionSuggestions] = useState([])
+  const [showMentionSuggestions, setShowMentionSuggestions] = useState(false)
+  const [mentionQuery, setMentionQuery] = useState('')
+  const [mentionStartPos, setMentionStartPos] = useState(-1)
   const [showCreatePoll, setShowCreatePoll] = useState(false)
   const [showAdminPanel, setShowAdminPanel] = useState(false)
   const [showAccount, setShowAccount] = useState(false)
@@ -2676,6 +2680,41 @@ export default function Home() {
   const handleReply = (comment) => {
     setReplyingTo(comment.id)
     setNewComment(`@${comment.users?.username || ''} `)
+  }
+  
+  // Handle comment input change with @mention detection
+  const handleCommentChange = async (e) => {
+    const value = e.target.value
+    setNewComment(value)
+    
+    // ตรวจจับ @mention
+    const cursorPos = e.target.selectionStart
+    const textBeforeCursor = value.substring(0, cursorPos)
+    const atMatch = textBeforeCursor.match(/@([a-zA-Z0-9_]*)$/)
+    
+    if (atMatch) {
+      const query = atMatch[1]
+      setMentionQuery(query)
+      setMentionStartPos(atMatch.index)
+      
+      // ค้นหา users
+      const { data } = await searchUsersForMention(query, user?.id)
+      setMentionSuggestions(data || [])
+      setShowMentionSuggestions(true)
+    } else {
+      setShowMentionSuggestions(false)
+      setMentionSuggestions([])
+    }
+  }
+  
+  // เลือก user จาก mention suggestions
+  const selectMention = (selectedUser) => {
+    const beforeMention = newComment.substring(0, mentionStartPos)
+    const afterMention = newComment.substring(mentionStartPos + mentionQuery.length + 1) // +1 for @
+    const newValue = `${beforeMention}@${selectedUser.username} ${afterMention}`
+    setNewComment(newValue)
+    setShowMentionSuggestions(false)
+    setMentionSuggestions([])
   }
   
   // Auto-refresh Live Battles ทุก 10 วินาที
@@ -3022,15 +3061,47 @@ export default function Home() {
               {/* Comment Input */}
               {user && user.is_verified ? (
                 <div className="comment-input-wrapper">
-                  <input 
-                    type="text" 
-                    className="comment-input" 
-                    placeholder={replyingTo ? "พิมพ์ข้อความตอบกลับ..." : "แสดงความคิดเห็น... (ใช้ @username เพื่อแท็ก)"} 
-                    value={newComment}
-                    onChange={(e) => setNewComment(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleSubmitComment()}
-                    disabled={isSubmittingComment}
-                  />
+                  <div className="comment-input-container">
+                    <input 
+                      type="text" 
+                      className="comment-input" 
+                      placeholder={replyingTo ? "พิมพ์ข้อความตอบกลับ..." : "แสดงความคิดเห็น... (ใช้ @username เพื่อแท็ก)"} 
+                      value={newComment}
+                      onChange={handleCommentChange}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter' && !showMentionSuggestions) {
+                          handleSubmitComment()
+                        }
+                      }}
+                      onBlur={() => setTimeout(() => setShowMentionSuggestions(false), 200)}
+                      disabled={isSubmittingComment}
+                    />
+                    
+                    {/* Mention Suggestions Dropdown */}
+                    {showMentionSuggestions && mentionSuggestions.length > 0 && (
+                      <div className="mention-suggestions">
+                        {mentionSuggestions.map(u => (
+                          <div 
+                            key={u.id} 
+                            className="mention-suggestion-item"
+                            onClick={() => selectMention(u)}
+                          >
+                            <div className="mention-avatar">
+                              {u.avatar_url && u.is_verified ? (
+                                <img src={u.avatar_url} alt={u.username} />
+                              ) : (
+                                <div dangerouslySetInnerHTML={{ __html: getCharacterSVG(u.selected_skin || getDefaultSkin(u.reputation || 0), 28) }} />
+                              )}
+                            </div>
+                            <div className="mention-info">
+                              <span className="mention-username">{u.username}</span>
+                              <span className="mention-rep">{getReputationLevel(u.reputation).badge} {u.reputation} pt</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                   <button 
                     className="btn btn-primary comment-submit" 
                     onClick={handleSubmitComment}
