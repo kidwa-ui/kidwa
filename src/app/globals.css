@@ -663,6 +663,17 @@ select.form-input { appearance: none; background-image: url("data:image/svg+xml,
 .user-avatar-character { display: flex; align-items: center; justify-content: center; width: 40px; height: 50px; overflow: hidden; }
 .user-avatar-character svg { width: 36px; height: auto; }
 
+/* Mobile Avatar Image */
+.mobile-avatar-img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; }
+
+/* Leaderboard Avatar */
+.lb-avatar { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; flex-shrink: 0; margin-right: 0.5rem; }
+.lb-avatar-img { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; }
+.lb-avatar-character { display: flex; align-items: center; justify-content: center; }
+.lb-avatar-character svg { width: 28px; height: auto; }
+.leaderboard-item { display: flex; align-items: center; }
+.lb-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 /* Live Battle End Time */
 .live-end-time { font-size: 0.8rem; color: var(--primary); font-weight: 500; }
 
