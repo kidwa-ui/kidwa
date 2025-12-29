@@ -715,16 +715,16 @@ export async function uploadAvatar(userId, file) {
 export async function getUserPublicProfile(userId) {
   const { data: user, error } = await supabase
     .from('users')
-    .select('id, username, reputation, avatar_url, current_streak, max_streak, total_predictions, correct_predictions, created_at')
+    .select('id, username, reputation, avatar_url, is_verified, selected_skin, current_streak, max_streak, total_predictions, correct_predictions, created_at')
     .eq('id', userId)
     .single()
   
   if (error) return { data: null, error }
   
-  const { followers, following } = await getFollowCounts(userId)
+  const { followers } = await getFollowCounts(userId)
   
   return { 
-    data: { ...user, followers, following }, 
+    data: { ...user, followers }, 
     error: null 
   }
 }
