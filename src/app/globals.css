@@ -151,7 +151,7 @@ html.dark, .dark { background: var(--bg); }
 }
 
 @media (max-width: 480px) {
-  .categories { top: 30px; }
+  .categories { top: 80px; }
 }
 
 /* ===== Dark Mode Fixes ===== */
