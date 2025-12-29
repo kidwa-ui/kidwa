@@ -1171,7 +1171,7 @@ function NotificationDropdown({ user, onClose }) {
 function InfoModal({ type, onClose, darkMode }) {
   const content = {
     posting: {
-      title: '📝 คำแนะนำการโพสต์',
+      title: 'คำแนะนำการโพสต์',
       content: `
 ## การสร้างโพลที่ดี
 
@@ -1198,7 +1198,7 @@ function InfoModal({ type, onClose, darkMode }) {
       `
     },
     rules: {
-      title: '📜 กฎ กติกา และการนับคะแนน',
+      title: 'กฎ กติกา และการนับคะแนน',
       content: `
 ## ระบบคะแนน (Reputation)
 
@@ -1237,7 +1237,7 @@ function InfoModal({ type, onClose, darkMode }) {
       `
     },
     membership: {
-      title: '👑 สิทธิ์การใช้งานของสมาชิก',
+      title: 'สิทธิ์การใช้งานของสมาชิก',
       content: `
 ## เปรียบเทียบสิทธิ์
 
@@ -1264,7 +1264,7 @@ function InfoModal({ type, onClose, darkMode }) {
       `
     },
     privacy: {
-      title: '🔒 นโยบายเกี่ยวกับข้อมูลส่วนบุคคล',
+      title: 'นโยบายเกี่ยวกับข้อมูลส่วนบุคคล',
       content: `
 ## นโยบายเกี่ยวกับข้อมูลส่วนบุคคล
 
@@ -1282,11 +1282,7 @@ function InfoModal({ type, onClose, darkMode }) {
 • ข้อมูลการใช้งาน: โพลที่สร้าง, การโหวต, คะแนนสะสม
 
 ### 3. การคุ้มครองข้อมูลส่วนบุคคล
-คิดว่า.. มีมาตรการคุ้มครองความปลอดภัยของข้อมูลส่วนบุคคล ดังนี้:
-• ข้อมูลเก็บใน Supabase (มาตรฐาน SOC 2 Type II)
-• Password เข้ารหัสด้วย bcrypt
-• ใช้ HTTPS ในการรับส่งข้อมูลทั้งหมด
-• มีระบบควบคุมการเข้าถึงข้อมูล
+คิดว่า.. มีมาตรการคุ้มครองความปลอดภัยของข้อมูลส่วนบุคคลจากการเข้าถึงโดยไม่ได้รับอนุญาต การสูญหาย การใช้ข้อมูลในทางที่ผิดไปจากวัตถุประสงค์ในการจัดเก็บ การเปิดเผย และการเปลี่ยนแปลงแก้ไข
 
 ### 4. การเปิดเผยข้อมูล
 คิดว่า.. ไม่มีนโยบายเปิดเผยข้อมูลส่วนบุคคลแก่บุคคลภายนอก เว้นแต่จะต้องปฏิบัติตามข้อกำหนดของกฎหมาย
@@ -1308,7 +1304,7 @@ Email: privacy@i-kidwa.com
       `
     },
     ads: {
-      title: '📢 ติดต่อลงโฆษณา',
+      title: 'ติดต่อลงโฆษณา',
       content: `
 ## ช่องทางติดต่อ
 
@@ -1326,7 +1322,7 @@ ads@i-kidwa.com
       `
     },
     pwa: {
-      title: '📲 ติดตั้ง App คิดว่า..',
+      title: 'ติดตั้ง App คิดว่า..',
       content: `
 ## วิธีติดตั้ง App
 
@@ -2541,6 +2537,25 @@ export default function Home() {
   const featuredPolls = filteredPolls.filter(p => p.featured).slice(0, 3)
   const latestPolls = [...filteredPolls].slice(0, 9)
 
+  // ถ่ายทอดสด: เรียงตามใกล้หมดเวลาก่อน, โพลหมดเวลาแล้วอยู่ท้ายสุด
+  const now = new Date()
+  const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000)
+  
+  // สำหรับหน้าแรก: แสดงเฉพาะที่ยังไม่หมดเวลา หรือหมดไปไม่เกิน 5 นาที
+  const liveBattlesForHome = liveBattles
+    .filter(b => new Date(b.ends_at) > fiveMinutesAgo)
+    .sort((a, b) => new Date(a.ends_at) - new Date(b.ends_at))
+  
+  // สำหรับแท็บถ่ายทอดสด: แสดงทั้งหมด, ที่ยังไม่หมดเวลาอยู่บน, หมดแล้วอยู่ท้าย
+  const liveBattlesForTab = [...liveBattles].sort((a, b) => {
+    const aExpired = new Date(a.ends_at) <= now
+    const bExpired = new Date(b.ends_at) <= now
+    if (aExpired && !bExpired) return 1  // a หมดแล้ว b ยังไม่หมด -> a อยู่หลัง
+    if (!aExpired && bExpired) return -1 // a ยังไม่หมด b หมดแล้ว -> a อยู่ก่อน
+    if (!aExpired && !bExpired) return new Date(a.ends_at) - new Date(b.ends_at) // ทั้งคู่ยังไม่หมด -> เรียงตามใกล้หมด
+    return new Date(b.ends_at) - new Date(a.ends_at) // ทั้งคู่หมดแล้ว -> เรียงตามหมดล่าสุดก่อน
+  })
+
   if (isLoading) return <div className={`loading-screen ${darkMode ? 'dark' : ''}`}><div className="loading-spinner" /><p>กำลังโหลด...</p></div>
 
   return (
@@ -2603,12 +2618,12 @@ export default function Home() {
             }}>➕ สร้างโพล</button>{user.is_admin && <button className="dropdown-item" onClick={() => { setShowAdminPanel(true); setShowMenu(false) }}>🔧 Admin Panel</button>}<div className="dropdown-divider"></div></>}
             <button className="dropdown-item" onClick={() => { setDarkMode(!darkMode); setShowMenu(false) }}>{darkMode ? '☀️ โหมดสว่าง' : '🌙 โหมดมืด'}</button>
             <div className="dropdown-divider"></div>
-            <button className="dropdown-item" onClick={() => { setShowInfoModal('posting'); setShowMenu(false) }}>📝 คำแนะนำการโพสต์</button>
-            <button className="dropdown-item" onClick={() => { setShowInfoModal('rules'); setShowMenu(false) }}>📜 กฎ กติกา และการนับคะแนน</button>
-            <button className="dropdown-item" onClick={() => { setShowInfoModal('membership'); setShowMenu(false) }}>👑 สิทธิ์การใช้งานของสมาชิก</button>
-            <button className="dropdown-item" onClick={() => { setShowInfoModal('privacy'); setShowMenu(false) }}>🔒 นโยบายข้อมูลส่วนบุคคล</button>
-            <button className="dropdown-item" onClick={() => { setShowInfoModal('ads'); setShowMenu(false) }}>📢 ติดต่อลงโฆษณา</button>
-            <button className="dropdown-item" onClick={() => { if (deferredPrompt) { deferredPrompt.prompt(); deferredPrompt.userChoice.then(() => setDeferredPrompt(null)) } else { setShowInfoModal('pwa'); } setShowMenu(false) }}>📲 Download App คิดว่า..</button>
+            <button className="dropdown-item" onClick={() => { setShowInfoModal('posting'); setShowMenu(false) }}>คำแนะนำการโพสต์</button>
+            <button className="dropdown-item" onClick={() => { setShowInfoModal('rules'); setShowMenu(false) }}>กฎ กติกา และการนับคะแนน</button>
+            <button className="dropdown-item" onClick={() => { setShowInfoModal('membership'); setShowMenu(false) }}>สิทธิ์การใช้งานของสมาชิก</button>
+            <button className="dropdown-item" onClick={() => { setShowInfoModal('privacy'); setShowMenu(false) }}>นโยบายข้อมูลส่วนบุคคล</button>
+            <button className="dropdown-item" onClick={() => { setShowInfoModal('ads'); setShowMenu(false) }}>ติดต่อลงโฆษณา</button>
+            <button className="dropdown-item" onClick={() => { if (deferredPrompt) { deferredPrompt.prompt(); deferredPrompt.userChoice.then(() => setDeferredPrompt(null)) } else { setShowInfoModal('pwa'); } setShowMenu(false) }}>Download App คิดว่า..</button>
             {user && <><div className="dropdown-divider"></div><button className="dropdown-item" onClick={handleLogout} style={{ color: 'var(--red)' }}>🚪 ออกจากระบบ</button></>}
           </div>
         )}
@@ -2629,9 +2644,9 @@ export default function Home() {
                 <h2 className="section-title">📺 ถ่ายทอดสด</h2>
                 {user && <button className="btn btn-live-create" onClick={() => setShowCreateLiveBattle(true)}>📺 สร้างถ่ายทอดสด</button>}
               </div>
-              {liveBattles.length > 0 ? (
+              {liveBattlesForTab.length > 0 ? (
                 <div className="poll-grid">
-                  {liveBattles.map(battle => (
+                  {liveBattlesForTab.map(battle => (
                     <LiveBattleCard key={battle.id} poll={battle} onClick={() => setSelectedPoll(battle)} userVotes={userVotes} />
                   ))}
                 </div>
@@ -2667,14 +2682,14 @@ export default function Home() {
           ) : filteredPolls.length > 0 ? (
             <>
               {/* ถ่ายทอดสด Preview on Home */}
-              {activeCategory === 'home' && liveBattles.length > 0 && (
+              {activeCategory === 'home' && liveBattlesForHome.length > 0 && (
                 <section>
                   <div className="section-header">
                     <h2 className="section-title">📺 ถ่ายทอดสดกำลังดำเนินอยู่</h2>
                     <button className="btn btn-sm btn-secondary" onClick={() => setActiveCategory('live')}>ดูทั้งหมด →</button>
                   </div>
                   <div className="poll-grid">
-                    {liveBattles.slice(0, 3).map(battle => (
+                    {liveBattlesForHome.slice(0, 3).map(battle => (
                       <LiveBattleCard key={battle.id} poll={battle} onClick={() => setSelectedPoll(battle)} userVotes={userVotes} />
                     ))}
                   </div>
