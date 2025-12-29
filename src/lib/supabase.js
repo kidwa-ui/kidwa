@@ -187,10 +187,17 @@ export async function createUser(username) {
 export async function getPolls() {
   const { data, error } = await supabase
     .from('polls')
-    .select('*, options(*), tags(*)')
+    .select('*, options:poll_options(*), tags:poll_tags(tag_id, tags(id, name))')
     .order('created_at', { ascending: false })
     .limit(50)
-  return { data, error }
+  
+  // Flatten tags
+  const pollsWithTags = data?.map(poll => ({
+    ...poll,
+    tags: poll.tags?.map(t => t.tags).filter(Boolean) || []
+  }))
+  
+  return { data: pollsWithTags, error }
 }
 
 export async function vote(userId, pollId, optionId, confidence = 50) {
@@ -202,14 +209,18 @@ export async function vote(userId, pollId, optionId, confidence = 50) {
     .single()
 
   if (existingVote) {
-    await supabase.from('options').update({ votes: supabase.rpc('decrement') }).eq('id', existingVote.option_id)
+    // ลด vote จาก option เดิม
+    await supabase.rpc('decrement_option_votes', { option_uuid: existingVote.option_id })
+    
     const { data, error } = await supabase
       .from('votes')
       .update({ option_id: optionId, confidence })
       .eq('id', existingVote.id)
       .select()
       .single()
-    await supabase.from('options').update({ votes: supabase.rpc('increment') }).eq('id', optionId)
+    
+    // เพิ่ม vote ให้ option ใหม่
+    await supabase.rpc('increment_option_votes', { option_uuid: optionId })
     return { data, error }
   } else {
     const { data, error } = await supabase
@@ -217,7 +228,9 @@ export async function vote(userId, pollId, optionId, confidence = 50) {
       .insert([{ user_id: userId, poll_id: pollId, option_id: optionId, confidence }])
       .select()
       .single()
-    await supabase.from('options').update({ votes: supabase.rpc('increment') }).eq('id', optionId)
+    
+    // เพิ่ม vote
+    await supabase.rpc('increment_option_votes', { option_uuid: optionId })
     return { data, error }
   }
 }
@@ -740,6 +753,51 @@ export async function searchUsers(query, limit = 10) {
   return { data, error }
 }
 
+// Search users for @mention autocomplete (prioritize following)
+export async function searchUsersForMention(query, currentUserId, limit = 8) {
+  // ถ้าไม่มี query ให้แสดงคนที่ติดตามก่อน
+  if (!query || query.length === 0) {
+    if (currentUserId) {
+      const { data: following } = await supabase
+        .from('follows')
+        .select('following_id, users!follows_following_id_fkey(id, username, reputation, avatar_url, is_verified, selected_skin)')
+        .eq('follower_id', currentUserId)
+        .limit(limit)
+      
+      return { data: following?.map(f => f.users).filter(Boolean) || [], error: null }
+    }
+    return { data: [], error: null }
+  }
+  
+  // ค้นหา users ที่ match
+  const { data: allUsers, error } = await supabase
+    .from('users')
+    .select('id, username, reputation, avatar_url, is_verified, selected_skin')
+    .ilike('username', `${query}%`)
+    .order('reputation', { ascending: false })
+    .limit(20)
+  
+  if (error || !allUsers) return { data: [], error }
+  
+  // ถ้า login อยู่ ให้เรียงคนที่ติดตามขึ้นก่อน
+  if (currentUserId) {
+    const { data: followingData } = await supabase
+      .from('follows')
+      .select('following_id')
+      .eq('follower_id', currentUserId)
+    
+    const followingIds = new Set(followingData?.map(f => f.following_id) || [])
+    
+    // แยกเป็น 2 กลุ่ม: คนที่ติดตาม vs คนอื่น
+    const following = allUsers.filter(u => followingIds.has(u.id))
+    const others = allUsers.filter(u => !followingIds.has(u.id))
+    
+    return { data: [...following, ...others].slice(0, limit), error: null }
+  }
+  
+  return { data: allUsers.slice(0, limit), error: null }
+}
+
 // ===== Time Capsule Functions =====
 
 export async function createTimeCapsule({ question, options, tags, endsAt, createdBy }) {
@@ -844,10 +902,9 @@ export async function getLiveBattles() {
   
   const { data, error } = await supabase
     .from('polls')
-    .select('*, options(*), tags(*), users:created_by(username, avatar_url)')
+    .select('*, options:poll_options(*), users:created_by(username, avatar_url)')
     .eq('poll_type', 'live_battle')
     .eq('is_live', true)
-    .gt('ends_at', now) // ยังไม่หมดเวลา
     .order('created_at', { ascending: false })
   
   return { data, error }
@@ -869,7 +926,7 @@ export function subscribeLiveBattle(pollId, callback) {
     .on('postgres_changes', {
       event: '*',
       schema: 'public',
-      table: 'options',
+      table: 'poll_options',
       filter: `poll_id=eq.${pollId}`
     }, callback)
     .subscribe()
