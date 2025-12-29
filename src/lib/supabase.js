@@ -653,7 +653,7 @@ export async function isFollowing(followerId, followingId) {
 export async function getFollowers(userId) {
   const { data, error } = await supabase
     .from('follows')
-    .select('follower_id, users!follows_follower_id_fkey(id, username, reputation, avatar_url)')
+    .select('follower_id, users!follows_follower_id_fkey(id, username, reputation, avatar_url, is_verified, selected_skin)')
     .eq('following_id', userId)
   
   return { data: data?.map(d => d.users) || [], error }
@@ -662,7 +662,7 @@ export async function getFollowers(userId) {
 export async function getFollowing(userId) {
   const { data, error } = await supabase
     .from('follows')
-    .select('following_id, users!follows_following_id_fkey(id, username, reputation, avatar_url)')
+    .select('following_id, users!follows_following_id_fkey(id, username, reputation, avatar_url, is_verified, selected_skin)')
     .eq('follower_id', userId)
   
   return { data: data?.map(d => d.users) || [], error }
@@ -1239,4 +1239,55 @@ export async function uploadAvatarVerified(userId, file, isVerified) {
   if (updateError) return { data: null, error: updateError }
 
   return { data: { url: publicUrl }, error: null }
+}
+
+// ===== COMMENTS =====
+export async function getComments(pollId) {
+  const { data, error } = await supabase
+    .from('comments')
+    .select(`
+      id, content, created_at,
+      users:user_id (id, username, avatar_url, is_verified, reputation, selected_skin)
+    `)
+    .eq('poll_id', pollId)
+    .order('created_at', { ascending: true })
+  
+  return { data, error }
+}
+
+export async function createComment(userId, pollId, content) {
+  const { data, error } = await supabase
+    .from('comments')
+    .insert([{ user_id: userId, poll_id: pollId, content }])
+    .select(`
+      id, content, created_at,
+      users:user_id (id, username, avatar_url, is_verified, reputation, selected_skin)
+    `)
+    .single()
+  
+  return { data, error }
+}
+
+export async function deleteComment(commentId, userId) {
+  const { error } = await supabase
+    .from('comments')
+    .delete()
+    .eq('id', commentId)
+    .eq('user_id', userId)
+  
+  return { error }
+}
+
+// ===== GET POLLS BY CREATOR =====
+export async function getPollsByCreator(userId) {
+  const { data, error } = await supabase
+    .from('polls')
+    .select(`
+      id, question, category, ends_at, resolved, featured, created_at,
+      options:poll_options(id, text, votes)
+    `)
+    .eq('created_by', userId)
+    .order('created_at', { ascending: false })
+  
+  return { data, error }
 }
