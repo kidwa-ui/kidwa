@@ -721,10 +721,10 @@ select.form-input { appearance: none; background-image: url("data:image/svg+xml,
 /* ===== Comments Section ===== */
 .comments-section { margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border); }
 .comments-title { font-size: 1rem; font-weight: 600; margin-bottom: 1rem; color: var(--text); }
-.comment-input-wrapper { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
-.comment-input { flex: 1; padding: 0.75rem 1rem; border: 2px solid var(--border); border-radius: 50px; font-size: 0.9rem; background: var(--bg); color: var(--text); font-family: inherit; }
+.comment-input-wrapper { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1rem; }
+.comment-input { width: 100%; padding: 0.75rem 1rem; border: 2px solid var(--border); border-radius: 12px; font-size: 0.9rem; background: var(--bg); color: var(--text); font-family: inherit; }
 .comment-input:focus { outline: none; border-color: var(--primary); }
-.comment-submit { padding: 0.75rem 1.25rem; border-radius: 50px; }
+.comment-submit { padding: 0.75rem 1.25rem; border-radius: 8px; align-self: flex-end; }
 .comment-login-prompt { padding: 1rem; text-align: center; color: var(--text-secondary); cursor: pointer; border: 2px dashed var(--border); border-radius: 12px; margin-bottom: 1rem; }
 .comment-login-prompt:hover { border-color: var(--primary); color: var(--primary); }
 .comments-list { max-height: 300px; overflow-y: auto; }
@@ -741,6 +741,12 @@ select.form-input { appearance: none; background-image: url("data:image/svg+xml,
 .comment-delete:hover { color: var(--red); }
 .comment-text { font-size: 0.9rem; color: var(--text); line-height: 1.4; word-break: break-word; }
 .no-comments { text-align: center; color: var(--text-secondary); padding: 2rem; }
+
+@media (min-width: 768px) {
+  .comment-input-wrapper { flex-direction: row; }
+  .comment-input { border-radius: 50px; }
+  .comment-submit { border-radius: 50px; align-self: auto; }
+}
 
 /* ===== Profile Tabs ===== */
 .profile-tabs { display: flex; gap: 0.25rem; margin: 1rem 0; background: var(--bg); border-radius: 8px; padding: 0.25rem; }
