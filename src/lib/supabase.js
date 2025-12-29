@@ -1243,29 +1243,58 @@ export async function uploadAvatarVerified(userId, file, isVerified) {
 
 // ===== COMMENTS =====
 export async function getComments(pollId) {
-  const { data, error } = await supabase
+  // Fetch comments ก่อน
+  const { data: commentsData, error } = await supabase
     .from('comments')
-    .select(`
-      id, content, created_at,
-      users:user_id (id, username, avatar_url, is_verified, reputation, selected_skin)
-    `)
+    .select('id, content, created_at, user_id')
     .eq('poll_id', pollId)
     .order('created_at', { ascending: true })
   
-  return { data, error }
+  if (error || !commentsData) return { data: [], error }
+  
+  // แล้วค่อย fetch users แยก
+  const userIds = [...new Set(commentsData.map(c => c.user_id))]
+  const { data: usersData } = await supabase
+    .from('users')
+    .select('id, username, avatar_url, is_verified, reputation, selected_skin')
+    .in('id', userIds)
+  
+  // Map users เข้ากับ comments
+  const usersMap = {}
+  usersData?.forEach(u => { usersMap[u.id] = u })
+  
+  const commentsWithUsers = commentsData.map(c => ({
+    ...c,
+    users: usersMap[c.user_id] || null
+  }))
+  
+  return { data: commentsWithUsers, error: null }
 }
 
 export async function createComment(userId, pollId, content) {
-  const { data, error } = await supabase
+  // Insert ก่อน
+  const { data: insertedData, error: insertError } = await supabase
     .from('comments')
     .insert([{ user_id: userId, poll_id: pollId, content }])
-    .select(`
-      id, content, created_at,
-      users:user_id (id, username, avatar_url, is_verified, reputation, selected_skin)
-    `)
+    .select('id, content, created_at, user_id')
     .single()
   
-  return { data, error }
+  if (insertError) return { data: null, error: insertError }
+  
+  // แล้วค่อย fetch user data แยก
+  const { data: userData } = await supabase
+    .from('users')
+    .select('id, username, avatar_url, is_verified, reputation, selected_skin')
+    .eq('id', userId)
+    .single()
+  
+  return { 
+    data: {
+      ...insertedData,
+      users: userData
+    }, 
+    error: null 
+  }
 }
 
 export async function deleteComment(commentId, userId) {
