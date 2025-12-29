@@ -16,7 +16,8 @@ import {
   resetPassword, updatePassword, onAuthStateChange, signInWithGoogle,
   submitVerification, skipVerification, checkNeedsVerification, getUserPollLimit, findSimilarPolls, checkAndAwardCreatorPoints,
   updateSelectedSkin, getUserCharacterStats, trackVoteTime, uploadAvatarVerified,
-  getComments, createComment, deleteComment, getPollsByCreator
+  getComments, createComment, deleteComment, getPollsByCreator,
+  likeComment, unlikeComment, getCommentLikeStatus
 } from '@/lib/supabase'
 
 const categories = [
@@ -279,6 +280,82 @@ function ConfidenceSelector({ selectedConfidence, onSelect, disabled }) {
             <span className="confidence-desc">{level.description}</span>
           </button>
         ))}
+      </div>
+    </div>
+  )
+}
+
+// ===== Comment Item Component =====
+function CommentItem({ comment, user, commentLikes, onLike, onReply, onDelete, getCharacterSVG, getDefaultSkin, isReply = false }) {
+  // Highlight @mentions in text
+  const renderCommentText = (text) => {
+    const parts = text.split(/(@\w+)/g)
+    return parts.map((part, i) => {
+      if (part.startsWith('@')) {
+        return <span key={i} className="mention-highlight">{part}</span>
+      }
+      return part
+    })
+  }
+  
+  const isLiked = commentLikes[comment.id]
+  
+  return (
+    <div className={`comment-item ${isReply ? 'comment-reply' : ''}`}>
+      <div className="comment-avatar">
+        {comment.users?.avatar_url && comment.users?.is_verified ? (
+          <img src={comment.users.avatar_url} alt={comment.users.username} />
+        ) : (
+          <div dangerouslySetInnerHTML={{ __html: getCharacterSVG(comment.users?.selected_skin || getDefaultSkin(comment.users?.reputation || 0), isReply ? 28 : 32) }} />
+        )}
+      </div>
+      <div className="comment-content">
+        <div className="comment-header">
+          <span className="comment-username">
+            {comment.users?.username || 'Unknown'}
+            {comment.users?.is_verified && <span className="verified-badge-small">✓</span>}
+          </span>
+          <span className="comment-time">{new Date(comment.created_at).toLocaleDateString('th-TH')}</span>
+        </div>
+        <p className="comment-text">{renderCommentText(comment.content)}</p>
+        <div className="comment-actions">
+          <button 
+            className={`comment-action-btn ${isLiked ? 'liked' : ''}`}
+            onClick={() => onLike(comment.id)}
+          >
+            {isLiked ? '❤️' : '🤍'} {comment.likes_count || 0}
+          </button>
+          {!isReply && (
+            <button className="comment-action-btn" onClick={() => onReply(comment)}>
+              💬 ตอบกลับ
+            </button>
+          )}
+          {user && user.id === comment.users?.id && (
+            <button className="comment-action-btn delete" onClick={() => onDelete(comment.id)}>
+              🗑️
+            </button>
+          )}
+        </div>
+        
+        {/* Nested Replies */}
+        {comment.replies?.length > 0 && (
+          <div className="comment-replies">
+            {comment.replies.map(reply => (
+              <CommentItem 
+                key={reply.id}
+                comment={reply}
+                user={user}
+                commentLikes={commentLikes}
+                onLike={onLike}
+                onReply={onReply}
+                onDelete={onDelete}
+                getCharacterSVG={getCharacterSVG}
+                getDefaultSkin={getDefaultSkin}
+                isReply={true}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -2430,6 +2507,9 @@ export default function Home() {
   const [comments, setComments] = useState([])
   const [newComment, setNewComment] = useState('')
   const [isSubmittingComment, setIsSubmittingComment] = useState(false)
+  const [commentSort, setCommentSort] = useState('newest') // 'newest', 'oldest', 'popular'
+  const [replyingTo, setReplyingTo] = useState(null) // comment id ที่กำลัง reply
+  const [commentLikes, setCommentLikes] = useState({}) // { commentId: true/false }
   const [showCreatePoll, setShowCreatePoll] = useState(false)
   const [showAdminPanel, setShowAdminPanel] = useState(false)
   const [showAccount, setShowAccount] = useState(false)
@@ -2497,16 +2577,42 @@ export default function Home() {
       if (v) { setSelectedOption(v.optionId); setSelectedConfidence(v.confidence || 50) } 
       else { setSelectedOption(null); setSelectedConfidence(50) }
       // Load comments
-      loadPollComments(selectedPoll.id)
+      loadPollComments(selectedPoll.id, commentSort)
     } else {
       setComments([])
       setNewComment('')
+      setReplyingTo(null)
+      setCommentLikes({})
     }
   }, [selectedPoll, userVotes])
   
-  const loadPollComments = async (pollId) => {
-    const { data } = await getComments(pollId)
-    if (data) setComments(data)
+  // Reload comments when sort changes
+  useEffect(() => {
+    if (selectedPoll) {
+      loadPollComments(selectedPoll.id, commentSort)
+    }
+  }, [commentSort])
+  
+  const loadPollComments = async (pollId, sort = 'newest') => {
+    const { data } = await getComments(pollId, sort)
+    if (data) {
+      setComments(data)
+      // Load like status for all comments
+      if (user) {
+        const allCommentIds = []
+        const collectIds = (comments) => {
+          comments.forEach(c => {
+            allCommentIds.push(c.id)
+            if (c.replies?.length) collectIds(c.replies)
+          })
+        }
+        collectIds(data)
+        if (allCommentIds.length > 0) {
+          const likeStatus = await getCommentLikeStatus(allCommentIds, user.id)
+          setCommentLikes(likeStatus)
+        }
+      }
+    }
   }
   
   const handleSubmitComment = async () => {
@@ -2516,12 +2622,14 @@ export default function Home() {
       return
     }
     setIsSubmittingComment(true)
-    const { data, error } = await createComment(user.id, selectedPoll.id, newComment.trim())
+    const { data, error } = await createComment(user.id, selectedPoll.id, newComment.trim(), replyingTo)
     if (error) {
       alert('ไม่สามารถแสดงความคิดเห็นได้')
     } else if (data) {
-      setComments(prev => [...prev, data])
+      // Reload comments to get proper structure
+      await loadPollComments(selectedPoll.id, commentSort)
       setNewComment('')
+      setReplyingTo(null)
     }
     setIsSubmittingComment(false)
   }
@@ -2530,8 +2638,44 @@ export default function Home() {
     if (!confirm('ต้องการลบความคิดเห็นนี้?')) return
     const { error } = await deleteComment(commentId, user.id)
     if (!error) {
-      setComments(prev => prev.filter(c => c.id !== commentId))
+      await loadPollComments(selectedPoll.id, commentSort)
     }
+  }
+  
+  const handleLikeComment = async (commentId) => {
+    if (!user) {
+      setShowAuthModal(true)
+      return
+    }
+    
+    if (commentLikes[commentId]) {
+      // Unlike
+      await unlikeComment(commentId, user.id)
+      setCommentLikes(prev => ({ ...prev, [commentId]: false }))
+      // Update local likes_count
+      const updateLikes = (comments) => comments.map(c => ({
+        ...c,
+        likes_count: c.id === commentId ? Math.max((c.likes_count || 1) - 1, 0) : c.likes_count,
+        replies: c.replies ? updateLikes(c.replies) : []
+      }))
+      setComments(updateLikes)
+    } else {
+      // Like
+      await likeComment(commentId, user.id)
+      setCommentLikes(prev => ({ ...prev, [commentId]: true }))
+      // Update local likes_count
+      const updateLikes = (comments) => comments.map(c => ({
+        ...c,
+        likes_count: c.id === commentId ? (c.likes_count || 0) + 1 : c.likes_count,
+        replies: c.replies ? updateLikes(c.replies) : []
+      }))
+      setComments(updateLikes)
+    }
+  }
+  
+  const handleReply = (comment) => {
+    setReplyingTo(comment.id)
+    setNewComment(`@${comment.users?.username || ''} `)
   }
   
   // Auto-refresh Live Battles ทุก 10 วินาที
@@ -2854,7 +2998,26 @@ export default function Home() {
             
             {/* Comments Section */}
             <div className="comments-section">
-              <h4 className="comments-title">ความคิดเห็น ({comments.length})</h4>
+              <div className="comments-header">
+                <h4 className="comments-title">ความคิดเห็น ({comments.reduce((sum, c) => sum + 1 + (c.replies?.length || 0), 0)})</h4>
+                <select 
+                  className="comment-sort-select"
+                  value={commentSort}
+                  onChange={(e) => setCommentSort(e.target.value)}
+                >
+                  <option value="newest">ใหม่ล่าสุด</option>
+                  <option value="oldest">เก่าสุด</option>
+                  <option value="popular">ยอดนิยม</option>
+                </select>
+              </div>
+              
+              {/* Reply indicator */}
+              {replyingTo && (
+                <div className="reply-indicator">
+                  <span>ตอบกลับความคิดเห็น</span>
+                  <button onClick={() => { setReplyingTo(null); setNewComment('') }}>✕ ยกเลิก</button>
+                </div>
+              )}
               
               {/* Comment Input */}
               {user && user.is_verified ? (
@@ -2862,7 +3025,7 @@ export default function Home() {
                   <input 
                     type="text" 
                     className="comment-input" 
-                    placeholder="แสดงความคิดเห็น..." 
+                    placeholder={replyingTo ? "พิมพ์ข้อความตอบกลับ..." : "แสดงความคิดเห็น... (ใช้ @username เพื่อแท็ก)"} 
                     value={newComment}
                     onChange={(e) => setNewComment(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && handleSubmitComment()}
@@ -2885,28 +3048,17 @@ export default function Home() {
               {/* Comments List */}
               <div className="comments-list">
                 {comments.length > 0 ? comments.map(comment => (
-                  <div key={comment.id} className="comment-item">
-                    <div className="comment-avatar">
-                      {comment.users?.avatar_url && comment.users?.is_verified ? (
-                        <img src={comment.users.avatar_url} alt={comment.users.username} />
-                      ) : (
-                        <div dangerouslySetInnerHTML={{ __html: getCharacterSVG(comment.users?.selected_skin || getDefaultSkin(comment.users?.reputation || 0), 32) }} />
-                      )}
-                    </div>
-                    <div className="comment-content">
-                      <div className="comment-header">
-                        <span className="comment-username">
-                          {comment.users?.username || 'Unknown'}
-                          {comment.users?.is_verified && <span className="verified-badge-small">✓</span>}
-                        </span>
-                        <span className="comment-time">{new Date(comment.created_at).toLocaleDateString('th-TH')}</span>
-                        {user && user.id === comment.users?.id && (
-                          <button className="comment-delete" onClick={() => handleDeleteComment(comment.id)}>✕</button>
-                        )}
-                      </div>
-                      <p className="comment-text">{comment.content}</p>
-                    </div>
-                  </div>
+                  <CommentItem 
+                    key={comment.id} 
+                    comment={comment} 
+                    user={user}
+                    commentLikes={commentLikes}
+                    onLike={handleLikeComment}
+                    onReply={handleReply}
+                    onDelete={handleDeleteComment}
+                    getCharacterSVG={getCharacterSVG}
+                    getDefaultSkin={getDefaultSkin}
+                  />
                 )) : (
                   <div className="no-comments">ยังไม่มีความคิดเห็น</div>
                 )}
