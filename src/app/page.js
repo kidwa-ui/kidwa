@@ -2516,12 +2516,19 @@ export default function Home() {
       return
     }
     setIsSubmittingComment(true)
-    const { data, error } = await createComment(user.id, selectedPoll.id, newComment.trim())
-    if (data) {
-      setComments(prev => [...prev, data])
-      setNewComment('')
-    } else if (error) {
-      alert('ไม่สามารถแสดงความคิดเห็นได้')
+    try {
+      const { data, error } = await createComment(user.id, selectedPoll.id, newComment.trim())
+      console.log('Comment result:', { data, error })
+      if (error) {
+        console.error('Comment error:', error)
+        alert('ไม่สามารถแสดงความคิดเห็นได้: ' + (error.message || JSON.stringify(error)))
+      } else if (data) {
+        setComments(prev => [...prev, data])
+        setNewComment('')
+      }
+    } catch (err) {
+      console.error('Comment exception:', err)
+      alert('เกิดข้อผิดพลาด: ' + err.message)
     }
     setIsSubmittingComment(false)
   }
@@ -2589,7 +2596,7 @@ export default function Home() {
       setUserVotes(prev => ({ ...prev, [pollId]: { optionId, confidence } }))
       
       // Real-time update: อัพเดท % ทันทีโดยไม่ต้อง reload
-      const updatePollVotes = (pollsList) => pollsList.map(p => {
+      setPolls(prev => prev.map(p => {
         if (p.id === pollId) {
           return {
             ...p,
@@ -2600,10 +2607,20 @@ export default function Home() {
           }
         }
         return p
-      })
+      }))
       
-      setPolls(updatePollVotes)
-      setLiveBattles(updatePollVotes)
+      setLiveBattles(prev => prev.map(p => {
+        if (p.id === pollId) {
+          return {
+            ...p,
+            options: p.options.map(opt => ({
+              ...opt,
+              votes: opt.id === optionId ? opt.votes + 1 : opt.votes
+            }))
+          }
+        }
+        return p
+      }))
       
       // อัพเดท selectedPoll ถ้าเปิดอยู่
       if (selectedPoll && selectedPoll.id === pollId) {
