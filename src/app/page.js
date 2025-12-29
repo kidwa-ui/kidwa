@@ -21,7 +21,6 @@ import {
 const categories = [
   { id: 'home', name: 'หน้าแรก', icon: '🏠' },
   { id: 'live', name: 'ถ่ายทอดสด', icon: '📺' },
-  { id: 'timecapsule', name: 'Time Capsule', icon: '💊' },
   { id: 'sports', name: 'กีฬา', icon: '⚽' },
   { id: 'entertainment', name: 'บันเทิง', icon: '🎬' },
   { id: 'politics', name: 'การเมือง', icon: '🏛️' },
@@ -36,7 +35,8 @@ const categories = [
   { id: 'education', name: 'การศึกษา', icon: '📚' },
   { id: 'pets', name: 'สัตว์เลี้ยง', icon: '🐱' },
   { id: 'housing', name: 'บ้าน', icon: '🏡' },
-  { id: 'other', name: 'อื่นๆ', icon: '🎭' }
+  { id: 'other', name: 'อื่นๆ', icon: '🎭' },
+  { id: 'timecapsule', name: 'Time Capsule', icon: '💊' }
 ]
 
 const reputationLevels = [
@@ -1235,7 +1235,6 @@ function UserProfileModal({ userId, currentUser, onClose, darkMode }) {
             
             <div className="profile-follow-stats">
               <div className="follow-stat"><strong>{profile.followers}</strong><span>ผู้ติดตาม</span></div>
-              <div className="follow-stat"><strong>{profile.following}</strong><span>กำลังติดตาม</span></div>
             </div>
             
             {currentUser && currentUser.id !== userId && (
@@ -1673,7 +1672,7 @@ function CreatePollModal({ onClose, user, onSuccess, darkMode }) {
       category, 
       tags: selectedTags.map(t => t.id), 
       blindMode, 
-      endsAt: new Date(endsAt).toISOString(), 
+      endsAt: `${endsAt}T23:59:59+07:00`, // หมดเวลา 23:59:59 ของวันที่เลือก (Thailand)
       pollType: pollMode, 
       createdBy: user.id 
     })
