@@ -1024,49 +1024,77 @@ export async function getUserPollLimit(userId) {
 // ===== Similar Poll Detection =====
 
 export async function findSimilarPolls(question, limit = 5) {
-  // ทำให้เป็น lowercase และ trim
-  const searchQuery = question.toLowerCase().trim()
+  // ลบ space, ตัวเลข, สัญลักษณ์ ออกก่อนเปรียบเทียบ
+  const cleanText = (text) => text.toLowerCase().replace(/[\s\d\.\,\?\!\:\;\-\_\(\)\/\\]/g, '').trim()
   
-  // แยกคำสำคัญ (ตัดคำที่สั้นเกินไป)
-  const keywords = searchQuery
-    .split(/\s+/)
-    .filter(word => word.length > 2)
-    .slice(0, 5) // ใช้แค่ 5 คำแรก
-
-  if (keywords.length === 0) {
+  const searchQuery = cleanText(question)
+  
+  if (searchQuery.length < 4) {
     return { data: [], error: null }
   }
 
-  // สร้าง search pattern สำหรับ ilike
-  // ค้นหาโพลที่มีคำคล้ายกัน
+  // สำหรับภาษาไทย: ใช้ sliding window สร้าง chunks
+  const chunks = new Set()
+  const chunkSizes = [4, 5, 6, 7, 8]
+  
+  for (const size of chunkSizes) {
+    for (let i = 0; i <= searchQuery.length - size; i++) {
+      const chunk = searchQuery.substring(i, i + size)
+      if (chunk.length >= 4) {
+        chunks.add(chunk)
+      }
+    }
+  }
+  
+  const uniqueChunks = [...chunks].slice(0, 15)
+  
+  if (uniqueChunks.length === 0) {
+    return { data: [], error: null }
+  }
+
+  // ค้นหาโพลทั้งหมดที่ยังไม่หมดอายุ
   const { data: polls, error } = await supabase
     .from('polls')
-    .select('id, question, ends_at, resolved, options(votes)')
-    .or(keywords.map(k => `question.ilike.%${k}%`).join(','))
+    .select('id, question, ends_at, resolved, options:poll_options(votes)')
     .eq('resolved', false)
-    .gt('ends_at', new Date().toISOString()) // ยังไม่หมดอายุ
+    .gt('ends_at', new Date().toISOString())
     .order('created_at', { ascending: false })
-    .limit(limit)
+    .limit(100)
 
   if (error) return { data: [], error }
 
   // คำนวณ similarity score
   const scoredPolls = polls?.map(poll => {
-    const pollQuestion = poll.question.toLowerCase()
+    const pollClean = cleanText(poll.question)
     let matchCount = 0
-    keywords.forEach(keyword => {
-      if (pollQuestion.includes(keyword)) matchCount++
+    
+    uniqueChunks.forEach(chunk => {
+      if (pollClean.includes(chunk)) {
+        matchCount++
+      }
     })
-    const similarity = matchCount / keywords.length
+    
+    // คำนวณ score
+    const chunkScore = uniqueChunks.length > 0 ? matchCount / uniqueChunks.length : 0
+    
+    // เช็ค substring ตรงๆ (คำถามใหม่อยู่ในเก่า หรือกลับกัน)
+    const directMatch = pollClean.includes(searchQuery) || searchQuery.includes(pollClean)
+    const containsScore = directMatch ? 0.5 : 0
+    
+    // รวม score
+    const similarity = Math.min(chunkScore + containsScore, 1)
     const totalVotes = poll.options?.reduce((sum, o) => sum + o.votes, 0) || 0
     
     return {
-      ...poll,
+      id: poll.id,
+      question: poll.question,
+      ends_at: poll.ends_at,
       similarity,
       totalVotes
     }
-  }).filter(p => p.similarity >= 0.4) // แสดงเฉพาะที่คล้ายกัน 40% ขึ้นไป
+  }).filter(p => p.similarity >= 0.25) // ลด threshold เป็น 25%
     .sort((a, b) => b.similarity - a.similarity)
+    .slice(0, limit)
 
   return { data: scoredPolls || [], error: null }
 }
@@ -1242,56 +1270,100 @@ export async function uploadAvatarVerified(userId, file, isVerified) {
 }
 
 // ===== COMMENTS =====
-export async function getComments(pollId) {
-  // Fetch comments ก่อน
+export async function getComments(pollId, sortBy = 'newest') {
+  // Fetch comments
   const { data: commentsData, error } = await supabase
     .from('comments')
-    .select('id, content, created_at, user_id')
+    .select('id, content, created_at, user_id, parent_id, likes_count')
     .eq('poll_id', pollId)
-    .order('created_at', { ascending: true })
+    .order(sortBy === 'popular' ? 'likes_count' : 'created_at', { ascending: sortBy === 'oldest' })
   
   if (error || !commentsData) return { data: [], error }
   
-  // แล้วค่อย fetch users แยก
+  // Fetch users
   const userIds = [...new Set(commentsData.map(c => c.user_id))]
   const { data: usersData } = await supabase
     .from('users')
     .select('id, username, avatar_url, is_verified, reputation, selected_skin')
-    .in('id', userIds)
+    .in('id', userIds.length > 0 ? userIds : ['00000000-0000-0000-0000-000000000000'])
   
-  // Map users เข้ากับ comments
+  // Map users
   const usersMap = {}
   usersData?.forEach(u => { usersMap[u.id] = u })
   
+  // Build nested comments structure
   const commentsWithUsers = commentsData.map(c => ({
     ...c,
-    users: usersMap[c.user_id] || null
+    users: usersMap[c.user_id] || null,
+    replies: []
   }))
   
-  return { data: commentsWithUsers, error: null }
+  // Organize into parent-child structure
+  const commentMap = {}
+  const rootComments = []
+  
+  commentsWithUsers.forEach(c => { commentMap[c.id] = c })
+  commentsWithUsers.forEach(c => {
+    if (c.parent_id && commentMap[c.parent_id]) {
+      commentMap[c.parent_id].replies.push(c)
+    } else if (!c.parent_id) {
+      rootComments.push(c)
+    }
+  })
+  
+  return { data: rootComments, error: null }
 }
 
-export async function createComment(userId, pollId, content) {
-  // Insert ก่อน
+export async function createComment(userId, pollId, content, parentId = null) {
+  // Insert comment
+  const insertData = { user_id: userId, poll_id: pollId, content, likes_count: 0 }
+  if (parentId) insertData.parent_id = parentId
+  
   const { data: insertedData, error: insertError } = await supabase
     .from('comments')
-    .insert([{ user_id: userId, poll_id: pollId, content }])
-    .select('id, content, created_at, user_id')
+    .insert([insertData])
+    .select('id, content, created_at, user_id, parent_id, likes_count')
     .single()
   
   if (insertError) return { data: null, error: insertError }
   
-  // แล้วค่อย fetch user data แยก
+  // Fetch user data
   const { data: userData } = await supabase
     .from('users')
     .select('id, username, avatar_url, is_verified, reputation, selected_skin')
     .eq('id', userId)
     .single()
   
+  // ตรวจจับ @mentions และสร้าง notifications
+  const mentions = content.match(/@(\w+)/g)
+  if (mentions) {
+    const usernames = mentions.map(m => m.substring(1))
+    const { data: mentionedUsers } = await supabase
+      .from('users')
+      .select('id, username')
+      .in('username', usernames)
+    
+    // สร้าง notification สำหรับแต่ละคนที่ถูก mention
+    if (mentionedUsers) {
+      for (const mentionedUser of mentionedUsers) {
+        if (mentionedUser.id !== userId) { // ไม่ notify ตัวเอง
+          await supabase.from('notifications').insert([{
+            user_id: mentionedUser.id,
+            type: 'mention',
+            title: 'มีคนแท็กคุณ',
+            message: `${userData?.username || 'Someone'} แท็กคุณในความคิดเห็น`,
+            data: { poll_id: pollId, comment_id: insertedData.id }
+          }])
+        }
+      }
+    }
+  }
+  
   return { 
     data: {
       ...insertedData,
-      users: userData
+      users: userData,
+      replies: []
     }, 
     error: null 
   }
@@ -1305,6 +1377,61 @@ export async function deleteComment(commentId, userId) {
     .eq('user_id', userId)
   
   return { error }
+}
+
+export async function likeComment(commentId, userId) {
+  // Check if already liked
+  const { data: existing } = await supabase
+    .from('comment_likes')
+    .select('id')
+    .eq('comment_id', commentId)
+    .eq('user_id', userId)
+    .single()
+  
+  if (existing) {
+    return { data: null, error: null, alreadyLiked: true }
+  }
+  
+  // Insert like
+  const { error: likeError } = await supabase
+    .from('comment_likes')
+    .insert([{ comment_id: commentId, user_id: userId }])
+  
+  if (likeError) return { data: null, error: likeError }
+  
+  // Update likes_count
+  await supabase.rpc('increment_comment_likes', { comment_uuid: commentId })
+  
+  return { data: { liked: true }, error: null }
+}
+
+export async function unlikeComment(commentId, userId) {
+  const { error: deleteError } = await supabase
+    .from('comment_likes')
+    .delete()
+    .eq('comment_id', commentId)
+    .eq('user_id', userId)
+  
+  if (deleteError) return { error: deleteError }
+  
+  // Update likes_count
+  await supabase.rpc('decrement_comment_likes', { comment_uuid: commentId })
+  
+  return { error: null }
+}
+
+export async function getCommentLikeStatus(commentIds, userId) {
+  if (!commentIds.length || !userId) return {}
+  
+  const { data } = await supabase
+    .from('comment_likes')
+    .select('comment_id')
+    .in('comment_id', commentIds)
+    .eq('user_id', userId)
+  
+  const likedMap = {}
+  data?.forEach(d => { likedMap[d.comment_id] = true })
+  return likedMap
 }
 
 // ===== GET POLLS BY CREATOR =====
