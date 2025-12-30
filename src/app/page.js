@@ -1309,16 +1309,24 @@ function InfoModal({ type, onClose, darkMode }) {
       content: `
 ## ระบบคะแนน (Reputation)
 
-### 📊 การได้/เสียคะแนน
-• ทายถูก: ได้ +20 ถึง +100 คะแนน (ตามระดับความมั่นใจ)
-• ทายผิด: เสีย -20 ถึง -100 คะแนน (ตามระดับความมั่นใจ)
-• สมัครสมาชิกใหม่: ได้รับ 1,000 คะแนนเริ่มต้น
+### 🎯 โพลทายผล (Prediction)
+**เมื่อโหวต:** หักคะแนนทันทีตามระดับความมั่นใจ
+• 😅 ไม่มั่นใจ: -20 คะแนน
+• 🤩 ปกติ: -50 คะแนน  
+• 😎 มั่นใจมาก: -100 คะแนน
 
-### 🎚️ ระดับความมั่นใจ (Confidence)
-เลือกระดับความมั่นใจเมื่อโหวต:
-• 😅 ไม่มั่นใจ: ±20 คะแนน
-• 🤩 ปกติ: ±50 คะแนน
-• 😎 มั่นใจมาก: ±100 คะแนน
+**เมื่อเฉลย:**
+• ทายถูก: ได้คืน 2 เท่า (ลง 50 → ได้คืน 100)
+• ทายผิด: เสียไปเลย (ลง 50 → เสีย 50)
+
+### 💬 โพลความคิดเห็น (Opinion)
+• โหวตแล้วได้ +5 คะแนนทันที
+• ไม่มีการเสียคะแนน
+
+### 🎁 โบนัสพิเศษ
+• 🌟 Daily Check-in: +20 คะแนน (โหวตแรกของวัน)
+• 📤 Share Facebook/X: +20 คะแนน (ครั้งแรกต่อโพล)
+• 💬 Comment ได้ 10/50/100/500 likes: +10/50/100/500 คะแนน
 
 ### 🏆 ระดับสมาชิก
 • 🌱 นักศึกษา: 0-500 คะแนน
@@ -1335,6 +1343,9 @@ function InfoModal({ type, onClose, darkMode }) {
 • Champion Bean: คะแนนสูงสุดประจำสัปดาห์
 • Perfect Bean: ทายถูก 50 ครั้ง
 • Veteran Bean: เป็นสมาชิก 1 ปี
+
+### ⚖️ Appeal เฉลย
+หากคิดว่า Admin เฉลยผิด สามารถกด "Appeal เฉลย" เพื่อแจ้งให้ตรวจสอบ
 
 ### ⚠️ กฎทั่วไป
 • 1 บัญชีต่อ 1 คน
@@ -3610,13 +3621,6 @@ export default function Home() {
             <div style={{ marginBottom: '1rem' }}>{selectedPoll.blind_mode && !isExpired(selectedPoll.ends_at) && <span className="blind-badge">Blind Mode</span>}{selectedPoll.poll_type === 'prediction' && <span className="prediction-badge" style={{ marginLeft: '0.5rem' }}>ทายผล</span>}{selectedPoll.poll_type !== 'prediction' && <span className="opinion-badge" style={{ marginLeft: '0.5rem' }}>ความคิดเห็น</span>}{selectedPoll.resolved && <span className="resolved-badge" style={{ marginLeft: '0.5rem' }}>เฉลยแล้ว</span>}{isExpired(selectedPoll.ends_at) && !selectedPoll.resolved && <span className="resolved-badge" style={{ marginLeft: '0.5rem' }}>รอเฉลย</span>}</div>
             <h2 style={{ fontSize: '1.2rem', marginBottom: '1rem', color: 'var(--text)' }}>{selectedPoll.question}</h2>
             <div style={{ marginBottom: '1.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}><span>{selectedPoll.options?.reduce((sum, o) => sum + o.votes, 0).toLocaleString()} คนโหวต</span><span style={{ marginLeft: '1rem' }}>{getDaysRemaining(selectedPoll.ends_at)}</span></div>
-            
-            {/* Release & Return Notice สำหรับ Prediction */}
-            {selectedPoll.poll_type === 'prediction' && !userVotes[selectedPoll.id] && !isExpired(selectedPoll.ends_at) && (
-              <div className="release-return-notice">
-                <span>💡 <strong>Release & Return:</strong> หักคะแนนทันทีเมื่อโหวต ถ้าทายถูกได้คืน 2 เท่า!</span>
-              </div>
-            )}
             
             {isExpired(selectedPoll.ends_at) && !selectedPoll.resolved && <div className="expired-notice">โพลนี้หมดเวลาแล้ว รอเฉลย</div>}
             {userVotes[selectedPoll.id] && <div className="voted-notice">คุณโหวตแล้ว ({confidenceLevels.find(c => c.value === userVotes[selectedPoll.id].confidence)?.emoji} {confidenceLevels.find(c => c.value === userVotes[selectedPoll.id].confidence)?.label})</div>}
