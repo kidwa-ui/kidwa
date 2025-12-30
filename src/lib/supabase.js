@@ -185,19 +185,35 @@ export async function createUser(username) {
 }
 
 export async function getPolls() {
-  const { data, error } = await supabase
+  // Fetch polls ก่อน
+  const { data: pollsData, error } = await supabase
     .from('polls')
-    .select('*, poll_options(*)')
+    .select('*')
     .order('created_at', { ascending: false })
     .limit(50)
   
-  // Map poll_options to options for compatibility
-  const pollsWithOptions = data?.map(poll => ({
+  if (error || !pollsData) return { data: [], error }
+  
+  // Fetch options แยก
+  const pollIds = pollsData.map(p => p.id)
+  const { data: optionsData } = await supabase
+    .from('poll_options')
+    .select('*')
+    .in('poll_id', pollIds.length > 0 ? pollIds : ['00000000-0000-0000-0000-000000000000'])
+  
+  // Map options เข้ากับ polls
+  const optionsMap = {}
+  optionsData?.forEach(opt => {
+    if (!optionsMap[opt.poll_id]) optionsMap[opt.poll_id] = []
+    optionsMap[opt.poll_id].push(opt)
+  })
+  
+  const pollsWithOptions = pollsData.map(poll => ({
     ...poll,
-    options: poll.poll_options || []
+    options: optionsMap[poll.id] || []
   }))
   
-  return { data: pollsWithOptions, error }
+  return { data: pollsWithOptions, error: null }
 }
 
 export async function vote(userId, pollId, optionId, confidence = 50) {
@@ -431,15 +447,37 @@ export async function createPoll({ question, options, category, tags, blindMode,
 // ===== ฟังก์ชัน Admin =====
 
 export async function getAllPollsAdmin() {
-  const { data, error } = await supabase.from('polls').select('*, poll_options(*)').order('created_at', { ascending: false })
-  const pollsWithOptions = data?.map(poll => ({ ...poll, options: poll.poll_options || [] }))
-  return { data: pollsWithOptions, error }
+  const { data: pollsData, error } = await supabase.from('polls').select('*').order('created_at', { ascending: false })
+  if (error || !pollsData) return { data: [], error }
+  
+  const pollIds = pollsData.map(p => p.id)
+  const { data: optionsData } = await supabase.from('poll_options').select('*').in('poll_id', pollIds.length > 0 ? pollIds : ['00000000-0000-0000-0000-000000000000'])
+  
+  const optionsMap = {}
+  optionsData?.forEach(opt => {
+    if (!optionsMap[opt.poll_id]) optionsMap[opt.poll_id] = []
+    optionsMap[opt.poll_id].push(opt)
+  })
+  
+  const pollsWithOptions = pollsData.map(poll => ({ ...poll, options: optionsMap[poll.id] || [] }))
+  return { data: pollsWithOptions, error: null }
 }
 
 export async function getPendingPolls() {
-  const { data, error } = await supabase.from('polls').select('*, poll_options(*)').eq('resolved', false).order('ends_at', { ascending: true })
-  const pollsWithOptions = data?.map(poll => ({ ...poll, options: poll.poll_options || [] }))
-  return { data: pollsWithOptions, error }
+  const { data: pollsData, error } = await supabase.from('polls').select('*').eq('resolved', false).order('ends_at', { ascending: true })
+  if (error || !pollsData) return { data: [], error }
+  
+  const pollIds = pollsData.map(p => p.id)
+  const { data: optionsData } = await supabase.from('poll_options').select('*').in('poll_id', pollIds.length > 0 ? pollIds : ['00000000-0000-0000-0000-000000000000'])
+  
+  const optionsMap = {}
+  optionsData?.forEach(opt => {
+    if (!optionsMap[opt.poll_id]) optionsMap[opt.poll_id] = []
+    optionsMap[opt.poll_id].push(opt)
+  })
+  
+  const pollsWithOptions = pollsData.map(poll => ({ ...poll, options: optionsMap[poll.id] || [] }))
+  return { data: pollsWithOptions, error: null }
 }
 
 export async function resolvePoll(pollId, correctOptionId) {
@@ -583,9 +621,20 @@ export async function getUserVoteHistory(userId, limit = 20) {
 }
 
 export async function getUserCreatedPolls(userId, limit = 20) {
-  const { data, error } = await supabase.from('polls').select('*, poll_options(*)').eq('created_by', userId).order('created_at', { ascending: false }).limit(limit)
-  const pollsWithOptions = data?.map(poll => ({ ...poll, options: poll.poll_options || [] }))
-  return { data: pollsWithOptions, error }
+  const { data: pollsData, error } = await supabase.from('polls').select('*').eq('created_by', userId).order('created_at', { ascending: false }).limit(limit)
+  if (error || !pollsData) return { data: [], error }
+  
+  const pollIds = pollsData.map(p => p.id)
+  const { data: optionsData } = await supabase.from('poll_options').select('*').in('poll_id', pollIds.length > 0 ? pollIds : ['00000000-0000-0000-0000-000000000000'])
+  
+  const optionsMap = {}
+  optionsData?.forEach(opt => {
+    if (!optionsMap[opt.poll_id]) optionsMap[opt.poll_id] = []
+    optionsMap[opt.poll_id].push(opt)
+  })
+  
+  const pollsWithOptions = pollsData.map(poll => ({ ...poll, options: optionsMap[poll.id] || [] }))
+  return { data: pollsWithOptions, error: null }
 }
 
 export function calculateBadges(user) {
@@ -873,15 +922,26 @@ export async function createTimeCapsule({ question, options, tags, endsAt, creat
 }
 
 export async function getTimeCapsules(limit = 20) {
-  const { data, error } = await supabase
+  const { data: pollsData, error } = await supabase
     .from('polls')
-    .select('*, poll_options(*)')
+    .select('*')
     .eq('poll_type', 'time_capsule')
     .order('ends_at', { ascending: true })
     .limit(limit)
   
-  const pollsWithOptions = data?.map(poll => ({ ...poll, options: poll.poll_options || [] }))
-  return { data: pollsWithOptions, error }
+  if (error || !pollsData) return { data: [], error }
+  
+  const pollIds = pollsData.map(p => p.id)
+  const { data: optionsData } = await supabase.from('poll_options').select('*').in('poll_id', pollIds.length > 0 ? pollIds : ['00000000-0000-0000-0000-000000000000'])
+  
+  const optionsMap = {}
+  optionsData?.forEach(opt => {
+    if (!optionsMap[opt.poll_id]) optionsMap[opt.poll_id] = []
+    optionsMap[opt.poll_id].push(opt)
+  })
+  
+  const pollsWithOptions = pollsData.map(poll => ({ ...poll, options: optionsMap[poll.id] || [] }))
+  return { data: pollsWithOptions, error: null }
 }
 
 // ===== Live Battle Functions =====
@@ -937,22 +997,27 @@ export async function createLiveBattle({ question, options, category, tags, ends
 }
 
 export async function getLiveBattles() {
-  const now = new Date().toISOString()
-  
-  const { data, error } = await supabase
+  const { data: pollsData, error } = await supabase
     .from('polls')
-    .select('*, poll_options(*), users:created_by(username, avatar_url)')
+    .select('*')
     .eq('poll_type', 'live_battle')
     .eq('is_live', true)
     .order('created_at', { ascending: false })
   
-  // Map poll_options to options for compatibility
-  const battlesWithOptions = data?.map(poll => ({
-    ...poll,
-    options: poll.poll_options || []
-  }))
+  if (error || !pollsData) return { data: [], error }
   
-  return { data: battlesWithOptions, error }
+  const pollIds = pollsData.map(p => p.id)
+  const { data: optionsData } = await supabase.from('poll_options').select('*').in('poll_id', pollIds.length > 0 ? pollIds : ['00000000-0000-0000-0000-000000000000'])
+  
+  const optionsMap = {}
+  optionsData?.forEach(opt => {
+    if (!optionsMap[opt.poll_id]) optionsMap[opt.poll_id] = []
+    optionsMap[opt.poll_id].push(opt)
+  })
+  
+  const pollsWithOptions = pollsData.map(poll => ({ ...poll, options: optionsMap[poll.id] || [] }))
+  return { data: pollsWithOptions, error: null }
+}
 }
 
 export async function endLiveBattle(pollId) {
@@ -1157,13 +1222,27 @@ export async function findSimilarPolls(question, limit = 5) {
   // ค้นหาโพลทั้งหมดที่ยังไม่หมดอายุ
   const { data: polls, error } = await supabase
     .from('polls')
-    .select('id, question, ends_at, resolved, poll_options(votes)')
+    .select('id, question, ends_at, resolved')
     .eq('resolved', false)
     .gt('ends_at', new Date().toISOString())
     .order('created_at', { ascending: false })
     .limit(100)
 
-  if (error) return { data: [], error }
+  if (error || !polls) return { data: [], error }
+  
+  // Fetch options แยก
+  const pollIds = polls.map(p => p.id)
+  const { data: optionsData } = await supabase
+    .from('poll_options')
+    .select('poll_id, votes')
+    .in('poll_id', pollIds.length > 0 ? pollIds : ['00000000-0000-0000-0000-000000000000'])
+  
+  // คำนวณ total votes per poll
+  const votesMap = {}
+  optionsData?.forEach(opt => {
+    if (!votesMap[opt.poll_id]) votesMap[opt.poll_id] = 0
+    votesMap[opt.poll_id] += opt.votes || 0
+  })
 
   // คำนวณ similarity score
   const scoredPolls = polls?.map(poll => {
@@ -1185,7 +1264,7 @@ export async function findSimilarPolls(question, limit = 5) {
     
     // รวม score
     const similarity = Math.min(chunkScore + containsScore, 1)
-    const totalVotes = poll.poll_options?.reduce((sum, o) => sum + o.votes, 0) || 0
+    const totalVotes = votesMap[poll.id] || 0
     
     return {
       id: poll.id,
@@ -1207,13 +1286,19 @@ export async function checkAndAwardCreatorPoints(pollId) {
   // ดึงข้อมูล poll
   const { data: poll } = await supabase
     .from('polls')
-    .select('id, created_by, creator_points_100, creator_points_1000, creator_points_10000, poll_options(votes)')
+    .select('id, created_by, creator_points_100, creator_points_1000, creator_points_10000')
     .eq('id', pollId)
     .single()
 
   if (!poll) return { awarded: false }
 
-  const totalVotes = poll.poll_options?.reduce((sum, o) => sum + o.votes, 0) || 0
+  // Fetch options แยก
+  const { data: optionsData } = await supabase
+    .from('poll_options')
+    .select('votes')
+    .eq('poll_id', pollId)
+  
+  const totalVotes = optionsData?.reduce((sum, o) => sum + (o.votes || 0), 0) || 0
   let pointsToAward = 0
   let milestone = null
   const updates = {}
@@ -1285,13 +1370,27 @@ export async function getUserCharacterStats(userId) {
   // ดึงยอดโหวตสูงสุดของ poll ที่ user สร้าง
   const { data: polls } = await supabase
     .from('polls')
-    .select('id, max_votes_reached, poll_options(votes)')
+    .select('id, max_votes_reached')
     .eq('created_by', userId)
   
   let maxPollVotes = 0
-  if (polls) {
+  if (polls && polls.length > 0) {
+    // Fetch options แยก
+    const pollIds = polls.map(p => p.id)
+    const { data: optionsData } = await supabase
+      .from('poll_options')
+      .select('poll_id, votes')
+      .in('poll_id', pollIds)
+    
+    // คำนวณ total votes per poll
+    const votesMap = {}
+    optionsData?.forEach(opt => {
+      if (!votesMap[opt.poll_id]) votesMap[opt.poll_id] = 0
+      votesMap[opt.poll_id] += opt.votes || 0
+    })
+    
     for (const poll of polls) {
-      const totalVotes = poll.poll_options?.reduce((sum, o) => sum + (o.votes || 0), 0) || 0
+      const totalVotes = votesMap[poll.id] || 0
       const maxReached = poll.max_votes_reached || totalVotes
       if (maxReached > maxPollVotes) {
         maxPollVotes = maxReached
@@ -1538,20 +1637,31 @@ export async function getCommentLikeStatus(commentIds, userId) {
 
 // ===== GET POLLS BY CREATOR =====
 export async function getPollsByCreator(userId) {
-  const { data, error } = await supabase
+  const { data: pollsData, error } = await supabase
     .from('polls')
-    .select(`
-      id, question, category, ends_at, resolved, featured, created_at,
-      poll_options(id, text, votes)
-    `)
+    .select('id, question, category, ends_at, resolved, featured, created_at')
     .eq('created_by', userId)
     .order('created_at', { ascending: false })
   
-  // Map poll_options to options for compatibility
-  const pollsWithOptions = data?.map(poll => ({
+  if (error || !pollsData) return { data: [], error }
+  
+  // Fetch options แยก
+  const pollIds = pollsData.map(p => p.id)
+  const { data: optionsData } = await supabase
+    .from('poll_options')
+    .select('*')
+    .in('poll_id', pollIds.length > 0 ? pollIds : ['00000000-0000-0000-0000-000000000000'])
+  
+  const optionsMap = {}
+  optionsData?.forEach(opt => {
+    if (!optionsMap[opt.poll_id]) optionsMap[opt.poll_id] = []
+    optionsMap[opt.poll_id].push(opt)
+  })
+  
+  const pollsWithOptions = pollsData.map(poll => ({
     ...poll,
-    options: poll.poll_options || []
+    options: optionsMap[poll.id] || []
   }))
   
-  return { data: pollsWithOptions, error }
+  return { data: pollsWithOptions, error: null }
 }
