@@ -3038,10 +3038,19 @@ export default function Home() {
   const [pendingAuthUser, setPendingAuthUser] = useState(null)
 
   useEffect(() => { 
-    loadPolls(); 
-    loadLiveBattles(); 
-    loadTimeCapsules(); 
-    checkAuthSession();
+    // โหลดข้อมูลแบบ parallel เพื่อความเร็ว
+    const loadInitialData = async () => {
+      setIsLoading(true)
+      await Promise.all([
+        loadPolls(),
+        loadLiveBattles(),
+        loadTimeCapsules(),
+        checkAuthSession()
+      ])
+      setIsLoading(false)
+    }
+    loadInitialData()
+    
     const d = localStorage.getItem('kidwa-darkmode'); 
     if (d) setDarkMode(JSON.parse(d)) 
 
@@ -3314,7 +3323,7 @@ export default function Home() {
     setDeferredPrompt(null)
   }
 
-  const loadPolls = async () => { setIsLoading(true); const { data } = await getPolls(); if (data) setPolls(data.filter(p => p.poll_type !== 'time_capsule' && p.poll_type !== 'live_battle')); setIsLoading(false) }
+  const loadPolls = async () => { const { data } = await getPolls(); if (data) setPolls(data.filter(p => p.poll_type !== 'time_capsule' && p.poll_type !== 'live_battle')) }
   const loadLiveBattles = async () => { const { data } = await getLiveBattles(); if (data) setLiveBattles(data) }
   const loadTimeCapsules = async () => { const { data } = await getTimeCapsules(); if (data) setTimeCapsules(data) }
   const loadUserVotes = async () => { if (!user) return; const { data } = await getUserVotes(user.id); if (data) { const m = {}; data.forEach(v => { m[v.poll_id] = { optionId: v.option_id, confidence: v.confidence } }); setUserVotes(m) }}
@@ -3391,22 +3400,8 @@ export default function Home() {
       }))
     }
     
-    // สร้างข้อความแจ้งเตือน
-    const c = confidenceLevels.find(c => c.value === confidence)
-    let alertMessage = `โหวตสำเร็จ!\n\n${c?.emoji} ${c?.label}`
-    
-    if (result.isPrediction) {
-      alertMessage += `\n💸 หักคะแนน: -${confidence} pt`
-      alertMessage += `\n💡 ถ้าทายถูกจะได้คืน +${confidence * 2} pt`
-    } else {
-      alertMessage += `\n🎁 รับคะแนน: +5 pt`
-    }
-    
-    if (result.dailyBonus) {
-      alertMessage += `\n\n🌟 Daily Check-in: +${result.dailyBonus} pt!`
-    }
-    
-    alert(alertMessage)
+    // แจ้งเตือนสั้นๆ
+    alert('โหวตสำเร็จ!')
     
     // Check and award creator engagement points
     await checkAndAwardCreatorPoints(pollId)
@@ -3623,32 +3618,22 @@ export default function Home() {
               </div>
             )}
             
-            {/* Opinion Notice */}
-            {selectedPoll.poll_type !== 'prediction' && !userVotes[selectedPoll.id] && !isExpired(selectedPoll.ends_at) && (
-              <div className="opinion-notice">
-                <span>💬 โหวตแสดงความคิดเห็น ได้ +5 pt ทุกครั้ง!</span>
-              </div>
-            )}
-            
             {isExpired(selectedPoll.ends_at) && !selectedPoll.resolved && <div className="expired-notice">โพลนี้หมดเวลาแล้ว รอเฉลย</div>}
             {userVotes[selectedPoll.id] && <div className="voted-notice">คุณโหวตแล้ว ({confidenceLevels.find(c => c.value === userVotes[selectedPoll.id].confidence)?.emoji} {confidenceLevels.find(c => c.value === userVotes[selectedPoll.id].confidence)?.label})</div>}
             
-            {/* Popularity Graph (จำนวนคน) */}
-            <div className="graph-section">
-              <h4 className="graph-title">📊 Popularity (จำนวนคนโหวต)</h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
-                {selectedPoll.options?.map(option => {
-                  const totalVotes = selectedPoll.options.reduce((sum, o) => sum + o.votes, 0)
-                  const percent = totalVotes > 0 ? Math.round((option.votes / totalVotes) * 100) : 0
-                  const isVoted = userVotes[selectedPoll.id]?.optionId === option.id
-                  const isSelected = selectedOption === option.id
-                  const expired = isExpired(selectedPoll.ends_at)
-                  const isBlind = selectedPoll.blind_mode && !selectedPoll.resolved && !expired
-                  const hasVoted = !!userVotes[selectedPoll.id]
-                  const isCorrect = selectedPoll.correct_option_id === option.id
-                  return <button key={option.id} onClick={() => !expired && !hasVoted && setSelectedOption(option.id)} disabled={expired || hasVoted} className={`option-btn ${isVoted ? 'voted' : ''} ${isSelected ? 'selected' : ''} ${expired || hasVoted ? 'disabled' : ''} ${isCorrect ? 'correct' : ''}`}>{!isBlind && <div className="option-bar" style={{ width: `${percent}%` }} />}<div className="option-content"><span>{isCorrect && '✅ '}{isVoted && '✓ '}{option.text}</span>{!isBlind && <span style={{ fontWeight: 600 }}>{percent}%</span>}</div></button>
-                })}
-              </div>
+            {/* Options */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
+              {selectedPoll.options?.map(option => {
+                const totalVotes = selectedPoll.options.reduce((sum, o) => sum + o.votes, 0)
+                const percent = totalVotes > 0 ? Math.round((option.votes / totalVotes) * 100) : 0
+                const isVoted = userVotes[selectedPoll.id]?.optionId === option.id
+                const isSelected = selectedOption === option.id
+                const expired = isExpired(selectedPoll.ends_at)
+                const isBlind = selectedPoll.blind_mode && !selectedPoll.resolved && !expired
+                const hasVoted = !!userVotes[selectedPoll.id]
+                const isCorrect = selectedPoll.correct_option_id === option.id
+                return <button key={option.id} onClick={() => !expired && !hasVoted && setSelectedOption(option.id)} disabled={expired || hasVoted} className={`option-btn ${isVoted ? 'voted' : ''} ${isSelected ? 'selected' : ''} ${expired || hasVoted ? 'disabled' : ''} ${isCorrect ? 'correct' : ''}`}>{!isBlind && <div className="option-bar" style={{ width: `${percent}%` }} />}<div className="option-content"><span>{isCorrect && '✅ '}{isVoted && '✓ '}{option.text}</span>{!isBlind && <span style={{ fontWeight: 600 }}>{percent}%</span>}</div></button>
+              })}
             </div>
             
             {/* Confidence Power Graph (สำหรับ Prediction) */}
@@ -3674,7 +3659,7 @@ export default function Home() {
               </div>
             )}
             
-            {!userVotes[selectedPoll.id] && !isExpired(selectedPoll.ends_at) && user && <><ConfidenceSelector selectedConfidence={selectedConfidence} onSelect={setSelectedConfidence} disabled={!selectedOption} isPrediction={selectedPoll.poll_type === 'prediction'} /><button className="btn btn-primary" style={{ width: '100%', marginTop: '1rem', padding: '1rem' }} onClick={confirmVote} disabled={!selectedOption}>{selectedOption ? <>ยืนยันโหวต ({confidenceLevels.find(c => c.value === selectedConfidence)?.emoji} {selectedPoll.poll_type === 'prediction' ? `-${selectedConfidence}` : '+5'} pt)</> : <>เลือกตัวเลือกก่อน</>}</button></>}
+            {!userVotes[selectedPoll.id] && !isExpired(selectedPoll.ends_at) && user && <>{selectedPoll.poll_type === 'prediction' && <ConfidenceSelector selectedConfidence={selectedConfidence} onSelect={setSelectedConfidence} disabled={!selectedOption} isPrediction={true} />}<button className="btn btn-primary" style={{ width: '100%', marginTop: '1rem', padding: '1rem' }} onClick={confirmVote} disabled={!selectedOption}>{selectedOption ? (selectedPoll.poll_type === 'prediction' ? <>ยืนยันโหวต ({confidenceLevels.find(c => c.value === selectedConfidence)?.emoji} -{selectedConfidence} pt)</> : <>ยืนยันโหวต</>) : <>เลือกตัวเลือกก่อน</>}</button></>}
             {!user && !isExpired(selectedPoll.ends_at) && <div onClick={() => { setSelectedPoll(null); setShowAuthModal(true) }} className="login-prompt">เข้าสู่ระบบเพื่อโหวต</div>}
             
             {/* Share Buttons */}
@@ -3740,7 +3725,7 @@ export default function Home() {
                     <input 
                       type="text" 
                       className="comment-input" 
-                      placeholder={replyingTo ? "พิมพ์ข้อความตอบกลับ..." : "แสดงความคิดเห็น... (ใช้ @username เพื่อแท็ก)"} 
+                      placeholder={replyingTo ? "พิมพ์ข้อความตอบกลับ..." : "แสดงความคิดเห็น..."} 
                       value={newComment}
                       onChange={handleCommentChange}
                       onKeyPress={(e) => {
