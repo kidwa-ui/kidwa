@@ -1165,50 +1165,38 @@ export async function getUserPollLimit(userId) {
 
 export async function findSimilarPolls(question, limit = 5) {
   // ลบ space, ตัวเลข, สัญลักษณ์ ออกก่อนเปรียบเทียบ
-  const cleanText = (text) => text.toLowerCase().replace(/[\s\d\.\,\?\!\:\;\-\_\(\)\/\\]/g, '').trim()
+  const cleanText = (text) => text.toLowerCase().replace(/[\s\d\.\,\?\!\:\;\-\_\(\)\/\\\"\']/g, '').trim()
   
   const searchQuery = cleanText(question)
   
-  if (searchQuery.length < 4) {
+  // ถ้าคำถามสั้นเกินไป ไม่ต้องเช็ค
+  if (searchQuery.length < 3) {
     return { data: [], error: null }
   }
 
-  // สำหรับภาษาไทย: ใช้ sliding window สร้าง chunks
-  const chunks = new Set()
-  const chunkSizes = [4, 5, 6, 7, 8]
-  
-  for (const size of chunkSizes) {
-    for (let i = 0; i <= searchQuery.length - size; i++) {
-      const chunk = searchQuery.substring(i, i + size)
-      if (chunk.length >= 4) {
-        chunks.add(chunk)
-      }
-    }
-  }
-  
-  const uniqueChunks = [...chunks].slice(0, 15)
-  
-  if (uniqueChunks.length === 0) {
-    return { data: [], error: null }
-  }
-
-  // ค้นหาโพลทั้งหมดที่ยังไม่หมดอายุ
+  // ค้นหาโพลทั้งหมดที่ยังไม่หมดอายุ (ไม่สนใจ resolved)
   const { data: polls, error } = await supabase
     .from('polls')
     .select('id, question, ends_at, resolved')
-    .eq('resolved', false)
     .gt('ends_at', new Date().toISOString())
     .order('created_at', { ascending: false })
-    .limit(100)
+    .limit(200)
 
-  if (error || !polls) return { data: [], error }
+  if (error) {
+    console.error('findSimilarPolls error:', error)
+    return { data: [], error }
+  }
   
-  // Fetch options แยก
+  if (!polls || polls.length === 0) {
+    return { data: [], error: null }
+  }
+
+  // Fetch options สำหรับคำนวณ votes
   const pollIds = polls.map(p => p.id)
   const { data: optionsData } = await supabase
     .from('options')
     .select('poll_id, votes')
-    .in('poll_id', pollIds.length > 0 ? pollIds : ['00000000-0000-0000-0000-000000000000'])
+    .in('poll_id', pollIds)
   
   // คำนวณ total votes per poll
   const votesMap = {}
@@ -1218,39 +1206,72 @@ export async function findSimilarPolls(question, limit = 5) {
   })
 
   // คำนวณ similarity score
-  const scoredPolls = polls?.map(poll => {
+  const scoredPolls = polls.map(poll => {
     const pollClean = cleanText(poll.question)
-    let matchCount = 0
     
-    uniqueChunks.forEach(chunk => {
-      if (pollClean.includes(chunk)) {
-        matchCount++
+    // 1. Exact match (เหมือนกันเป๊ะ)
+    if (searchQuery === pollClean) {
+      return {
+        id: poll.id,
+        question: poll.question,
+        ends_at: poll.ends_at,
+        similarity: 1.0,
+        totalVotes: votesMap[poll.id] || 0
       }
+    }
+    
+    // 2. Contains match (อันนึงอยู่ในอีกอัน)
+    const containsMatch = pollClean.includes(searchQuery) || searchQuery.includes(pollClean)
+    if (containsMatch) {
+      const shorterLen = Math.min(searchQuery.length, pollClean.length)
+      const longerLen = Math.max(searchQuery.length, pollClean.length)
+      const containsScore = shorterLen / longerLen
+      return {
+        id: poll.id,
+        question: poll.question,
+        ends_at: poll.ends_at,
+        similarity: Math.max(0.5, containsScore),
+        totalVotes: votesMap[poll.id] || 0
+      }
+    }
+    
+    // 3. Sliding window chunk matching (สำหรับภาษาไทย)
+    const chunkSizes = [3, 4, 5, 6]
+    const chunks = new Set()
+    
+    for (const size of chunkSizes) {
+      for (let i = 0; i <= searchQuery.length - size; i++) {
+        chunks.add(searchQuery.substring(i, i + size))
+      }
+    }
+    
+    if (chunks.size === 0) {
+      return { id: poll.id, question: poll.question, ends_at: poll.ends_at, similarity: 0, totalVotes: 0 }
+    }
+    
+    let matchCount = 0
+    chunks.forEach(chunk => {
+      if (pollClean.includes(chunk)) matchCount++
     })
     
-    // คำนวณ score
-    const chunkScore = uniqueChunks.length > 0 ? matchCount / uniqueChunks.length : 0
-    
-    // เช็ค substring ตรงๆ (คำถามใหม่อยู่ในเก่า หรือกลับกัน)
-    const directMatch = pollClean.includes(searchQuery) || searchQuery.includes(pollClean)
-    const containsScore = directMatch ? 0.5 : 0
-    
-    // รวม score
-    const similarity = Math.min(chunkScore + containsScore, 1)
-    const totalVotes = votesMap[poll.id] || 0
+    const chunkScore = matchCount / chunks.size
     
     return {
       id: poll.id,
       question: poll.question,
       ends_at: poll.ends_at,
-      similarity,
-      totalVotes
+      similarity: chunkScore,
+      totalVotes: votesMap[poll.id] || 0
     }
-  }).filter(p => p.similarity >= 0.25) // ลด threshold เป็น 25%
+  })
+  
+  // Filter และ sort
+  const filteredPolls = scoredPolls
+    .filter(p => p.similarity >= 0.2) // ลด threshold เป็น 20%
     .sort((a, b) => b.similarity - a.similarity)
     .slice(0, limit)
 
-  return { data: scoredPolls || [], error: null }
+  return { data: filteredPolls, error: null }
 }
 
 // ===== Creator Engagement Points =====
