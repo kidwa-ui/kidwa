@@ -17,7 +17,8 @@ import {
   submitVerification, skipVerification, checkNeedsVerification, getUserPollLimit, findSimilarPolls, checkAndAwardCreatorPoints,
   updateSelectedSkin, getUserCharacterStats, trackVoteTime, uploadAvatarVerified,
   getComments, createComment, deleteComment, getPollsByCreator,
-  likeComment, unlikeComment, getCommentLikeStatus
+  likeComment, unlikeComment, getCommentLikeStatus,
+  updateUsername, createUserFromMagicLink, claimDailyCheckIn, claimShareBonus
 } from '@/lib/supabase'
 
 const categories = [
@@ -1591,8 +1592,8 @@ function UserProfileModal({ userId, currentUser, onClose, darkMode }) {
 }
 
 // ===== Auth Modal (Email + Password / Magic Link) =====
-function AuthModal({ onClose, onSuccess, darkMode }) {
-  const [mode, setMode] = useState('login') // login, register, magic, forgot
+function AuthModal({ onClose, onSuccess, darkMode, initialMode = 'login' }) {
+  const [mode, setMode] = useState(initialMode) // login, register, magic, forgot
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -1805,6 +1806,355 @@ function AuthModal({ onClose, onSuccess, darkMode }) {
           <button type="button" className="btn btn-secondary btn-full" onClick={onClose}>
             ปิด
           </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ===== Setup Profile Modal (หลัง Magic Link) =====
+function SetupProfileModal({ authUser, onSuccess, onClose, darkMode }) {
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setError('')
+
+    if (username.length < 3) {
+      setError('ชื่อผู้ใช้ต้องมีอย่างน้อย 3 ตัวอักษร')
+      return
+    }
+
+    if (password && password.length < 8) {
+      setError('รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร')
+      return
+    }
+
+    if (password && password !== confirmPassword) {
+      setError('รหัสผ่านไม่ตรงกัน')
+      return
+    }
+
+    setIsLoading(true)
+
+    // สร้าง user ใน users table
+    const { data, error: createError } = await createUserFromMagicLink(
+      authUser.id,
+      authUser.email,
+      username
+    )
+
+    if (createError) {
+      setError(createError.message)
+      setIsLoading(false)
+      return
+    }
+
+    // ตั้งรหัสผ่าน (ถ้ากรอก)
+    if (password) {
+      const { error: pwError } = await updatePassword(password)
+      if (pwError) {
+        console.error('Error setting password:', pwError)
+      }
+    }
+
+    onSuccess(data)
+    setIsLoading(false)
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className={`modal auth-modal ${darkMode ? 'dark' : ''}`} onClick={e => e.stopPropagation()}>
+        <div className="auth-header">
+          <h2 className="auth-title">🎉 ยินดีต้อนรับ!</h2>
+          <p className="auth-subtitle">ตั้งค่าบัญชีของคุณ</p>
+        </div>
+
+        {error && <div className="auth-error">❌ {error}</div>}
+
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label>👤 ชื่อผู้ใช้ *</label>
+            <input 
+              type="text" 
+              className="form-input" 
+              placeholder="ชื่อที่แสดงในเว็บ" 
+              value={username} 
+              onChange={e => setUsername(e.target.value)} 
+              required 
+              minLength={3} 
+              maxLength={20} 
+            />
+          </div>
+          <div className="form-group">
+            <label>🔒 ตั้งรหัสผ่าน (ไม่บังคับ)</label>
+            <input 
+              type="password" 
+              className="form-input" 
+              placeholder="อย่างน้อย 8 ตัวอักษร" 
+              value={password} 
+              onChange={e => setPassword(e.target.value)} 
+            />
+            <small style={{ color: 'var(--text-secondary)' }}>ตั้งรหัสผ่านเพื่อเข้าสู่ระบบด้วยอีเมล+รหัสผ่านในอนาคต</small>
+          </div>
+          {password && (
+            <div className="form-group">
+              <label>🔒 ยืนยันรหัสผ่าน</label>
+              <input 
+                type="password" 
+                className="form-input" 
+                placeholder="พิมพ์รหัสผ่านอีกครั้ง" 
+                value={confirmPassword} 
+                onChange={e => setConfirmPassword(e.target.value)} 
+              />
+            </div>
+          )}
+          <p className="auth-bonus">🎁 สมัครใหม่ได้ 1,000 Point เริ่มต้น!</p>
+          <button type="submit" className="btn btn-primary btn-full" disabled={isLoading}>
+            {isLoading ? '⏳ กำลังบันทึก...' : '✨ เริ่มใช้งาน'}
+          </button>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ===== Reset Password Modal =====
+function ResetPasswordModal({ onSuccess, onClose, darkMode }) {
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setError('')
+
+    if (password.length < 8) {
+      setError('รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร')
+      return
+    }
+
+    if (password !== confirmPassword) {
+      setError('รหัสผ่านไม่ตรงกัน')
+      return
+    }
+
+    setIsLoading(true)
+
+    const { error: pwError } = await updatePassword(password)
+
+    if (pwError) {
+      setError(pwError.message)
+    } else {
+      setSuccess('✅ เปลี่ยนรหัสผ่านสำเร็จ!')
+      setTimeout(() => onSuccess(), 1500)
+    }
+
+    setIsLoading(false)
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className={`modal auth-modal ${darkMode ? 'dark' : ''}`} onClick={e => e.stopPropagation()}>
+        <button className="modal-close" onClick={onClose}>✕</button>
+        
+        <div className="auth-header">
+          <h2 className="auth-title">🔑 ตั้งรหัสผ่านใหม่</h2>
+          <p className="auth-subtitle">กรอกรหัสผ่านใหม่ของคุณ</p>
+        </div>
+
+        {error && <div className="auth-error">❌ {error}</div>}
+        {success && <div className="auth-success">{success}</div>}
+
+        {!success && (
+          <form onSubmit={handleSubmit}>
+            <div className="form-group">
+              <label>🔒 รหัสผ่านใหม่</label>
+              <input 
+                type="password" 
+                className="form-input" 
+                placeholder="อย่างน้อย 8 ตัวอักษร" 
+                value={password} 
+                onChange={e => setPassword(e.target.value)} 
+                required 
+                minLength={8} 
+              />
+            </div>
+            <div className="form-group">
+              <label>🔒 ยืนยันรหัสผ่าน</label>
+              <input 
+                type="password" 
+                className="form-input" 
+                placeholder="พิมพ์รหัสผ่านอีกครั้ง" 
+                value={confirmPassword} 
+                onChange={e => setConfirmPassword(e.target.value)} 
+                required 
+              />
+            </div>
+            <button type="submit" className="btn btn-primary btn-full" disabled={isLoading}>
+              {isLoading ? '⏳ กำลังบันทึก...' : '✅ บันทึกรหัสผ่านใหม่'}
+            </button>
+          </form>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ===== Edit Profile Modal =====
+function EditProfileModal({ user, onSuccess, onClose, darkMode }) {
+  const [activeTab, setActiveTab] = useState('username') // username, password
+  const [newUsername, setNewUsername] = useState(user?.username || '')
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+
+  const handleUpdateUsername = async (e) => {
+    e.preventDefault()
+    setError('')
+    setSuccess('')
+
+    if (newUsername.length < 3) {
+      setError('ชื่อผู้ใช้ต้องมีอย่างน้อย 3 ตัวอักษร')
+      return
+    }
+
+    if (newUsername === user.username) {
+      setError('ชื่อผู้ใช้เหมือนเดิม')
+      return
+    }
+
+    setIsLoading(true)
+    const { data, error: updateError } = await updateUsername(user.id, newUsername)
+
+    if (updateError) {
+      setError(updateError.message)
+    } else {
+      setSuccess('✅ เปลี่ยนชื่อผู้ใช้สำเร็จ!')
+      setTimeout(() => onSuccess({ ...user, username: newUsername }), 1500)
+    }
+
+    setIsLoading(false)
+  }
+
+  const handleUpdatePassword = async (e) => {
+    e.preventDefault()
+    setError('')
+    setSuccess('')
+
+    if (newPassword.length < 8) {
+      setError('รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร')
+      return
+    }
+
+    if (newPassword !== confirmPassword) {
+      setError('รหัสผ่านไม่ตรงกัน')
+      return
+    }
+
+    setIsLoading(true)
+    const { error: pwError } = await updatePassword(newPassword)
+
+    if (pwError) {
+      setError(pwError.message)
+    } else {
+      setSuccess('✅ เปลี่ยนรหัสผ่านสำเร็จ!')
+      setTimeout(() => {
+        setNewPassword('')
+        setConfirmPassword('')
+        setSuccess('')
+      }, 2000)
+    }
+
+    setIsLoading(false)
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className={`modal auth-modal ${darkMode ? 'dark' : ''}`} onClick={e => e.stopPropagation()}>
+        <button className="modal-close" onClick={onClose}>✕</button>
+        
+        <div className="auth-header">
+          <h2 className="auth-title">⚙️ แก้ไขข้อมูล</h2>
+        </div>
+
+        <div className="edit-profile-tabs" style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+          <button 
+            className={`btn ${activeTab === 'username' ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => { setActiveTab('username'); setError(''); setSuccess('') }}
+          >
+            👤 ชื่อผู้ใช้
+          </button>
+          <button 
+            className={`btn ${activeTab === 'password' ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => { setActiveTab('password'); setError(''); setSuccess('') }}
+          >
+            🔒 รหัสผ่าน
+          </button>
+        </div>
+
+        {error && <div className="auth-error">❌ {error}</div>}
+        {success && <div className="auth-success">{success}</div>}
+
+        {activeTab === 'username' && (
+          <form onSubmit={handleUpdateUsername}>
+            <div className="form-group">
+              <label>👤 ชื่อผู้ใช้ใหม่</label>
+              <input 
+                type="text" 
+                className="form-input" 
+                placeholder="ชื่อที่แสดงในเว็บ" 
+                value={newUsername} 
+                onChange={e => setNewUsername(e.target.value)} 
+                required 
+                minLength={3} 
+                maxLength={20} 
+              />
+            </div>
+            <button type="submit" className="btn btn-primary btn-full" disabled={isLoading}>
+              {isLoading ? '⏳ กำลังบันทึก...' : '✅ บันทึก'}
+            </button>
+          </form>
+        )}
+
+        {activeTab === 'password' && (
+          <form onSubmit={handleUpdatePassword}>
+            <div className="form-group">
+              <label>🔒 รหัสผ่านใหม่</label>
+              <input 
+                type="password" 
+                className="form-input" 
+                placeholder="อย่างน้อย 8 ตัวอักษร" 
+                value={newPassword} 
+                onChange={e => setNewPassword(e.target.value)} 
+                required 
+                minLength={8} 
+              />
+            </div>
+            <div className="form-group">
+              <label>🔒 ยืนยันรหัสผ่าน</label>
+              <input 
+                type="password" 
+                className="form-input" 
+                placeholder="พิมพ์รหัสผ่านอีกครั้ง" 
+                value={confirmPassword} 
+                onChange={e => setConfirmPassword(e.target.value)} 
+                required 
+              />
+            </div>
+            <button type="submit" className="btn btn-primary btn-full" disabled={isLoading}>
+              {isLoading ? '⏳ กำลังบันทึก...' : '✅ บันทึก'}
+            </button>
+          </form>
         )}
       </div>
     </div>
@@ -2301,7 +2651,7 @@ function AdminPanel({ onClose, darkMode, onRefresh }) {
   )
 }
 
-function AccountModal({ onClose, user, darkMode, onUpdateUser, onOpenVerification, onOpenCharacterPicker, onViewProfile }) {
+function AccountModal({ onClose, user, darkMode, onUpdateUser, onOpenVerification, onOpenCharacterPicker, onViewProfile, onOpenEditProfile }) {
   const [activeTab, setActiveTab] = useState('stats')
   const [profile, setProfile] = useState(null)
   const [voteHistory, setVoteHistory] = useState([])
@@ -2444,8 +2794,9 @@ function AccountModal({ onClose, user, darkMode, onUpdateUser, onOpenVerificatio
                 <div className="account-reputation">{profile.reputation.toLocaleString()} point</div>
                 {profile.email && <div className="account-email">📧 {profile.email}</div>}
                 {!profile.is_verified && profile.email_verified && (
-                  <div className="account-verify-prompt">
+                  <div className="account-verify-prompt" style={{ cursor: 'pointer' }} onClick={() => onOpenVerification && onOpenVerification()}>
                     <span>💡 ยืนยันตัวตนเพื่อรับ Verified Badge</span>
+                    <button className="btn btn-sm btn-primary" style={{ marginLeft: '0.5rem', fontSize: '0.75rem' }}>ยืนยันตอนนี้</button>
                   </div>
                 )}
                 {!profile.email_verified && profile.email && (
@@ -2458,6 +2809,13 @@ function AccountModal({ onClose, user, darkMode, onUpdateUser, onOpenVerificatio
                     <span>⚠️ บัญชีเก่า - แนะนำให้สร้างบัญชีใหม่ด้วยอีเมลเพื่อความปลอดภัย</span>
                   </div>
                 )}
+                <button 
+                  className="btn btn-sm btn-secondary" 
+                  style={{ marginTop: '0.5rem' }}
+                  onClick={() => onOpenEditProfile && onOpenEditProfile()}
+                >
+                  ⚙️ แก้ไขข้อมูล
+                </button>
                 <div className="account-follow-stats">
                   <span onClick={() => setActiveTab('followers')} style={{ cursor: 'pointer' }}><strong>{followCounts.followers}</strong> ผู้ติดตาม</span>
                   <span onClick={() => setActiveTab('following')} style={{ cursor: 'pointer' }}><strong>{followCounts.following}</strong> กำลังติดตาม</span>
@@ -2534,6 +2892,11 @@ export default function Home() {
   const [showVerificationModal, setShowVerificationModal] = useState(false)
   const [showCharacterPicker, setShowCharacterPicker] = useState(false)
   const [showInfoModal, setShowInfoModal] = useState(null) // 'posting', 'rules', 'membership', 'privacy', 'ads', 'pwa'
+  const [authModalMode, setAuthModalMode] = useState('login') // login, register
+  const [showSetupProfile, setShowSetupProfile] = useState(false)
+  const [showResetPassword, setShowResetPassword] = useState(false)
+  const [showEditProfile, setShowEditProfile] = useState(false)
+  const [pendingAuthUser, setPendingAuthUser] = useState(null)
 
   useEffect(() => { 
     loadPolls(); 
@@ -2542,6 +2905,54 @@ export default function Home() {
     checkAuthSession();
     const d = localStorage.getItem('kidwa-darkmode'); 
     if (d) setDarkMode(JSON.parse(d)) 
+
+    // ตรวจสอบ URL parameters สำหรับ password reset / magic link
+    const hash = window.location.hash
+    if (hash) {
+      const params = new URLSearchParams(hash.substring(1))
+      const type = params.get('type')
+      const accessToken = params.get('access_token')
+      
+      if (type === 'recovery' && accessToken) {
+        // Password reset
+        setShowResetPassword(true)
+        // Clear hash จาก URL
+        window.history.replaceState(null, '', window.location.pathname)
+      }
+    }
+  }, [])
+
+  // ปิดเมนูเมื่อคลิกที่อื่น
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (showMenu && !e.target.closest('.menu-btn') && !e.target.closest('.dropdown-menu')) {
+        setShowMenu(false)
+      }
+    }
+    
+    document.addEventListener('click', handleClickOutside)
+    return () => document.removeEventListener('click', handleClickOutside)
+  }, [showMenu])
+
+  // ตรวจสอบ Auth State Change สำหรับ Magic Link
+  useEffect(() => {
+    const { data: { subscription } } = onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        // ตรวจสอบว่ามี user ใน users table หรือยัง
+        const { data: existingUser } = await getUserFromSession()
+        
+        if (!existingUser) {
+          // User ใหม่จาก Magic Link - ต้องตั้ง username
+          setPendingAuthUser(session.user)
+          setShowSetupProfile(true)
+        } else {
+          setUser(existingUser)
+          localStorage.setItem('kidwa-user', JSON.stringify(existingUser))
+        }
+      }
+    })
+
+    return () => subscription.unsubscribe()
   }, [])
 
   const checkAuthSession = async () => {
@@ -2901,14 +3312,14 @@ export default function Home() {
                 </div>
               </>
             ) : (
-              <><button className="btn btn-secondary hide-mobile" onClick={() => setShowAuthModal(true)}>เข้าสู่ระบบ</button><button className="btn btn-primary hide-mobile" onClick={() => setShowAuthModal(true)}>สมัครสมาชิก</button></>
+              <><button className="btn btn-secondary hide-mobile" onClick={() => { setAuthModalMode('login'); setShowAuthModal(true) }}>เข้าสู่ระบบ</button><button className="btn btn-primary hide-mobile" onClick={() => { setAuthModalMode('register'); setShowAuthModal(true) }}>สมัครสมาชิก</button></>
             )}
             <button className="menu-btn" onClick={() => setShowMenu(!showMenu)}>☰</button>
           </div>
         </div>
         {showMenu && (
           <div className="dropdown-menu">
-            {!user && <><button className="dropdown-item" onClick={() => { setShowAuthModal(true); setShowMenu(false) }}>เข้าสู่ระบบ</button><button className="dropdown-item" onClick={() => { setShowAuthModal(true); setShowMenu(false) }}>สมัครสมาชิก</button><div className="dropdown-divider"></div></>}
+            {!user && <><button className="dropdown-item" onClick={() => { setAuthModalMode('login'); setShowAuthModal(true); setShowMenu(false) }}>เข้าสู่ระบบ</button><button className="dropdown-item" onClick={() => { setAuthModalMode('register'); setShowAuthModal(true); setShowMenu(false) }}>สมัครสมาชิก</button><div className="dropdown-divider"></div></>}
             {user && <><div className="dropdown-item user-info-mobile">{user.avatar_url && user.is_verified ? <img src={user.avatar_url} alt={user.username} className="mobile-avatar-img" /> : <div className="user-avatar-character" dangerouslySetInnerHTML={{ __html: getCharacterSVG(user.selected_skin || getDefaultSkin(user.reputation || 0), 36) }} />}<div><span style={{ color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '4px' }}>{user.username}{user.is_verified && <span className="verified-badge"><svg viewBox="0 0 24 24" className="verified-check"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg></span>}</span><div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{getReputationLevel(user.reputation).badge} {user.reputation} pt</div></div></div><button className="dropdown-item" onClick={() => { setShowNotifications(true); setShowMenu(false) }}>การแจ้งเตือน {unreadCount > 0 && <span className="mobile-notif-badge">{unreadCount}</span>}</button><button className="dropdown-item" onClick={() => { setShowAccount(true); setShowMenu(false) }}>บัญชีของฉัน</button><button className="dropdown-item" onClick={() => { 
               if (!user.is_verified) { 
                 alert('กรุณายืนยันตัวตนก่อนสร้างโพล\n\nไปที่ บัญชีของฉัน → ยืนยันตัวตน')
@@ -3010,7 +3421,13 @@ export default function Home() {
         </div>
       </main>
 
-      {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} onSuccess={(userData) => { setUser(userData); localStorage.setItem('kidwa-user', JSON.stringify(userData)); setShowAuthModal(false) }} darkMode={darkMode} />}
+      {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} onSuccess={(userData) => { setUser(userData); localStorage.setItem('kidwa-user', JSON.stringify(userData)); setShowAuthModal(false) }} darkMode={darkMode} initialMode={authModalMode} />}
+      
+      {showSetupProfile && pendingAuthUser && <SetupProfileModal authUser={pendingAuthUser} onSuccess={(userData) => { setUser(userData); localStorage.setItem('kidwa-user', JSON.stringify(userData)); setShowSetupProfile(false); setPendingAuthUser(null) }} onClose={() => { setShowSetupProfile(false); setPendingAuthUser(null) }} darkMode={darkMode} />}
+      
+      {showResetPassword && <ResetPasswordModal onSuccess={() => { setShowResetPassword(false); checkAuthSession() }} onClose={() => setShowResetPassword(false)} darkMode={darkMode} />}
+      
+      {showEditProfile && user && <EditProfileModal user={user} onSuccess={(updatedUser) => { setUser(updatedUser); localStorage.setItem('kidwa-user', JSON.stringify(updatedUser)); setShowEditProfile(false) }} onClose={() => setShowEditProfile(false)} darkMode={darkMode} />}
 
       {selectedPoll && (
         <div className="modal-overlay" onClick={() => setSelectedPoll(null)}>
@@ -3146,7 +3563,7 @@ export default function Home() {
 
       {showCreatePoll && <CreatePollModal onClose={() => setShowCreatePoll(false)} user={user} onSuccess={loadPolls} darkMode={darkMode} />}
       {showAdminPanel && <AdminPanel onClose={() => setShowAdminPanel(false)} darkMode={darkMode} onRefresh={loadPolls} />}
-      {showAccount && <AccountModal onClose={() => setShowAccount(false)} user={user} darkMode={darkMode} onUpdateUser={setUser} onOpenVerification={() => setShowVerificationModal(true)} onOpenCharacterPicker={() => { setShowAccount(false); setShowCharacterPicker(true) }} onViewProfile={(userId) => setViewProfileUserId(userId)} />}
+      {showAccount && <AccountModal onClose={() => setShowAccount(false)} user={user} darkMode={darkMode} onUpdateUser={setUser} onOpenVerification={() => setShowVerificationModal(true)} onOpenCharacterPicker={() => { setShowAccount(false); setShowCharacterPicker(true) }} onViewProfile={(userId) => setViewProfileUserId(userId)} onOpenEditProfile={() => { setShowAccount(false); setShowEditProfile(true) }} />}
       
       {/* Character Picker Modal */}
       {showCharacterPicker && user && (
