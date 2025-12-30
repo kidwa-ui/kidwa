@@ -149,6 +149,156 @@ export async function updatePassword(newPassword) {
   return { data, error }
 }
 
+// อัพเดท username
+export async function updateUsername(userId, newUsername) {
+  // ตรวจสอบว่า username ซ้ำไหม
+  const { data: existing } = await supabase
+    .from('users')
+    .select('id')
+    .eq('username', newUsername)
+    .neq('id', userId)
+    .single()
+  
+  if (existing) {
+    return { data: null, error: { message: 'ชื่อผู้ใช้นี้ถูกใช้แล้ว' } }
+  }
+
+  const { data, error } = await supabase
+    .from('users')
+    .update({ username: newUsername })
+    .eq('id', userId)
+    .select()
+    .single()
+
+  return { data, error }
+}
+
+// สร้าง user จาก Magic Link (สำหรับ user ใหม่ที่ยังไม่มีใน users table)
+export async function createUserFromMagicLink(authId, email, username) {
+  // ตรวจสอบว่ามี user อยู่แล้วหรือไม่
+  const { data: existing } = await supabase
+    .from('users')
+    .select('*')
+    .eq('auth_id', authId)
+    .single()
+  
+  if (existing) {
+    // มีอยู่แล้ว - อัพเดท username ถ้าต้องการ
+    if (username && existing.username !== username) {
+      const { data, error } = await supabase
+        .from('users')
+        .update({ username })
+        .eq('id', existing.id)
+        .select()
+        .single()
+      return { data, error, isNew: false }
+    }
+    return { data: existing, error: null, isNew: false }
+  }
+
+  // ตรวจสอบ username ซ้ำ
+  const { data: existingUsername } = await supabase
+    .from('users')
+    .select('id')
+    .eq('username', username)
+    .single()
+  
+  if (existingUsername) {
+    return { data: null, error: { message: 'ชื่อผู้ใช้นี้ถูกใช้แล้ว' } }
+  }
+
+  // สร้าง user ใหม่
+  const { data, error } = await supabase
+    .from('users')
+    .insert([{
+      auth_id: authId,
+      email,
+      username,
+      reputation: 1000,
+      email_verified: true
+    }])
+    .select()
+    .single()
+
+  return { data, error, isNew: true }
+}
+
+// ตรวจสอบและให้ Daily Check-in bonus
+export async function claimDailyCheckIn(userId) {
+  // ใช้เวลาไทย (UTC+7)
+  const now = new Date()
+  const thailandTime = new Date(now.getTime() + (7 * 60 * 60 * 1000))
+  const today = thailandTime.toISOString().split('T')[0]
+  
+  const { data: user } = await supabase
+    .from('users')
+    .select('last_checkin, reputation')
+    .eq('id', userId)
+    .single()
+  
+  if (!user) return { success: false, error: 'ไม่พบผู้ใช้' }
+  
+  // แปลง last_checkin เป็นเวลาไทยด้วย
+  let lastCheckinDate = null
+  if (user.last_checkin) {
+    const lastCheckin = new Date(user.last_checkin)
+    const lastCheckinThai = new Date(lastCheckin.getTime() + (7 * 60 * 60 * 1000))
+    lastCheckinDate = lastCheckinThai.toISOString().split('T')[0]
+  }
+  
+  if (lastCheckinDate === today) {
+    return { success: false, alreadyClaimed: true, message: 'เช็คอินวันนี้แล้ว' }
+  }
+  
+  // ให้ 20 pt
+  const { error } = await supabase
+    .from('users')
+    .update({ 
+      reputation: user.reputation + 20,
+      last_checkin: now.toISOString() // เก็บเป็น UTC แต่เช็คเป็นเวลาไทย
+    })
+    .eq('id', userId)
+  
+  if (error) return { success: false, error }
+  
+  return { success: true, points: 20, message: '🎉 รับโบนัส Daily Check-in 20 pt!' }
+}
+
+// ตรวจสอบและให้โบนัสแชร์
+export async function claimShareBonus(userId, pollId, platform) {
+  // ตรวจสอบว่าแชร์โพลนี้ไปยัง platform นี้แล้วหรือยัง
+  const { data: existing } = await supabase
+    .from('share_bonuses')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('poll_id', pollId)
+    .eq('platform', platform)
+    .single()
+  
+  if (existing) {
+    return { success: false, alreadyClaimed: true, message: 'รับโบนัสแชร์โพลนี้แล้ว' }
+  }
+  
+  // บันทึกการแชร์
+  await supabase
+    .from('share_bonuses')
+    .insert([{ user_id: userId, poll_id: pollId, platform }])
+  
+  // ให้ 20 pt
+  const { data: user } = await supabase
+    .from('users')
+    .select('reputation')
+    .eq('id', userId)
+    .single()
+  
+  await supabase
+    .from('users')
+    .update({ reputation: (user?.reputation || 0) + 20 })
+    .eq('id', userId)
+  
+  return { success: true, points: 20, message: '🎉 รับโบนัสแชร์ 20 pt!' }
+}
+
 // Subscribe to auth state changes
 export function onAuthStateChange(callback) {
   return supabase.auth.onAuthStateChange(callback)
