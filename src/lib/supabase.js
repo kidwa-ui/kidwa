@@ -185,35 +185,18 @@ export async function createUser(username) {
 }
 
 export async function getPolls() {
-  // Fetch polls ก่อน
-  const { data: pollsData, error } = await supabase
+  const { data, error } = await supabase
     .from('polls')
-    .select('*')
+    .select('*, options(id, poll_id, text, votes)')
     .order('created_at', { ascending: false })
     .limit(50)
   
-  if (error || !pollsData) return { data: [], error }
+  if (error) {
+    console.error('getPolls error:', error)
+    return { data: [], error }
+  }
   
-  // Fetch options แยก
-  const pollIds = pollsData.map(p => p.id)
-  const { data: optionsData } = await supabase
-    .from('poll_options')
-    .select('*')
-    .in('poll_id', pollIds.length > 0 ? pollIds : ['00000000-0000-0000-0000-000000000000'])
-  
-  // Map options เข้ากับ polls
-  const optionsMap = {}
-  optionsData?.forEach(opt => {
-    if (!optionsMap[opt.poll_id]) optionsMap[opt.poll_id] = []
-    optionsMap[opt.poll_id].push(opt)
-  })
-  
-  const pollsWithOptions = pollsData.map(poll => ({
-    ...poll,
-    options: optionsMap[poll.id] || []
-  }))
-  
-  return { data: pollsWithOptions, error: null }
+  return { data: data || [], error: null }
 }
 
 export async function vote(userId, pollId, optionId, confidence = 50) {
@@ -227,14 +210,14 @@ export async function vote(userId, pollId, optionId, confidence = 50) {
   if (existingVote) {
     // ลด vote จาก option เดิม
     const { data: oldOption } = await supabase
-      .from('poll_options')
+      .from('options')
       .select('votes')
       .eq('id', existingVote.option_id)
       .single()
     
     if (oldOption) {
       await supabase
-        .from('poll_options')
+        .from('options')
         .update({ votes: Math.max((oldOption.votes || 1) - 1, 0) })
         .eq('id', existingVote.option_id)
     }
@@ -248,14 +231,14 @@ export async function vote(userId, pollId, optionId, confidence = 50) {
     
     // เพิ่ม vote ให้ option ใหม่
     const { data: newOption } = await supabase
-      .from('poll_options')
+      .from('options')
       .select('votes')
       .eq('id', optionId)
       .single()
     
     if (newOption) {
       await supabase
-        .from('poll_options')
+        .from('options')
         .update({ votes: (newOption.votes || 0) + 1 })
         .eq('id', optionId)
     }
@@ -270,14 +253,14 @@ export async function vote(userId, pollId, optionId, confidence = 50) {
     
     // เพิ่ม vote
     const { data: option } = await supabase
-      .from('poll_options')
+      .from('options')
       .select('votes')
       .eq('id', optionId)
       .single()
     
     if (option) {
       await supabase
-        .from('poll_options')
+        .from('options')
         .update({ votes: (option.votes || 0) + 1 })
         .eq('id', optionId)
     }
@@ -447,36 +430,35 @@ export async function createPoll({ question, options, category, tags, blindMode,
 // ===== ฟังก์ชัน Admin =====
 
 export async function getAllPollsAdmin() {
-  const { data: pollsData, error } = await supabase.from('polls').select('*').order('created_at', { ascending: false })
-  if (error || !pollsData) return { data: [], error }
+  const { data, error } = await supabase
+    .from('polls')
+    .select('*, options(id, poll_id, text, votes)')
+    .order('created_at', { ascending: false })
   
-  const pollIds = pollsData.map(p => p.id)
-  const { data: optionsData } = await supabase.from('poll_options').select('*').in('poll_id', pollIds.length > 0 ? pollIds : ['00000000-0000-0000-0000-000000000000'])
+  if (error) return { data: [], error }
   
-  const optionsMap = {}
-  optionsData?.forEach(opt => {
-    if (!optionsMap[opt.poll_id]) optionsMap[opt.poll_id] = []
-    optionsMap[opt.poll_id].push(opt)
-  })
+  const pollsWithOptions = data?.map(poll => ({
+    ...poll,
+    options: poll.options || []
+  })) || []
   
-  const pollsWithOptions = pollsData.map(poll => ({ ...poll, options: optionsMap[poll.id] || [] }))
   return { data: pollsWithOptions, error: null }
 }
 
 export async function getPendingPolls() {
-  const { data: pollsData, error } = await supabase.from('polls').select('*').eq('resolved', false).order('ends_at', { ascending: true })
-  if (error || !pollsData) return { data: [], error }
+  const { data, error } = await supabase
+    .from('polls')
+    .select('*, options(id, poll_id, text, votes)')
+    .eq('resolved', false)
+    .order('ends_at', { ascending: true })
   
-  const pollIds = pollsData.map(p => p.id)
-  const { data: optionsData } = await supabase.from('poll_options').select('*').in('poll_id', pollIds.length > 0 ? pollIds : ['00000000-0000-0000-0000-000000000000'])
+  if (error) return { data: [], error }
   
-  const optionsMap = {}
-  optionsData?.forEach(opt => {
-    if (!optionsMap[opt.poll_id]) optionsMap[opt.poll_id] = []
-    optionsMap[opt.poll_id].push(opt)
-  })
+  const pollsWithOptions = data?.map(poll => ({
+    ...poll,
+    options: poll.options || []
+  })) || []
   
-  const pollsWithOptions = pollsData.map(poll => ({ ...poll, options: optionsMap[poll.id] || [] }))
   return { data: pollsWithOptions, error: null }
 }
 
@@ -617,23 +599,25 @@ export async function getUserVoteHistory(userId, limit = 20) {
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .limit(limit)
+  
   return { data, error }
 }
 
 export async function getUserCreatedPolls(userId, limit = 20) {
-  const { data: pollsData, error } = await supabase.from('polls').select('*').eq('created_by', userId).order('created_at', { ascending: false }).limit(limit)
-  if (error || !pollsData) return { data: [], error }
+  const { data, error } = await supabase
+    .from('polls')
+    .select('*, options(id, poll_id, text, votes)')
+    .eq('created_by', userId)
+    .order('created_at', { ascending: false })
+    .limit(limit)
   
-  const pollIds = pollsData.map(p => p.id)
-  const { data: optionsData } = await supabase.from('poll_options').select('*').in('poll_id', pollIds.length > 0 ? pollIds : ['00000000-0000-0000-0000-000000000000'])
+  if (error) return { data: [], error }
   
-  const optionsMap = {}
-  optionsData?.forEach(opt => {
-    if (!optionsMap[opt.poll_id]) optionsMap[opt.poll_id] = []
-    optionsMap[opt.poll_id].push(opt)
-  })
+  const pollsWithOptions = data?.map(poll => ({
+    ...poll,
+    options: poll.options || []
+  })) || []
   
-  const pollsWithOptions = pollsData.map(poll => ({ ...poll, options: optionsMap[poll.id] || [] }))
   return { data: pollsWithOptions, error: null }
 }
 
@@ -922,25 +906,20 @@ export async function createTimeCapsule({ question, options, tags, endsAt, creat
 }
 
 export async function getTimeCapsules(limit = 20) {
-  const { data: pollsData, error } = await supabase
+  const { data, error } = await supabase
     .from('polls')
-    .select('*')
+    .select('*, options(id, poll_id, text, votes)')
     .eq('poll_type', 'time_capsule')
     .order('ends_at', { ascending: true })
     .limit(limit)
   
-  if (error || !pollsData) return { data: [], error }
+  if (error) return { data: [], error }
   
-  const pollIds = pollsData.map(p => p.id)
-  const { data: optionsData } = await supabase.from('poll_options').select('*').in('poll_id', pollIds.length > 0 ? pollIds : ['00000000-0000-0000-0000-000000000000'])
+  const pollsWithOptions = data?.map(poll => ({
+    ...poll,
+    options: poll.options || []
+  })) || []
   
-  const optionsMap = {}
-  optionsData?.forEach(opt => {
-    if (!optionsMap[opt.poll_id]) optionsMap[opt.poll_id] = []
-    optionsMap[opt.poll_id].push(opt)
-  })
-  
-  const pollsWithOptions = pollsData.map(poll => ({ ...poll, options: optionsMap[poll.id] || [] }))
   return { data: pollsWithOptions, error: null }
 }
 
@@ -997,25 +976,20 @@ export async function createLiveBattle({ question, options, category, tags, ends
 }
 
 export async function getLiveBattles() {
-  const { data: pollsData, error } = await supabase
+  const { data, error } = await supabase
     .from('polls')
-    .select('*')
+    .select('*, options(id, poll_id, text, votes)')
     .eq('poll_type', 'live_battle')
     .eq('is_live', true)
     .order('created_at', { ascending: false })
   
-  if (error || !pollsData) return { data: [], error }
+  if (error) return { data: [], error }
   
-  const pollIds = pollsData.map(p => p.id)
-  const { data: optionsData } = await supabase.from('poll_options').select('*').in('poll_id', pollIds.length > 0 ? pollIds : ['00000000-0000-0000-0000-000000000000'])
+  const pollsWithOptions = data?.map(poll => ({
+    ...poll,
+    options: poll.options || []
+  })) || []
   
-  const optionsMap = {}
-  optionsData?.forEach(opt => {
-    if (!optionsMap[opt.poll_id]) optionsMap[opt.poll_id] = []
-    optionsMap[opt.poll_id].push(opt)
-  })
-  
-  const pollsWithOptions = pollsData.map(poll => ({ ...poll, options: optionsMap[poll.id] || [] }))
   return { data: pollsWithOptions, error: null }
 }
 
@@ -1035,7 +1009,7 @@ export function subscribeLiveBattle(pollId, callback) {
     .on('postgres_changes', {
       event: '*',
       schema: 'public',
-      table: 'poll_options',
+      table: 'options',
       filter: `poll_id=eq.${pollId}`
     }, callback)
     .subscribe()
@@ -1232,7 +1206,7 @@ export async function findSimilarPolls(question, limit = 5) {
   // Fetch options แยก
   const pollIds = polls.map(p => p.id)
   const { data: optionsData } = await supabase
-    .from('poll_options')
+    .from('options')
     .select('poll_id, votes')
     .in('poll_id', pollIds.length > 0 ? pollIds : ['00000000-0000-0000-0000-000000000000'])
   
@@ -1293,7 +1267,7 @@ export async function checkAndAwardCreatorPoints(pollId) {
 
   // Fetch options แยก
   const { data: optionsData } = await supabase
-    .from('poll_options')
+    .from('options')
     .select('votes')
     .eq('poll_id', pollId)
   
@@ -1377,7 +1351,7 @@ export async function getUserCharacterStats(userId) {
     // Fetch options แยก
     const pollIds = polls.map(p => p.id)
     const { data: optionsData } = await supabase
-      .from('poll_options')
+      .from('options')
       .select('poll_id, votes')
       .in('poll_id', pollIds)
     
@@ -1636,31 +1610,18 @@ export async function getCommentLikeStatus(commentIds, userId) {
 
 // ===== GET POLLS BY CREATOR =====
 export async function getPollsByCreator(userId) {
-  const { data: pollsData, error } = await supabase
+  const { data, error } = await supabase
     .from('polls')
-    .select('id, question, category, ends_at, resolved, featured, created_at')
+    .select('*, options(id, poll_id, text, votes)')
     .eq('created_by', userId)
     .order('created_at', { ascending: false })
   
-  if (error || !pollsData) return { data: [], error }
+  if (error) return { data: [], error }
   
-  // Fetch options แยก
-  const pollIds = pollsData.map(p => p.id)
-  const { data: optionsData } = await supabase
-    .from('poll_options')
-    .select('*')
-    .in('poll_id', pollIds.length > 0 ? pollIds : ['00000000-0000-0000-0000-000000000000'])
-  
-  const optionsMap = {}
-  optionsData?.forEach(opt => {
-    if (!optionsMap[opt.poll_id]) optionsMap[opt.poll_id] = []
-    optionsMap[opt.poll_id].push(opt)
-  })
-  
-  const pollsWithOptions = pollsData.map(poll => ({
+  const pollsWithOptions = data?.map(poll => ({
     ...poll,
-    options: optionsMap[poll.id] || []
-  }))
+    options: poll.options || []
+  })) || []
   
   return { data: pollsWithOptions, error: null }
 }
