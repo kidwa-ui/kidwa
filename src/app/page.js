@@ -656,7 +656,7 @@ function CreateLiveBattleModal({ onClose, user, onSuccess, darkMode }) {
   // Check similar polls when question changes (debounced)
   useEffect(() => {
     const timer = setTimeout(async () => {
-      if (question.trim().length > 10) {
+      if (question.trim().length >= 5) {
         setIsCheckingSimilar(true)
         const { data } = await findSimilarPolls(question)
         setSimilarPolls(data || [])
@@ -1944,7 +1944,7 @@ function CreatePollModal({ onClose, user, onSuccess, darkMode }) {
   // Check similar polls when question changes (debounced)
   useEffect(() => {
     const timer = setTimeout(async () => {
-      if (question.trim().length > 10) {
+      if (question.trim().length >= 5) {
         setIsCheckingSimilar(true)
         const { data } = await findSimilarPolls(question)
         setSimilarPolls(data || [])
