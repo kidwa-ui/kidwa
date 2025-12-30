@@ -18,7 +18,8 @@ import {
   updateSelectedSkin, getUserCharacterStats, trackVoteTime, uploadAvatarVerified,
   getComments, createComment, deleteComment, getPollsByCreator,
   likeComment, unlikeComment, getCommentLikeStatus,
-  updateUsername, createUserFromMagicLink, claimDailyCheckIn, claimShareBonus
+  updateUsername, createUserFromMagicLink, claimDailyCheckIn, claimShareBonus,
+  autoResolveExpiredPolls, getExpiredUnresolvedPolls, createAppeal, getAllAppeals, resolveAppeal
 } from '@/lib/supabase'
 
 const categories = [
@@ -269,7 +270,20 @@ function PollCard({ poll, onClick, userVotes }) {
   )
 }
 
-function ConfidenceSelector({ selectedConfidence, onSelect, disabled }) {
+function ConfidenceSelector({ selectedConfidence, onSelect, disabled, isPrediction = true }) {
+  if (!isPrediction) {
+    // Opinion poll - ไม่ต้องเลือก confidence
+    return (
+      <div className="confidence-selector opinion-mode">
+        <div className="opinion-info">
+          <span className="opinion-icon">💬</span>
+          <span className="opinion-text">โพลความคิดเห็น</span>
+          <span className="opinion-bonus">+5 pt ทุกครั้งที่โหวต</span>
+        </div>
+      </div>
+    )
+  }
+  
   return (
     <div className="confidence-selector">
       <label className="confidence-label">🎲 เลือกระดับความมั่นใจ:</label>
@@ -363,9 +377,9 @@ function CommentItem({ comment, user, commentLikes, onLike, onReply, onDelete, g
 }
 
 // ===== Share Social Component =====
-function ShareButtons({ poll }) {
+function ShareButtons({ poll, user, onBonusClaimed }) {
   const [copied, setCopied] = useState(false)
-  const baseUrl = 'https://kidwa.vercel.app'
+  const baseUrl = 'https://i-kidwa.com'
   const totalVotes = poll.options?.reduce((sum, o) => sum + o.votes, 0) || 0
   const timeInfo = getDaysRemaining(poll.ends_at)
   
@@ -390,24 +404,38 @@ function ShareButtons({ poll }) {
     }
   }
   
-  const handleShareFacebook = () => {
+  const handleShareFacebook = async () => {
     window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(baseUrl)}`, '_blank', 'width=600,height=400')
+    // ให้โบนัสถ้า login
+    if (user && onBonusClaimed) {
+      const result = await claimShareBonus(user.id, poll.id, 'facebook')
+      if (result.success) {
+        onBonusClaimed(result.points)
+      }
+    }
   }
   
-  const handleShareX = () => {
+  const handleShareX = async () => {
     window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`, '_blank', 'width=600,height=400')
+    // ให้โบนัสถ้า login
+    if (user && onBonusClaimed) {
+      const result = await claimShareBonus(user.id, poll.id, 'twitter')
+      if (result.success) {
+        onBonusClaimed(result.points)
+      }
+    }
   }
   
   return (
     <div className="share-buttons">
-      <span className="share-label">แชร์:</span>
+      <span className="share-label">แชร์: {user && <span className="share-bonus-hint">+20 pt</span>}</span>
       <button className="share-btn copy" onClick={handleCopy} title="คัดลอกข้อความ">
         {copied ? '✓' : '📋'}
       </button>
-      <button className="share-btn facebook" onClick={handleShareFacebook} title="แชร์ไป Facebook">
+      <button className="share-btn facebook" onClick={handleShareFacebook} title="แชร์ไป Facebook (+20 pt)">
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
       </button>
-      <button className="share-btn twitter" onClick={handleShareX} title="แชร์ไป X">
+      <button className="share-btn twitter" onClick={handleShareX} title="แชร์ไป X (+20 pt)">
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
       </button>
       {copied && <span className="copy-toast">คัดลอกแล้ว!</span>}
@@ -2588,8 +2616,11 @@ function AdminPanel({ onClose, darkMode, onRefresh }) {
   const [polls, setPolls] = useState([])
   const [users, setUsers] = useState([])
   const [stats, setStats] = useState({})
+  const [appeals, setAppeals] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [selectedPollForResolve, setSelectedPollForResolve] = useState(null)
+  const [selectedAppeal, setSelectedAppeal] = useState(null)
+  const [isAutoResolving, setIsAutoResolving] = useState(false)
 
   useEffect(() => { loadData() }, [activeTab])
 
@@ -2598,6 +2629,7 @@ function AdminPanel({ onClose, darkMode, onRefresh }) {
     if (activeTab === 'pending') { const { data } = await getPendingPolls(); setPolls(data || []) }
     else if (activeTab === 'all') { const { data } = await getAllPollsAdmin(); setPolls(data || []) }
     else if (activeTab === 'users') { const { data } = await getAllUsers(); setUsers(data || []) }
+    else if (activeTab === 'appeals') { const { data } = await getAllAppeals(); setAppeals(data || []) }
     const statsData = await getAdminStats(); setStats(statsData)
     setIsLoading(false)
   }
@@ -2607,8 +2639,46 @@ function AdminPanel({ onClose, darkMode, onRefresh }) {
   const handleToggleFeatured = async (pollId, featured) => { await toggleFeatured(pollId, featured); loadData(); onRefresh() }
   const handleToggleBan = async (userId, isBanned) => { await toggleBanUser(userId, isBanned); loadData() }
 
+  // Auto-resolve Opinion polls
+  const handleAutoResolve = async () => {
+    if (!confirm('เฉลยโพลความคิดเห็นที่หมดเวลาทั้งหมดโดยอัตโนมัติ?\n\n(จะเลือกตัวเลือกที่มีคนโหวตมากที่สุด)')) return
+    setIsAutoResolving(true)
+    const { resolved, error } = await autoResolveExpiredPolls()
+    if (error) {
+      alert('เกิดข้อผิดพลาด: ' + error.message)
+    } else if (resolved.length > 0) {
+      alert(`✅ เฉลยอัตโนมัติสำเร็จ ${resolved.length} โพล!`)
+      loadData()
+      onRefresh()
+    } else {
+      alert('ไม่มีโพลความคิดเห็นที่ต้องเฉลย')
+    }
+    setIsAutoResolving(false)
+  }
+
+  // Handle appeal
+  const handleResolveAppeal = async (status, newCorrectOptionId = null) => {
+    if (!selectedAppeal) return
+    const adminNote = prompt(status === 'approved' ? 'หมายเหตุ (ไม่บังคับ):' : 'เหตุผลที่ปฏิเสธ:')
+    if (status === 'rejected' && !adminNote) {
+      alert('กรุณาใส่เหตุผลที่ปฏิเสธ')
+      return
+    }
+    
+    const { error } = await resolveAppeal(selectedAppeal.id, status, adminNote, newCorrectOptionId)
+    if (error) {
+      alert('เกิดข้อผิดพลาด: ' + error.message)
+    } else {
+      alert(status === 'approved' ? '✅ อนุมัติ Appeal สำเร็จ!' : '❌ ปฏิเสธ Appeal แล้ว')
+      setSelectedAppeal(null)
+      loadData()
+      onRefresh()
+    }
+  }
+
   const expiredPolls = polls.filter(p => !p.resolved && isExpired(p.ends_at))
   const upcomingPolls = polls.filter(p => !p.resolved && !isExpired(p.ends_at))
+  const pendingAppeals = appeals.filter(a => a.status === 'pending')
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -2623,12 +2693,53 @@ function AdminPanel({ onClose, darkMode, onRefresh }) {
         </div>
         <div className="admin-tabs">
           <button className={`admin-tab ${activeTab === 'pending' ? 'active' : ''}`} onClick={() => setActiveTab('pending')}>📋 รอเฉลย {stats.expiredUnresolved > 0 && <span className="badge">{stats.expiredUnresolved}</span>}</button>
+          <button className={`admin-tab ${activeTab === 'appeals' ? 'active' : ''}`} onClick={() => setActiveTab('appeals')}>⚖️ Appeals {pendingAppeals.length > 0 && <span className="badge">{pendingAppeals.length}</span>}</button>
           <button className={`admin-tab ${activeTab === 'all' ? 'active' : ''}`} onClick={() => setActiveTab('all')}>📊 โพลทั้งหมด</button>
           <button className={`admin-tab ${activeTab === 'users' ? 'active' : ''}`} onClick={() => setActiveTab('users')}>👥 Users</button>
         </div>
         <div className="admin-content">
           {isLoading ? <div style={{ textAlign: 'center', padding: '2rem' }}>⏳ กำลังโหลด...</div> : activeTab === 'pending' ? (
-            <>{expiredPolls.length > 0 && <div className="admin-section"><h3 className="admin-section-title">🔴 หมดเวลาแล้ว - รอเฉลย</h3>{expiredPolls.map(poll => (<div key={poll.id} className="admin-poll-item"><div className="admin-poll-info"><span className="admin-poll-question">{poll.question}</span><span className="admin-poll-meta">👥 {poll.options?.reduce((s, o) => s + o.votes, 0)} โหวต</span></div><div className="admin-poll-actions"><button className="btn btn-sm btn-success" onClick={() => setSelectedPollForResolve(poll)}>✅ เฉลย</button><button className="btn btn-sm btn-danger" onClick={() => handleDeletePoll(poll.id)}>🗑️</button></div></div>))}</div>}{upcomingPolls.length > 0 && <div className="admin-section"><h3 className="admin-section-title">🟢 ยังไม่หมดเวลา</h3>{upcomingPolls.slice(0, 5).map(poll => (<div key={poll.id} className="admin-poll-item"><div className="admin-poll-info"><span className="admin-poll-question">{poll.question}</span><span className="admin-poll-meta">⏱️ {getDaysRemaining(poll.ends_at)}</span></div></div>))}</div>}{expiredPolls.length === 0 && upcomingPolls.length === 0 && <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>ไม่มีโพลรอเฉลย</div>}</>
+            <>
+              {/* Auto-resolve button */}
+              {expiredPolls.filter(p => p.poll_type !== 'prediction').length > 0 && (
+                <button 
+                  className="btn btn-primary" 
+                  style={{ marginBottom: '1rem', width: '100%' }}
+                  onClick={handleAutoResolve}
+                  disabled={isAutoResolving}
+                >
+                  {isAutoResolving ? '⏳ กำลังเฉลย...' : '🤖 Auto-resolve โพลความคิดเห็นทั้งหมด'}
+                </button>
+              )}
+              {expiredPolls.length > 0 && <div className="admin-section"><h3 className="admin-section-title">🔴 หมดเวลาแล้ว - รอเฉลย</h3>{expiredPolls.map(poll => (<div key={poll.id} className="admin-poll-item"><div className="admin-poll-info"><span className="admin-poll-question">{poll.poll_type === 'prediction' ? '🎯 ' : '💬 '}{poll.question}</span><span className="admin-poll-meta">👥 {poll.options?.reduce((s, o) => s + o.votes, 0)} โหวต</span></div><div className="admin-poll-actions"><button className="btn btn-sm btn-success" onClick={() => setSelectedPollForResolve(poll)}>✅ เฉลย</button><button className="btn btn-sm btn-danger" onClick={() => handleDeletePoll(poll.id)}>🗑️</button></div></div>))}</div>}{upcomingPolls.length > 0 && <div className="admin-section"><h3 className="admin-section-title">🟢 ยังไม่หมดเวลา</h3>{upcomingPolls.slice(0, 5).map(poll => (<div key={poll.id} className="admin-poll-item"><div className="admin-poll-info"><span className="admin-poll-question">{poll.question}</span><span className="admin-poll-meta">⏱️ {getDaysRemaining(poll.ends_at)}</span></div></div>))}</div>}{expiredPolls.length === 0 && upcomingPolls.length === 0 && <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>ไม่มีโพลรอเฉลย</div>}
+            </>
+          ) : activeTab === 'appeals' ? (
+            <div className="admin-section">
+              <h3 className="admin-section-title">⚖️ Appeals ({appeals.length})</h3>
+              {appeals.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>ไม่มี Appeal</div>
+              ) : (
+                appeals.map(appeal => (
+                  <div key={appeal.id} className={`admin-appeal-item ${appeal.status}`}>
+                    <div className="appeal-info">
+                      <div className="appeal-poll">📋 {appeal.polls?.question?.substring(0, 50)}...</div>
+                      <div className="appeal-user">👤 {appeal.users?.username}</div>
+                      <div className="appeal-reason">💬 {appeal.reason}</div>
+                      <div className="appeal-status">
+                        {appeal.status === 'pending' && <span className="status-pending">⏳ รอพิจารณา</span>}
+                        {appeal.status === 'approved' && <span className="status-approved">✅ อนุมัติ</span>}
+                        {appeal.status === 'rejected' && <span className="status-rejected">❌ ปฏิเสธ: {appeal.admin_note}</span>}
+                      </div>
+                    </div>
+                    {appeal.status === 'pending' && (
+                      <div className="appeal-actions">
+                        <button className="btn btn-sm btn-success" onClick={() => setSelectedAppeal(appeal)}>📝 พิจารณา</button>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
           ) : activeTab === 'all' ? (
             <div className="admin-section">{polls.map(poll => (<div key={poll.id} className="admin-poll-item"><div className="admin-poll-info"><span className="admin-poll-question">{poll.featured && '⭐ '}{poll.resolved && '✅ '}{poll.question}</span><span className="admin-poll-meta">{categories.find(c => c.id === poll.category)?.icon} • 👥 {poll.options?.reduce((s, o) => s + o.votes, 0)}</span></div><div className="admin-poll-actions"><button className={`btn btn-sm ${poll.featured ? 'btn-warning' : 'btn-secondary'}`} onClick={() => handleToggleFeatured(poll.id, !poll.featured)}>{poll.featured ? '⭐' : '☆'}</button>{!poll.resolved && isExpired(poll.ends_at) && <button className="btn btn-sm btn-success" onClick={() => setSelectedPollForResolve(poll)}>✅</button>}<button className="btn btn-sm btn-danger" onClick={() => handleDeletePoll(poll.id)}>🗑️</button></div></div>))}</div>
           ) : (
@@ -2643,6 +2754,34 @@ function AdminPanel({ onClose, darkMode, onRefresh }) {
               <p style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>เลือกคำตอบที่ถูกต้อง:</p>
               <div className="resolve-options">{selectedPollForResolve.options?.map(opt => (<button key={opt.id} className="resolve-option" onClick={() => handleResolvePoll(selectedPollForResolve.id, opt.id)}>{opt.text}<span className="resolve-votes">({opt.votes} โหวต)</span></button>))}</div>
               <button className="btn btn-secondary" style={{ width: '100%', marginTop: '1rem' }} onClick={() => setSelectedPollForResolve(null)}>ยกเลิก</button>
+            </div>
+          </div>
+        )}
+        {/* Appeal Resolution Modal */}
+        {selectedAppeal && (
+          <div className="resolve-modal-overlay" onClick={() => setSelectedAppeal(null)}>
+            <div className="resolve-modal" onClick={e => e.stopPropagation()}>
+              <h3>⚖️ พิจารณา Appeal</h3>
+              <p className="resolve-question">{selectedAppeal.polls?.question}</p>
+              <div style={{ marginBottom: '1rem', padding: '0.75rem', background: 'var(--bg)', borderRadius: '8px' }}>
+                <div style={{ color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>เหตุผลของผู้ร้องเรียน:</div>
+                <div>{selectedAppeal.reason}</div>
+              </div>
+              <p style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>เลือกคำตอบที่ถูกต้อง (ถ้าอนุมัติ):</p>
+              <div className="resolve-options">
+                {selectedAppeal.polls?.options?.map(opt => (
+                  <button 
+                    key={opt.id} 
+                    className={`resolve-option ${opt.id === selectedAppeal.polls?.correct_option_id ? 'current' : ''}`} 
+                    onClick={() => handleResolveAppeal('approved', opt.id)}
+                  >
+                    {opt.text}
+                    {opt.id === selectedAppeal.polls?.correct_option_id && <span style={{ marginLeft: '0.5rem', color: 'var(--red)' }}>(เฉลยปัจจุบัน)</span>}
+                  </button>
+                ))}
+              </div>
+              <button className="btn btn-danger" style={{ width: '100%', marginTop: '1rem' }} onClick={() => handleResolveAppeal('rejected')}>❌ ปฏิเสธ Appeal</button>
+              <button className="btn btn-secondary" style={{ width: '100%', marginTop: '0.5rem' }} onClick={() => setSelectedAppeal(null)}>ยกเลิก</button>
             </div>
           </div>
         )}
@@ -2922,7 +3061,7 @@ export default function Home() {
     }
   }, [])
 
-  // ปิดเมนูเมื่อคลิกที่อื่น
+  // ปิดเมนูเมื่อคลิกที่อื่น หรือ scroll
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (showMenu && !e.target.closest('.menu-btn') && !e.target.closest('.dropdown-menu')) {
@@ -2930,8 +3069,18 @@ export default function Home() {
       }
     }
     
+    const handleScroll = () => {
+      if (showMenu) {
+        setShowMenu(false)
+      }
+    }
+    
     document.addEventListener('click', handleClickOutside)
-    return () => document.removeEventListener('click', handleClickOutside)
+    window.addEventListener('scroll', handleScroll)
+    return () => {
+      document.removeEventListener('click', handleClickOutside)
+      window.removeEventListener('scroll', handleScroll)
+    }
   }, [showMenu])
 
   // ตรวจสอบ Auth State Change สำหรับ Magic Link
@@ -3183,54 +3332,84 @@ export default function Home() {
     if (!user) { setShowAuthModal(true); return }
     const poll = polls.find(p => p.id === pollId) || liveBattles.find(p => p.id === pollId)
     if (poll && isExpired(poll.ends_at)) { alert('โพลนี้หมดเวลาแล้ว'); return }
-    const { error } = await vote(user.id, pollId, optionId, confidence)
-    if (!error) { 
-      setUserVotes(prev => ({ ...prev, [pollId]: { optionId, confidence } }))
-      
-      // Real-time update: อัพเดท % ทันทีโดยไม่ต้อง reload
-      setPolls(prev => prev.map(p => {
-        if (p.id === pollId) {
-          return {
-            ...p,
-            options: p.options.map(opt => ({
-              ...opt,
-              votes: opt.id === optionId ? opt.votes + 1 : opt.votes
-            }))
-          }
-        }
-        return p
-      }))
-      
-      setLiveBattles(prev => prev.map(p => {
-        if (p.id === pollId) {
-          return {
-            ...p,
-            options: p.options.map(opt => ({
-              ...opt,
-              votes: opt.id === optionId ? opt.votes + 1 : opt.votes
-            }))
-          }
-        }
-        return p
-      }))
-      
-      // อัพเดท selectedPoll ถ้าเปิดอยู่
-      if (selectedPoll && selectedPoll.id === pollId) {
-        setSelectedPoll(prev => ({
-          ...prev,
-          options: prev.options.map(opt => ({
-            ...opt,
-            votes: opt.id === optionId ? opt.votes + 1 : opt.votes
-          }))
-        }))
-      }
-      
-      const c = confidenceLevels.find(c => c.value === confidence)
-      alert(`โหวตสำเร็จ!\n\n${c?.emoji} ${c?.label} (±${confidence})`)
-      
-      // Check and award creator engagement points
-      await checkAndAwardCreatorPoints(pollId)
+    
+    const result = await vote(user.id, pollId, optionId, confidence)
+    
+    if (result.error) { 
+      alert(result.error.message || 'เกิดข้อผิดพลาด')
+      return 
     }
+    
+    setUserVotes(prev => ({ ...prev, [pollId]: { optionId, confidence } }))
+    
+    // Real-time update: อัพเดท % ทันทีโดยไม่ต้อง reload
+    setPolls(prev => prev.map(p => {
+      if (p.id === pollId) {
+        return {
+          ...p,
+          options: p.options.map(opt => ({
+            ...opt,
+            votes: opt.id === optionId ? opt.votes + 1 : opt.votes,
+            confidence_total: opt.id === optionId ? (opt.confidence_total || 0) + confidence : (opt.confidence_total || 0)
+          }))
+        }
+      }
+      return p
+    }))
+    
+    setLiveBattles(prev => prev.map(p => {
+      if (p.id === pollId) {
+        return {
+          ...p,
+          options: p.options.map(opt => ({
+            ...opt,
+            votes: opt.id === optionId ? opt.votes + 1 : opt.votes,
+            confidence_total: opt.id === optionId ? (opt.confidence_total || 0) + confidence : (opt.confidence_total || 0)
+          }))
+        }
+      }
+      return p
+    }))
+    
+    // อัพเดท selectedPoll ถ้าเปิดอยู่
+    if (selectedPoll && selectedPoll.id === pollId) {
+      setSelectedPoll(prev => ({
+        ...prev,
+        options: prev.options.map(opt => ({
+          ...opt,
+          votes: opt.id === optionId ? opt.votes + 1 : opt.votes,
+          confidence_total: opt.id === optionId ? (opt.confidence_total || 0) + confidence : (opt.confidence_total || 0)
+        }))
+      }))
+    }
+    
+    // อัพเดท user reputation ใน state
+    if (result.pointsChange !== undefined) {
+      setUser(prev => ({
+        ...prev,
+        reputation: Math.max(0, (prev?.reputation || 0) + result.pointsChange)
+      }))
+    }
+    
+    // สร้างข้อความแจ้งเตือน
+    const c = confidenceLevels.find(c => c.value === confidence)
+    let alertMessage = `โหวตสำเร็จ!\n\n${c?.emoji} ${c?.label}`
+    
+    if (result.isPrediction) {
+      alertMessage += `\n💸 หักคะแนน: -${confidence} pt`
+      alertMessage += `\n💡 ถ้าทายถูกจะได้คืน +${confidence * 2} pt`
+    } else {
+      alertMessage += `\n🎁 รับคะแนน: +5 pt`
+    }
+    
+    if (result.dailyBonus) {
+      alertMessage += `\n\n🌟 Daily Check-in: +${result.dailyBonus} pt!`
+    }
+    
+    alert(alertMessage)
+    
+    // Check and award creator engagement points
+    await checkAndAwardCreatorPoints(pollId)
   }
 
   const confirmVote = () => { if (!selectedOption) { alert('กรุณาเลือกตัวเลือกก่อน'); return }; handleVote(selectedPoll.id, selectedOption, selectedConfidence) }
@@ -3433,29 +3612,103 @@ export default function Home() {
         <div className="modal-overlay" onClick={() => setSelectedPoll(null)}>
           <div className="modal" style={{ maxWidth: '550px' }} onClick={e => e.stopPropagation()}>
             <button className="modal-close" onClick={() => setSelectedPoll(null)}>✕</button>
-            <div style={{ marginBottom: '1rem' }}>{selectedPoll.blind_mode && !isExpired(selectedPoll.ends_at) && <span className="blind-badge">Blind Mode</span>}{selectedPoll.poll_type === 'prediction' && <span className="prediction-badge" style={{ marginLeft: '0.5rem' }}>ทายผล</span>}{selectedPoll.resolved && <span className="resolved-badge" style={{ marginLeft: '0.5rem' }}>เฉลยแล้ว</span>}{isExpired(selectedPoll.ends_at) && !selectedPoll.resolved && <span className="resolved-badge" style={{ marginLeft: '0.5rem' }}>รอเฉลย</span>}</div>
+            <div style={{ marginBottom: '1rem' }}>{selectedPoll.blind_mode && !isExpired(selectedPoll.ends_at) && <span className="blind-badge">Blind Mode</span>}{selectedPoll.poll_type === 'prediction' && <span className="prediction-badge" style={{ marginLeft: '0.5rem' }}>ทายผล</span>}{selectedPoll.poll_type !== 'prediction' && <span className="opinion-badge" style={{ marginLeft: '0.5rem' }}>ความคิดเห็น</span>}{selectedPoll.resolved && <span className="resolved-badge" style={{ marginLeft: '0.5rem' }}>เฉลยแล้ว</span>}{isExpired(selectedPoll.ends_at) && !selectedPoll.resolved && <span className="resolved-badge" style={{ marginLeft: '0.5rem' }}>รอเฉลย</span>}</div>
             <h2 style={{ fontSize: '1.2rem', marginBottom: '1rem', color: 'var(--text)' }}>{selectedPoll.question}</h2>
             <div style={{ marginBottom: '1.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}><span>{selectedPoll.options?.reduce((sum, o) => sum + o.votes, 0).toLocaleString()} คนโหวต</span><span style={{ marginLeft: '1rem' }}>{getDaysRemaining(selectedPoll.ends_at)}</span></div>
+            
+            {/* Release & Return Notice สำหรับ Prediction */}
+            {selectedPoll.poll_type === 'prediction' && !userVotes[selectedPoll.id] && !isExpired(selectedPoll.ends_at) && (
+              <div className="release-return-notice">
+                <span>💡 <strong>Release & Return:</strong> หักคะแนนทันทีเมื่อโหวต ถ้าทายถูกได้คืน 2 เท่า!</span>
+              </div>
+            )}
+            
+            {/* Opinion Notice */}
+            {selectedPoll.poll_type !== 'prediction' && !userVotes[selectedPoll.id] && !isExpired(selectedPoll.ends_at) && (
+              <div className="opinion-notice">
+                <span>💬 โหวตแสดงความคิดเห็น ได้ +5 pt ทุกครั้ง!</span>
+              </div>
+            )}
+            
             {isExpired(selectedPoll.ends_at) && !selectedPoll.resolved && <div className="expired-notice">โพลนี้หมดเวลาแล้ว รอเฉลย</div>}
             {userVotes[selectedPoll.id] && <div className="voted-notice">คุณโหวตแล้ว ({confidenceLevels.find(c => c.value === userVotes[selectedPoll.id].confidence)?.emoji} {confidenceLevels.find(c => c.value === userVotes[selectedPoll.id].confidence)?.label})</div>}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
-              {selectedPoll.options?.map(option => {
-                const totalVotes = selectedPoll.options.reduce((sum, o) => sum + o.votes, 0)
-                const percent = totalVotes > 0 ? Math.round((option.votes / totalVotes) * 100) : 0
-                const isVoted = userVotes[selectedPoll.id]?.optionId === option.id
-                const isSelected = selectedOption === option.id
-                const expired = isExpired(selectedPoll.ends_at)
-                const isBlind = selectedPoll.blind_mode && !selectedPoll.resolved && !expired
-                const hasVoted = !!userVotes[selectedPoll.id]
-                const isCorrect = selectedPoll.correct_option_id === option.id
-                return <button key={option.id} onClick={() => !expired && !hasVoted && setSelectedOption(option.id)} disabled={expired || hasVoted} className={`option-btn ${isVoted ? 'voted' : ''} ${isSelected ? 'selected' : ''} ${expired || hasVoted ? 'disabled' : ''} ${isCorrect ? 'correct' : ''}`}>{!isBlind && <div className="option-bar" style={{ width: `${percent}%` }} />}<div className="option-content"><span>{isCorrect && '✅ '}{isVoted && '✓ '}{option.text}</span>{!isBlind && <span style={{ fontWeight: 600 }}>{percent}%</span>}</div></button>
-              })}
+            
+            {/* Popularity Graph (จำนวนคน) */}
+            <div className="graph-section">
+              <h4 className="graph-title">📊 Popularity (จำนวนคนโหวต)</h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
+                {selectedPoll.options?.map(option => {
+                  const totalVotes = selectedPoll.options.reduce((sum, o) => sum + o.votes, 0)
+                  const percent = totalVotes > 0 ? Math.round((option.votes / totalVotes) * 100) : 0
+                  const isVoted = userVotes[selectedPoll.id]?.optionId === option.id
+                  const isSelected = selectedOption === option.id
+                  const expired = isExpired(selectedPoll.ends_at)
+                  const isBlind = selectedPoll.blind_mode && !selectedPoll.resolved && !expired
+                  const hasVoted = !!userVotes[selectedPoll.id]
+                  const isCorrect = selectedPoll.correct_option_id === option.id
+                  return <button key={option.id} onClick={() => !expired && !hasVoted && setSelectedOption(option.id)} disabled={expired || hasVoted} className={`option-btn ${isVoted ? 'voted' : ''} ${isSelected ? 'selected' : ''} ${expired || hasVoted ? 'disabled' : ''} ${isCorrect ? 'correct' : ''}`}>{!isBlind && <div className="option-bar" style={{ width: `${percent}%` }} />}<div className="option-content"><span>{isCorrect && '✅ '}{isVoted && '✓ '}{option.text}</span>{!isBlind && <span style={{ fontWeight: 600 }}>{percent}%</span>}</div></button>
+                })}
+              </div>
             </div>
-            {!userVotes[selectedPoll.id] && !isExpired(selectedPoll.ends_at) && user && <><ConfidenceSelector selectedConfidence={selectedConfidence} onSelect={setSelectedConfidence} disabled={!selectedOption} /><button className="btn btn-primary" style={{ width: '100%', marginTop: '1rem', padding: '1rem' }} onClick={confirmVote} disabled={!selectedOption}>{selectedOption ? <>ยืนยันโหวต ({confidenceLevels.find(c => c.value === selectedConfidence)?.emoji} ±{selectedConfidence} คะแนน)</> : <>เลือกตัวเลือกก่อน</>}</button></>}
+            
+            {/* Confidence Power Graph (สำหรับ Prediction) */}
+            {selectedPoll.poll_type === 'prediction' && !selectedPoll.blind_mode && (
+              <div className="graph-section confidence-graph">
+                <h4 className="graph-title">💪 Confidence Power (คะแนนที่ลง)</h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
+                  {selectedPoll.options?.map(option => {
+                    const totalConfidence = selectedPoll.options.reduce((sum, o) => sum + (o.confidence_total || 0), 0)
+                    const confPercent = totalConfidence > 0 ? Math.round(((option.confidence_total || 0) / totalConfidence) * 100) : 0
+                    const isCorrect = selectedPoll.correct_option_id === option.id
+                    return (
+                      <div key={`conf-${option.id}`} className={`confidence-bar-container ${isCorrect ? 'correct' : ''}`}>
+                        <div className="confidence-bar" style={{ width: `${confPercent}%`, background: 'linear-gradient(90deg, #8b5cf6, #a78bfa)' }} />
+                        <div className="option-content">
+                          <span>{isCorrect && '✅ '}{option.text}</span>
+                          <span style={{ fontWeight: 600 }}>{confPercent}% ({(option.confidence_total || 0).toLocaleString()} pt)</span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+            
+            {!userVotes[selectedPoll.id] && !isExpired(selectedPoll.ends_at) && user && <><ConfidenceSelector selectedConfidence={selectedConfidence} onSelect={setSelectedConfidence} disabled={!selectedOption} isPrediction={selectedPoll.poll_type === 'prediction'} /><button className="btn btn-primary" style={{ width: '100%', marginTop: '1rem', padding: '1rem' }} onClick={confirmVote} disabled={!selectedOption}>{selectedOption ? <>ยืนยันโหวต ({confidenceLevels.find(c => c.value === selectedConfidence)?.emoji} {selectedPoll.poll_type === 'prediction' ? `-${selectedConfidence}` : '+5'} pt)</> : <>เลือกตัวเลือกก่อน</>}</button></>}
             {!user && !isExpired(selectedPoll.ends_at) && <div onClick={() => { setSelectedPoll(null); setShowAuthModal(true) }} className="login-prompt">เข้าสู่ระบบเพื่อโหวต</div>}
             
             {/* Share Buttons */}
-            <ShareButtons poll={selectedPoll} />
+            <ShareButtons poll={selectedPoll} user={user} onBonusClaimed={(bonus) => {
+              if (bonus && user) {
+                setUser(prev => ({ ...prev, reputation: (prev?.reputation || 0) + bonus }))
+                alert(`🎉 รับโบนัสแชร์ +${bonus} pt!`)
+              }
+            }} />
+            
+            {/* Appeal Button - แสดงเมื่อโพลเฉลยแล้วและ user คิดว่าผิด */}
+            {selectedPoll.resolved && user && selectedPoll.poll_type === 'prediction' && (
+              <div className="appeal-section">
+                <button 
+                  className="btn btn-secondary btn-appeal"
+                  onClick={async () => {
+                    const reason = prompt('⚖️ เหตุผลที่คิดว่าเฉลยผิด:\n\n(กรุณาอธิบายให้ชัดเจน)')
+                    if (!reason || reason.trim().length < 10) {
+                      alert('กรุณาอธิบายเหตุผลอย่างน้อย 10 ตัวอักษร')
+                      return
+                    }
+                    const { error } = await createAppeal(selectedPoll.id, user.id, reason.trim())
+                    if (error) {
+                      alert('เกิดข้อผิดพลาด: ' + (error.message || 'ไม่สามารถส่ง Appeal ได้'))
+                    } else {
+                      alert('✅ ส่ง Appeal สำเร็จ!\n\nAdmin จะพิจารณาและแจ้งผลให้ทราบ')
+                    }
+                  }}
+                >
+                  ⚖️ Appeal เฉลย
+                </button>
+                <span className="appeal-hint">คิดว่าเฉลยผิด? แจ้ง Admin เพื่อตรวจสอบ</span>
+              </div>
+            )}
             
             {/* Comments Section */}
             <div className="comments-section">
