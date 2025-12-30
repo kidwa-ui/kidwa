@@ -1164,17 +1164,19 @@ export async function getUserPollLimit(userId) {
 // ===== Similar Poll Detection =====
 
 export async function findSimilarPolls(question, limit = 5) {
-  // ลบ space, ตัวเลข, สัญลักษณ์ ออกก่อนเปรียบเทียบ
-  const cleanText = (text) => text.toLowerCase().replace(/[\s\d\.\,\?\!\:\;\-\_\(\)\/\\\"\']/g, '').trim()
+  // ลบ space และสัญลักษณ์ ออกก่อนเปรียบเทียบ (เก็บตัวเลขไว้)
+  const cleanText = (text) => text.toLowerCase().replace(/[\s\.\,\?\!\:\;\-\_\(\)\/\\\"\']/g, '').trim()
   
   const searchQuery = cleanText(question)
+  console.log('findSimilarPolls - searchQuery:', searchQuery)
   
   // ถ้าคำถามสั้นเกินไป ไม่ต้องเช็ค
   if (searchQuery.length < 3) {
+    console.log('findSimilarPolls - query too short')
     return { data: [], error: null }
   }
 
-  // ค้นหาโพลทั้งหมดที่ยังไม่หมดอายุ (ไม่สนใจ resolved)
+  // ค้นหาโพลทั้งหมดที่ยังไม่หมดอายุ
   const { data: polls, error } = await supabase
     .from('polls')
     .select('id, question, ends_at, resolved')
@@ -1182,12 +1184,15 @@ export async function findSimilarPolls(question, limit = 5) {
     .order('created_at', { ascending: false })
     .limit(200)
 
+  console.log('findSimilarPolls - found polls:', polls?.length || 0)
+
   if (error) {
     console.error('findSimilarPolls error:', error)
     return { data: [], error }
   }
   
   if (!polls || polls.length === 0) {
+    console.log('findSimilarPolls - no polls found')
     return { data: [], error: null }
   }
 
@@ -1211,6 +1216,7 @@ export async function findSimilarPolls(question, limit = 5) {
     
     // 1. Exact match (เหมือนกันเป๊ะ)
     if (searchQuery === pollClean) {
+      console.log('EXACT MATCH:', poll.question)
       return {
         id: poll.id,
         question: poll.question,
@@ -1223,6 +1229,7 @@ export async function findSimilarPolls(question, limit = 5) {
     // 2. Contains match (อันนึงอยู่ในอีกอัน)
     const containsMatch = pollClean.includes(searchQuery) || searchQuery.includes(pollClean)
     if (containsMatch) {
+      console.log('CONTAINS MATCH:', poll.question, 'pollClean:', pollClean, 'searchQuery:', searchQuery)
       const shorterLen = Math.min(searchQuery.length, pollClean.length)
       const longerLen = Math.max(searchQuery.length, pollClean.length)
       const containsScore = shorterLen / longerLen
@@ -1256,6 +1263,11 @@ export async function findSimilarPolls(question, limit = 5) {
     
     const chunkScore = matchCount / chunks.size
     
+    // Log polls ที่มี score > 0
+    if (chunkScore > 0) {
+      console.log('CHUNK MATCH:', poll.question, 'score:', chunkScore)
+    }
+    
     return {
       id: poll.id,
       question: poll.question,
@@ -1265,12 +1277,15 @@ export async function findSimilarPolls(question, limit = 5) {
     }
   })
   
+  console.log('Scored polls with similarity >= 0.2:', scoredPolls.filter(p => p.similarity >= 0.2))
+  
   // Filter และ sort
   const filteredPolls = scoredPolls
     .filter(p => p.similarity >= 0.2) // ลด threshold เป็น 20%
     .sort((a, b) => b.similarity - a.similarity)
     .slice(0, limit)
 
+  console.log('Final filtered polls:', filteredPolls)
   return { data: filteredPolls, error: null }
 }
 
