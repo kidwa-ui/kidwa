@@ -1018,7 +1018,6 @@ export async function getLiveBattles() {
   const pollsWithOptions = pollsData.map(poll => ({ ...poll, options: optionsMap[poll.id] || [] }))
   return { data: pollsWithOptions, error: null }
 }
-}
 
 export async function endLiveBattle(pollId) {
   const { error } = await supabase
