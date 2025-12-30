@@ -334,19 +334,20 @@ export async function createUser(username) {
   return { data, error }
 }
 
-export async function getPolls() {
-  const { data, error } = await supabase
+export async function getPolls(page = 1, limit = 30) {
+  const offset = (page - 1) * limit
+  const { data, error, count } = await supabase
     .from('polls')
-    .select('*, options(id, poll_id, text, votes, confidence_total)')
+    .select('*, options(id, poll_id, text, votes, confidence_total)', { count: 'exact' })
     .order('created_at', { ascending: false })
-    .limit(50)
+    .range(offset, offset + limit - 1)
   
   if (error) {
     console.error('getPolls error:', error)
-    return { data: [], error }
+    return { data: [], error, total: 0 }
   }
   
-  return { data: data || [], error: null }
+  return { data: data || [], error: null, total: count || 0 }
 }
 
 export async function vote(userId, pollId, optionId, confidence = 50) {
