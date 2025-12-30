@@ -707,7 +707,7 @@ function CreateLiveBattleModal({ onClose, user, onSuccess, darkMode }) {
     if (!validate()) return
 
     // Check similar polls warning first (ยกเว้น Admin)
-    if (similarPolls.length > 0 && !similarCheckDone && !user.is_admin) {
+    if (similarPolls.length > 0 && !similarCheckDone) {
       setShowSimilarWarning(true)
       return
     }
@@ -825,7 +825,7 @@ function CreateLiveBattleModal({ onClose, user, onSuccess, darkMode }) {
           )}
 
           {/* Similar indicator */}
-          {!isCheckingSimilar && similarPolls.length > 0 && !similarCheckDone && !user.is_admin && (
+          {!isCheckingSimilar && similarPolls.length > 0 && !similarCheckDone && (
             <div className="similar-indicator">
               <span>⚠️</span>
               <span>พบ {similarPolls.length} โพลที่คล้ายกัน</span>
@@ -1943,13 +1943,18 @@ function CreatePollModal({ onClose, user, onSuccess, darkMode }) {
 
   // Check similar polls when question changes (debounced)
   useEffect(() => {
+    console.log('=== CreatePollModal useEffect ===')
+    console.log('Question:', question, 'Length:', question.trim().length)
     const timer = setTimeout(async () => {
       if (question.trim().length >= 5) {
+        console.log('Calling findSimilarPolls for:', question)
         setIsCheckingSimilar(true)
-        const { data } = await findSimilarPolls(question)
+        const { data, error } = await findSimilarPolls(question)
+        console.log('findSimilarPolls result:', { data, error, count: data?.length })
         setSimilarPolls(data || [])
         setIsCheckingSimilar(false)
       } else {
+        console.log('Question too short, skipping')
         setSimilarPolls([])
       }
     }, 500)
@@ -1985,7 +1990,7 @@ function CreatePollModal({ onClose, user, onSuccess, darkMode }) {
     if (!validate()) return
 
     // Check similar polls warning first (ยกเว้น Admin)
-    if (similarPolls.length > 0 && !similarCheckDone && !user.is_admin) {
+    if (similarPolls.length > 0 && !similarCheckDone) {
       setShowSimilarWarning(true)
       return
     }
@@ -2112,7 +2117,7 @@ function CreatePollModal({ onClose, user, onSuccess, darkMode }) {
               
               {/* Similar polls preview */}
               {isCheckingSimilar && <span className="checking-similar">🔍 กำลังตรวจสอบ...</span>}
-              {!isCheckingSimilar && similarPolls.length > 0 && !similarCheckDone && !user.is_admin && (
+              {!isCheckingSimilar && similarPolls.length > 0 && !similarCheckDone && (
                 <div className="similar-preview">
                   <span className="similar-icon">⚠️</span>
                   <span>พบ {similarPolls.length} โพลที่คล้ายกัน</span>
