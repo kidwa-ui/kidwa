@@ -1,1154 +1,1103 @@
-import { createClient } from '@supabase/supabase-js'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
-
-// ===== Auth Functions =====
-
-// สมัครสมาชิกด้วย Email + Password
-export async function signUpWithEmail(email, password, username) {
-  // ตรวจสอบว่า username ซ้ำไหม
-  const { data: existingUser } = await supabase
-    .from('users')
-    .select('id')
-    .eq('username', username)
-    .single()
-  
-  if (existingUser) {
-    return { data: null, error: { message: 'ชื่อผู้ใช้นี้ถูกใช้แล้ว' } }
-  }
-
-  // ตรวจสอบว่า email ซ้ำไหม
-  const { data: existingEmail } = await supabase
-    .from('users')
-    .select('id')
-    .eq('email', email)
-    .single()
-  
-  if (existingEmail) {
-    return { data: null, error: { message: 'อีเมลนี้ถูกใช้แล้ว' } }
-  }
-
-  // สมัครกับ Supabase Auth
-  const { data: authData, error: authError } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      data: { username }
-    }
-  })
-
-  if (authError) return { data: null, error: authError }
-
-  // สร้าง user ใน users table
-  const { data: userData, error: userError } = await supabase
-    .from('users')
-    .insert([{
-      username,
-      email,
-      auth_id: authData.user?.id,
-      email_verified: false,
-      reputation: 1000
-    }])
-    .select()
-    .single()
-
-  if (userError) return { data: null, error: userError }
-
-  return { data: { auth: authData, user: userData }, error: null }
-}
-
-// เข้าสู่ระบบด้วย Email + Password
-export async function signInWithEmail(email, password) {
-  const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-    email,
-    password
-  })
-
-  if (authError) return { data: null, error: authError }
-
-  // ดึงข้อมูล user จาก users table
-  const { data: userData, error: userError } = await supabase
-    .from('users')
-    .select('*')
-    .eq('auth_id', authData.user?.id)
-    .single()
-
-  if (userError || !userData) {
-    return { data: null, error: { message: 'ไม่พบข้อมูลผู้ใช้' } }
-  }
-
-  return { data: { auth: authData, user: userData }, error: null }
-}
-
-// เข้าสู่ระบบด้วย Magic Link
-export async function signInWithMagicLink(email) {
-  const { data, error } = await supabase.auth.signInWithOtp({
-    email,
-    options: {
-      emailRedirectTo: `${window.location.origin}/auth/callback`
-    }
-  })
-
-  return { data, error }
-}
-
-// ออกจากระบบ
-export async function signOut() {
-  const { error } = await supabase.auth.signOut()
-  return { error }
-}
-
-// ดึง session ปัจจุบัน
-export async function getSession() {
-  const { data: { session }, error } = await supabase.auth.getSession()
-  return { session, error }
-}
-
-// ดึงข้อมูล user จาก auth session
-export async function getUserFromSession() {
-  const { data: { session } } = await supabase.auth.getSession()
-  
-  if (!session?.user) return { data: null, error: null }
-
-  const { data: userData, error } = await supabase
-    .from('users')
-    .select('*')
-    .eq('auth_id', session.user.id)
-    .single()
-
-  // อัพเดท email_verified ถ้ายืนยันแล้ว
-  if (userData && session.user.email_confirmed_at && !userData.email_verified) {
-    await supabase
-      .from('users')
-      .update({ email_verified: true })
-      .eq('id', userData.id)
-    userData.email_verified = true
-  }
-
-  return { data: userData, error }
-}
-
-// ลืมรหัสผ่าน
-export async function resetPassword(email) {
-  const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${window.location.origin}/auth/callback?type=recovery`
-  })
-
-  return { data, error }
-}
-
-// เปลี่ยนรหัสผ่าน
-export async function updatePassword(newPassword) {
-  const { data, error } = await supabase.auth.updateUser({
-    password: newPassword
-  })
-
-  return { data, error }
-}
-
-// Subscribe to auth state changes
-export function onAuthStateChange(callback) {
-  return supabase.auth.onAuthStateChange(callback)
-}
-
-// Sign in with Google
-export async function signInWithGoogle() {
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: 'google',
-    options: {
-      redirectTo: `${window.location.origin}/auth/callback`
-    }
-  })
-
-  return { data, error }
-}
-
-export async function getUserByUsername(username) {
-  const { data, error } = await supabase
-    .from('users')
-    .select('*')
-    .eq('username', username)
-    .single()
-  return { data, error }
-}
-
-export async function createUser(username) {
-  const { data, error } = await supabase
-    .from('users')
-    .insert([{ username, reputation: 1000, streak: 0, current_streak: 0, max_streak: 0, total_predictions: 0, correct_predictions: 0 }])
-    .select()
-    .single()
-  return { data, error }
-}
-
-export async function getPolls() {
-  const { data, error } = await supabase
-    .from('polls')
-    .select('*, options(*), tags(*)')
-    .order('created_at', { ascending: false })
-    .limit(50)
-  return { data, error }
-}
-
-export async function vote(userId, pollId, optionId, confidence = 50) {
-  const { data: existingVote } = await supabase
-    .from('votes')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('poll_id', pollId)
-    .single()
-
-  if (existingVote) {
-    await supabase.from('options').update({ votes: supabase.rpc('decrement') }).eq('id', existingVote.option_id)
-    const { data, error } = await supabase
-      .from('votes')
-      .update({ option_id: optionId, confidence })
-      .eq('id', existingVote.id)
-      .select()
-      .single()
-    await supabase.from('options').update({ votes: supabase.rpc('increment') }).eq('id', optionId)
-    return { data, error }
-  } else {
-    const { data, error } = await supabase
-      .from('votes')
-      .insert([{ user_id: userId, poll_id: pollId, option_id: optionId, confidence }])
-      .select()
-      .single()
-    await supabase.from('options').update({ votes: supabase.rpc('increment') }).eq('id', optionId)
-    return { data, error }
-  }
-}
-
-export async function getUserVotes(userId) {
-  const { data, error } = await supabase
-    .from('votes')
-    .select('*')
-    .eq('user_id', userId)
-  return { data, error }
-}
-
-// ===== Leaderboard Functions =====
-
-export async function getLeaderboard(limit = 10) {
-  const { data, error } = await supabase
-    .from('users')
-    .select('id, username, reputation, email_verified, is_verified')
-    .order('reputation', { ascending: false })
-    .limit(limit)
-  return { data, error }
-}
-
-// Leaderboard รายสัปดาห์ - ตัดรอบจันทร์-อาทิตย์
-export async function getWeeklyLeaderboard(limit = 10) {
-  // หาวันจันทร์ของสัปดาห์นี้
-  const now = new Date()
-  const dayOfWeek = now.getDay() // 0 = อาทิตย์, 1 = จันทร์, ...
-  const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
-  const monday = new Date(now)
-  monday.setDate(now.getDate() + mondayOffset)
-  monday.setHours(0, 0, 0, 0)
-  
-  const { data: votes, error } = await supabase
-    .from('votes')
-    .select('user_id, points_earned, users!inner(id, username, reputation, email_verified, is_verified)')
-    .gte('created_at', monday.toISOString())
-    .not('points_earned', 'is', null)
-
-  if (error) return { data: null, error }
-
-  // รวมคะแนนตาม user
-  const userPoints = {}
-  votes?.forEach(vote => {
-    const userId = vote.user_id
-    if (!userPoints[userId]) {
-      userPoints[userId] = {
-        id: userId,
-        username: vote.users.username,
-        reputation: vote.users.reputation,
-        email_verified: vote.users.email_verified,
-        is_verified: vote.users.is_verified,
-        weeklyPoints: 0
-      }
-    }
-    userPoints[userId].weeklyPoints += vote.points_earned || 0
-  })
-
-  // เรียงลำดับและ return
-  const sorted = Object.values(userPoints)
-    .sort((a, b) => b.weeklyPoints - a.weeklyPoints)
-    .slice(0, limit)
-
-  return { data: sorted, error: null }
-}
-
-// Leaderboard รายเดือน - ตัดรอบตามเดือนปฏิทิน (วันที่ 1 - สิ้นเดือน)
-export async function getMonthlyLeaderboard(limit = 10) {
-  // หาวันที่ 1 ของเดือนนี้
-  const now = new Date()
-  const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-  firstDayOfMonth.setHours(0, 0, 0, 0)
-  
-  const { data: votes, error } = await supabase
-    .from('votes')
-    .select('user_id, points_earned, users!inner(id, username, reputation, email_verified, is_verified)')
-    .gte('created_at', firstDayOfMonth.toISOString())
-    .not('points_earned', 'is', null)
-
-  if (error) return { data: null, error }
-
-  // รวมคะแนนตาม user
-  const userPoints = {}
-  votes?.forEach(vote => {
-    const userId = vote.user_id
-    if (!userPoints[userId]) {
-      userPoints[userId] = {
-        id: userId,
-        username: vote.users.username,
-        reputation: vote.users.reputation,
-        email_verified: vote.users.email_verified,
-        is_verified: vote.users.is_verified,
-        monthlyPoints: 0
-      }
-    }
-    userPoints[userId].monthlyPoints += vote.points_earned || 0
-  })
-
-  // เรียงลำดับและ return
-  const sorted = Object.values(userPoints)
-    .sort((a, b) => b.monthlyPoints - a.monthlyPoints)
-    .slice(0, limit)
-
-  return { data: sorted, error: null }
-}
-
-// ===== ฟังก์ชันสำหรับสร้างโพล =====
-
-export async function getTags() {
-  const { data, error } = await supabase
-    .from('tags')
-    .select('*')
-    .order('name', { ascending: true })
-  return { data, error }
-}
-
-export async function createTag(name) {
-  const { data: existing } = await supabase
-    .from('tags')
-    .select('*')
-    .eq('name', name.toLowerCase().trim())
-    .single()
-  
-  if (existing) return { data: existing, error: null }
-  
-  const { data, error } = await supabase
-    .from('tags')
-    .insert([{ name: name.toLowerCase().trim() }])
-    .select()
-    .single()
-  return { data, error }
-}
-
-export async function createPoll({ question, options, category, tags, blindMode, endsAt, pollType, createdBy }) {
-  try {
-    const { data: poll, error: pollError } = await supabase
-      .from('polls')
-      .insert([{ question, category, blind_mode: blindMode, poll_type: pollType || 'prediction', ends_at: endsAt, created_by: createdBy, featured: false, resolved: false }])
-      .select()
-      .single()
-    
-    if (pollError) throw pollError
-
-    const optionsData = options.map(opt => ({ poll_id: poll.id, text: opt, votes: 0 }))
-    const { error: optionsError } = await supabase.from('options').insert(optionsData)
-    if (optionsError) throw optionsError
-
-    if (tags && tags.length > 0) {
-      const tagLinks = tags.map(tagId => ({ poll_id: poll.id, tag_id: tagId }))
-      await supabase.from('poll_tags').insert(tagLinks)
-    }
-
-    return { data: poll, error: null }
-  } catch (error) {
-    return { data: null, error }
-  }
-}
-
-// ===== ฟังก์ชัน Admin =====
-
-export async function getAllPollsAdmin() {
-  const { data, error } = await supabase.from('polls').select('*, options(*), tags(*)').order('created_at', { ascending: false })
-  return { data, error }
-}
-
-export async function getPendingPolls() {
-  const { data, error } = await supabase.from('polls').select('*, options(*), tags(*)').eq('resolved', false).order('ends_at', { ascending: true })
-  return { data, error }
-}
-
-// === v9 Reputation Formula ===
-const REPUTATION_CONFIG = {
-  penalty_multiplier: 1.15,
-  conviction: { 20: 0.8, 50: 1.0, 100: 1.3 }, // value -> multiplier
-  daily_rep_cap: 50,
-  daily_loss_cap: 100,
-  experience_threshold: 100
-}
-
-function getConvictionMultiplier(confidence) {
-  return REPUTATION_CONFIG.conviction[confidence] || 1.0
-}
-
-function getExperienceModifier(predictionCount) {
-  if (predictionCount < 15) return 0.2
-  if (predictionCount < 50) return 0.3 + 0.3 * (predictionCount - 15) / 35
-  if (predictionCount < 100) return 0.6 + 0.4 * (predictionCount - 50) / 50
-  return Math.min(1.3, 1.0 + 0.3 * Math.log(predictionCount / 100))
-}
-
-function calculateReputationChange(stake, confidence, isCorrect, predictionCount) {
-  const S = Math.sqrt(stake)
-  const C = getConvictionMultiplier(confidence)
-  const E = getExperienceModifier(predictionCount)
-  
-  if (isCorrect) {
-    return Math.round(S * C * E)
-  } else {
-    return -Math.round(S * C * REPUTATION_CONFIG.penalty_multiplier)
-  }
-}
-
-export async function resolvePoll(pollId, correctOptionId) {
-  try {
-    // ดึงข้อมูล poll ก่อน
-    const { data: pollData } = await supabase
-      .from('polls')
-      .select('question, poll_type')
-      .eq('id', pollId)
-      .single()
-
-    const isPrediction = pollData?.poll_type === 'prediction'
-
-    const { error: pollError } = await supabase
-      .from('polls')
-      .update({ resolved: true, correct_option_id: correctOptionId, resolved_at: new Date().toISOString() })
-      .eq('id', pollId)
-    
-    if (pollError) throw pollError
-
-    // ดึงข้อมูล correct option
-    const { data: correctOption } = await supabase
-      .from('options')
-      .select('text')
-      .eq('id', correctOptionId)
-      .single()
-
-    const { data: votes } = await supabase.from('votes').select('id, user_id, option_id, confidence').eq('poll_id', pollId)
-
-    for (const vote of votes || []) {
-      const isCorrect = vote.option_id === correctOptionId
-      
-      const { data: userData } = await supabase
-        .from('users')
-        .select('reputation, current_streak, max_streak, total_predictions, correct_predictions, is_admin')
-        .eq('id', vote.user_id)
-        .single()
-      
-      if (userData) {
-        const isAdmin = userData.is_admin === true
-        
-        // Calculate reputation change using new formula
-        let repChange = 0
-        if (isPrediction && !isAdmin) {
-          const stake = vote.confidence || 50
-          repChange = calculateReputationChange(
-            stake, 
-            vote.confidence, 
-            isCorrect, 
-            userData.total_predictions || 0
-          )
-        }
-        
-        const newRep = Math.max(0, userData.reputation + repChange)
-        const newTotal = (userData.total_predictions || 0) + 1
-        const newCorrect = (userData.correct_predictions || 0) + (isCorrect ? 1 : 0)
-        const newCurrentStreak = isCorrect ? (userData.current_streak || 0) + 1 : 0
-        const newMaxStreak = Math.max(userData.max_streak || 0, newCurrentStreak)
-        
-        await supabase.from('users').update({ 
-          reputation: newRep, total_predictions: newTotal, correct_predictions: newCorrect,
-          current_streak: newCurrentStreak, max_streak: newMaxStreak
-        }).eq('id', vote.user_id)
-
-        // สร้าง Notification สำหรับผู้โหวต (UX Copy v1)
-        let notifMessage
-        if (isPrediction) {
-          notifMessage = isCorrect 
-            ? `🎯 มุมมองนี้แม่น! "${pollData?.question?.substring(0, 40)}..." (+${repChange} Reputation)`
-            : `❌ มุมมองนี้คลาด "${pollData?.question?.substring(0, 40)}..." (${repChange} Reputation)`
-        } else {
-          notifMessage = `📊 โพลสิ้นสุด "${pollData?.question?.substring(0, 40)}..." ตัวเลือกยอดนิยมคือ "${correctOption?.text}"`
-        }
-        
-        await createNotification({
-          userId: vote.user_id,
-          type: isCorrect ? 'points_earned' : 'points_lost',
-          message: notifMessage,
-          pollId: pollId,
-          pointsChange: repChange
-        })
-      }
-
-      // บันทึกผลพร้อม reputation_change
-      await supabase.from('votes').update({ 
-        is_correct: isCorrect, 
-        points_earned: isPrediction ? calculateReputationChange(vote.confidence || 50, vote.confidence, isCorrect, 0) : 0
-      }).eq('id', vote.id)
-    }
-
-    return { error: null }
-  } catch (error) {
-    return { error }
-  }
-}
-
-export async function deletePoll(pollId) {
-  try {
-    await supabase.from('votes').delete().eq('poll_id', pollId)
-    await supabase.from('poll_tags').delete().eq('poll_id', pollId)
-    await supabase.from('options').delete().eq('poll_id', pollId)
-    await supabase.from('notifications').delete().eq('poll_id', pollId)
-    const { error } = await supabase.from('polls').delete().eq('id', pollId)
-    return { error }
-  } catch (error) {
-    return { error }
-  }
-}
-
-export async function getAllUsers() {
-  const { data, error } = await supabase.from('users').select('*').order('reputation', { ascending: false })
-  return { data, error }
-}
-
-export async function toggleBanUser(userId, isBanned) {
-  const { error } = await supabase.from('users').update({ is_banned: isBanned }).eq('id', userId)
-  return { error }
-}
-
-export async function toggleFeatured(pollId, featured) {
-  const { error } = await supabase.from('polls').update({ featured }).eq('id', pollId)
-  return { error }
-}
-
-export async function getAdminStats() {
-  const { data: polls } = await supabase.from('polls').select('id, resolved, ends_at')
-  const { data: users } = await supabase.from('users').select('id')
-  const { data: votes } = await supabase.from('votes').select('id')
-
-  const now = new Date()
-  const expiredUnresolved = polls?.filter(p => !p.resolved && new Date(p.ends_at) < now).length || 0
-  const activePolls = polls?.filter(p => !p.resolved && new Date(p.ends_at) >= now).length || 0
-  const resolvedPolls = polls?.filter(p => p.resolved).length || 0
-
-  return { totalPolls: polls?.length || 0, activePolls, expiredUnresolved, resolvedPolls, totalUsers: users?.length || 0, totalVotes: votes?.length || 0 }
-}
-
-// ===== ฟังก์ชัน Account =====
-
-export async function getUserProfile(userId) {
-  const { data, error } = await supabase.from('users').select('*').eq('id', userId).single()
-  return { data, error }
-}
-
-export async function getUserVoteHistory(userId, limit = 20) {
-  const { data, error } = await supabase
-    .from('votes')
-    .select(`*, polls:poll_id (id, question, category, resolved, correct_option_id, ends_at), options:option_id (id, text)`)
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(limit)
-  return { data, error }
-}
-
-export async function getUserCreatedPolls(userId, limit = 20) {
-  const { data, error } = await supabase.from('polls').select('*, options(*)').eq('created_by', userId).order('created_at', { ascending: false }).limit(limit)
-  return { data, error }
-}
-
-export function calculateBadges(user) {
-  const badges = []
-  const winRate = user.total_predictions > 0 ? (user.correct_predictions / user.total_predictions) * 100 : 0
-  
-  if (user.total_predictions >= 10 && winRate >= 70) badges.push({ id: 'accurate', name: 'แม่นยำ', icon: '🎯', description: 'Win Rate > 70%' })
-  if (user.current_streak >= 5) badges.push({ id: 'onfire', name: 'ไฟลุก', icon: '🔥', description: 'ทายถูกติดต่อกัน 5 ครั้ง' })
-  if (user.max_streak >= 10) badges.push({ id: 'unstoppable', name: 'ไม่หยุด', icon: '⚡', description: 'เคยทายถูกติดต่อกัน 10 ครั้ง' })
-  if (user.reputation >= 10000) badges.push({ id: 'legend', name: 'ตำนาน', icon: '👑', description: '10,000+ point' })
-  else if (user.reputation >= 5000) badges.push({ id: 'master', name: 'ปรมาจารย์', icon: '🏆', description: '5,000+ point' })
-  else if (user.reputation >= 3000) badges.push({ id: 'expert', name: 'ผู้เชี่ยวชาญ', icon: '⭐', description: '3,000+ point' })
-  if (user.total_predictions >= 50) badges.push({ id: 'analyst', name: 'นักวิเคราะห์', icon: '📊', description: 'ทายครบ 50 ครั้ง' })
-  else if (user.total_predictions >= 10) badges.push({ id: 'rising', name: 'ดาวรุ่ง', icon: '🌟', description: 'ทายครบ 10 ครั้ง' })
-  
-  return badges
-}
-
-// ===== ฟังก์ชัน Notification =====
-
-export async function createNotification({ userId, type, message, pollId = null, pointsChange = null }) {
-  const { data, error } = await supabase
-    .from('notifications')
-    .insert([{
-      user_id: userId,
-      type,
-      message,
-      poll_id: pollId,
-      points_change: pointsChange,
-      is_read: false
-    }])
-    .select()
-    .single()
-  return { data, error }
-}
-
-export async function getUserNotifications(userId, limit = 20) {
-  const { data, error } = await supabase
-    .from('notifications')
-    .select('*')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(limit)
-  return { data, error }
-}
-
-export async function getUnreadNotificationCount(userId) {
-  const { count, error } = await supabase
-    .from('notifications')
-    .select('*', { count: 'exact', head: true })
-    .eq('user_id', userId)
-    .eq('is_read', false)
-  return { count: count || 0, error }
-}
-
-export async function markNotificationAsRead(notificationId) {
-  const { error } = await supabase
-    .from('notifications')
-    .update({ is_read: true })
-    .eq('id', notificationId)
-  return { error }
-}
-
-export async function markAllNotificationsAsRead(userId) {
-  const { error } = await supabase
-    .from('notifications')
-    .update({ is_read: true })
-    .eq('user_id', userId)
-    .eq('is_read', false)
-  return { error }
-}
-
-// ===== ฟังก์ชัน Follow System =====
-
-export async function followUser(followerId, followingId) {
-  // ตรวจสอบว่าติดตามอยู่แล้วหรือไม่
-  const { data: existing } = await supabase
-    .from('follows')
-    .select('*')
-    .eq('follower_id', followerId)
-    .eq('following_id', followingId)
-    .single()
-  
-  if (existing) return { data: existing, error: null, alreadyFollowing: true }
-  
-  const { data, error } = await supabase
-    .from('follows')
-    .insert([{ follower_id: followerId, following_id: followingId }])
-    .select()
-    .single()
-  
-  return { data, error, alreadyFollowing: false }
-}
-
-export async function unfollowUser(followerId, followingId) {
-  const { error } = await supabase
-    .from('follows')
-    .delete()
-    .eq('follower_id', followerId)
-    .eq('following_id', followingId)
-  
-  return { error }
-}
-
-export async function isFollowing(followerId, followingId) {
-  const { data } = await supabase
-    .from('follows')
-    .select('*')
-    .eq('follower_id', followerId)
-    .eq('following_id', followingId)
-    .single()
-  
-  return !!data
-}
-
-export async function getFollowers(userId) {
-  const { data, error } = await supabase
-    .from('follows')
-    .select('follower_id, users!follows_follower_id_fkey(id, username, reputation, avatar_url)')
-    .eq('following_id', userId)
-  
-  return { data: data?.map(d => d.users) || [], error }
-}
-
-export async function getFollowing(userId) {
-  const { data, error } = await supabase
-    .from('follows')
-    .select('following_id, users!follows_following_id_fkey(id, username, reputation, avatar_url)')
-    .eq('follower_id', userId)
-  
-  return { data: data?.map(d => d.users) || [], error }
-}
-
-export async function getFollowCounts(userId) {
-  const { count: followersCount } = await supabase
-    .from('follows')
-    .select('*', { count: 'exact', head: true })
-    .eq('following_id', userId)
-  
-  const { count: followingCount } = await supabase
-    .from('follows')
-    .select('*', { count: 'exact', head: true })
-    .eq('follower_id', userId)
-  
-  return { followers: followersCount || 0, following: followingCount || 0 }
-}
-
-// ===== ฟังก์ชัน Avatar Upload =====
-
-export async function uploadAvatar(userId, file) {
-  const fileExt = file.name.split('.').pop()
-  const fileName = `${userId}-${Date.now()}.${fileExt}`
-  const filePath = `avatars/${fileName}`
-
-  // อัพโหลดไฟล์ไปยัง Supabase Storage
-  const { error: uploadError } = await supabase.storage
-    .from('avatars')
-    .upload(filePath, file, { upsert: true })
-
-  if (uploadError) return { error: uploadError }
-
-  // รับ public URL
-  const { data: { publicUrl } } = supabase.storage
-    .from('avatars')
-    .getPublicUrl(filePath)
-
-  // อัพเดท avatar_url ใน users table
-  const { error: updateError } = await supabase
-    .from('users')
-    .update({ avatar_url: publicUrl })
-    .eq('id', userId)
-
-  if (updateError) return { error: updateError }
-
-  return { data: { url: publicUrl }, error: null }
-}
-
-export async function getUserPublicProfile(userId) {
-  const { data: user, error } = await supabase
-    .from('users')
-    .select('id, username, reputation, avatar_url, current_streak, max_streak, total_predictions, correct_predictions, created_at')
-    .eq('id', userId)
-    .single()
-  
-  if (error) return { data: null, error }
-  
-  const { followers, following } = await getFollowCounts(userId)
-  
-  return { 
-    data: { ...user, followers, following }, 
-    error: null 
-  }
-}
-
-export async function searchUsers(query, limit = 10) {
-  const { data, error } = await supabase
-    .from('users')
-    .select('id, username, reputation, avatar_url')
-    .ilike('username', `%${query}%`)
-    .order('reputation', { ascending: false })
-    .limit(limit)
-  
-  return { data, error }
-}
-
-// ===== Time Capsule Functions =====
-
-export async function createTimeCapsule({ question, options, tags, endsAt, createdBy }) {
-  try {
-    const { data: poll, error: pollError } = await supabase
-      .from('polls')
-      .insert([{ 
-        question, 
-        category: 'time_capsule',
-        blind_mode: true, // Time Capsule บังคับ Blind Mode
-        poll_type: 'time_capsule',
-        ends_at: endsAt, 
-        created_by: createdBy, 
-        featured: true, // Time Capsule แสดงเด่นเสมอ
-        resolved: false 
-      }])
-      .select()
-      .single()
-    
-    if (pollError) throw pollError
-
-    const optionsData = options.map(opt => ({ poll_id: poll.id, text: opt, votes: 0 }))
-    const { error: optionsError } = await supabase.from('options').insert(optionsData)
-    if (optionsError) throw optionsError
-
-    if (tags && tags.length > 0) {
-      const tagLinks = tags.map(tagId => ({ poll_id: poll.id, tag_id: tagId }))
-      await supabase.from('poll_tags').insert(tagLinks)
-    }
-
-    return { data: poll, error: null }
-  } catch (error) {
-    return { data: null, error }
-  }
-}
-
-export async function getTimeCapsules(limit = 20) {
-  const { data, error } = await supabase
-    .from('polls')
-    .select('*, options(*), tags(*)')
-    .eq('poll_type', 'time_capsule')
-    .order('ends_at', { ascending: true })
-    .limit(limit)
-  
-  return { data, error }
-}
-
-// ===== Live Battle Functions =====
-
-export async function createLiveBattle({ question, options, category, tags, durationMinutes, createdBy }) {
-  try {
-    const now = new Date()
-    const endsAt = new Date(now.getTime() + durationMinutes * 60 * 1000)
-    
-    const { data: poll, error: pollError } = await supabase
-      .from('polls')
-      .insert([{ 
-        question, 
-        category,
-        blind_mode: false, // Live Battle เห็นผลแบบ real-time
-        poll_type: 'live_battle',
-        ends_at: endsAt.toISOString(),
-        created_by: createdBy, 
-        featured: false,
-        resolved: false,
-        is_live: true,
-        live_started_at: now.toISOString(),
-        live_duration_minutes: durationMinutes
-      }])
-      .select()
-      .single()
-    
-    if (pollError) throw pollError
-
-    const optionsData = options.map(opt => ({ poll_id: poll.id, text: opt, votes: 0 }))
-    const { error: optionsError } = await supabase.from('options').insert(optionsData)
-    if (optionsError) throw optionsError
-
-    if (tags && tags.length > 0) {
-      const tagLinks = tags.map(tagId => ({ poll_id: poll.id, tag_id: tagId }))
-      await supabase.from('poll_tags').insert(tagLinks)
-    }
-
-    return { data: poll, error: null }
-  } catch (error) {
-    return { data: null, error }
-  }
-}
-
-export async function getLiveBattles() {
-  const now = new Date().toISOString()
-  
-  const { data, error } = await supabase
-    .from('polls')
-    .select('*, options(*), tags(*), users:created_by(username, avatar_url)')
-    .eq('poll_type', 'live_battle')
-    .eq('is_live', true)
-    .gt('ends_at', now) // ยังไม่หมดเวลา
-    .order('created_at', { ascending: false })
-  
-  return { data, error }
-}
-
-export async function endLiveBattle(pollId) {
-  const { error } = await supabase
-    .from('polls')
-    .update({ is_live: false })
-    .eq('id', pollId)
-  
-  return { error }
-}
-
-// Subscribe to live battle updates (real-time)
-export function subscribeLiveBattle(pollId, callback) {
-  const subscription = supabase
-    .channel(`live_battle_${pollId}`)
-    .on('postgres_changes', {
-      event: '*',
-      schema: 'public',
-      table: 'options',
-      filter: `poll_id=eq.${pollId}`
-    }, callback)
-    .subscribe()
-  
-  return subscription
-}
-
-export function unsubscribeLiveBattle(subscription) {
-  supabase.removeChannel(subscription)
-}
-
-// ===== Verification + PDPA Functions =====
-
-export async function submitVerification(userId, { fullName, birthDate, pdpaConsent, marketingConsent }) {
-  // คำนวณอายุ
-  const today = new Date()
-  const birth = new Date(birthDate)
-  let age = today.getFullYear() - birth.getFullYear()
-  const monthDiff = today.getMonth() - birth.getMonth()
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
-    age--
-  }
-
-  // ตรวจสอบอายุขั้นต่ำ (13 ปี)
-  if (age < 13) {
-    return { data: null, error: { message: 'ต้องมีอายุอย่างน้อย 13 ปี' } }
-  }
-
-  const { data, error } = await supabase
-    .from('users')
-    .update({
-      full_name: fullName,
-      birth_date: birthDate,
-      pdpa_consent: pdpaConsent,
-      pdpa_consent_at: pdpaConsent ? new Date().toISOString() : null,
-      marketing_consent: marketingConsent,
-      is_verified: true,
-      verified_at: new Date().toISOString()
-    })
-    .eq('id', userId)
-    .select()
-    .single()
-
-  return { data, error }
-}
-
-export async function skipVerification(userId) {
-  // ข้ามการ verify แต่ยังใช้งานได้ (ไม่ได้ verified badge)
-  const { data, error } = await supabase
-    .from('users')
-    .update({ verification_skipped: true })
-    .eq('id', userId)
-    .select()
-    .single()
-
-  return { data, error }
-}
-
-export async function checkNeedsVerification(userId) {
-  const { data } = await supabase
-    .from('users')
-    .select('email_verified, is_verified, verification_skipped')
-    .eq('id', userId)
-    .single()
-
-  if (!data) return false
-
-  // ต้องแสดง popup ถ้า: email verified แล้ว + ยังไม่ verify ตัวตน + ยังไม่ skip
-  return data.email_verified && !data.is_verified && !data.verification_skipped
-}
-
-// ===== Poll Limit Functions =====
-
-export async function checkPollLimit(userId) {
-  // ดึงข้อมูล user เพื่อเช็คว่า verified หรือไม่
-  const { data: user } = await supabase
-    .from('users')
-    .select('is_verified, reputation')
-    .eq('id', userId)
-    .single()
-
-  // กำหนดโควต้า: verified = 3 โพล/วัน, ไม่ verified = 1 โพล/วัน
-  const dailyLimit = user?.is_verified ? 3 : 1
-
-  // นับโพลที่สร้างวันนี้
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-
-  const { count } = await supabase
-    .from('polls')
-    .select('*', { count: 'exact', head: true })
-    .eq('created_by', userId)
-    .gte('created_at', today.toISOString())
-
-  const used = count || 0
-  const remaining = Math.max(0, dailyLimit - used)
-
-  return {
-    canCreate: remaining > 0,
-    used,
-    limit: dailyLimit,
-    remaining,
-    isVerified: user?.is_verified || false
-  }
-}
-
-export async function getUserPollLimit(userId) {
-  const { data: user } = await supabase
-    .from('users')
-    .select('is_verified')
-    .eq('id', userId)
-    .single()
-
-  // กำหนดโควต้า: verified = 3 โพล/วัน, ไม่ verified = 1 โพล/วัน
-  const dailyLimit = user?.is_verified ? 3 : 1
-
-  // นับโพลที่สร้างวันนี้
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-
-  const { count } = await supabase
-    .from('polls')
-    .select('*', { count: 'exact', head: true })
-    .eq('created_by', userId)
-    .gte('created_at', today.toISOString())
-
-  const used = count || 0
-  const remaining = Math.max(0, dailyLimit - used)
-
-  return {
-    canCreate: remaining > 0,
-    used,
-    limit: dailyLimit,
-    remaining,
-    isVerified: user?.is_verified || false
-  }
-}
-
-// ===== Similar Poll Detection =====
-
-export async function findSimilarPolls(question, limit = 5) {
-  // ทำให้เป็น lowercase และ trim
-  const searchQuery = question.toLowerCase().trim()
-  
-  // แยกคำสำคัญ (ตัดคำที่สั้นเกินไป)
-  const keywords = searchQuery
-    .split(/\s+/)
-    .filter(word => word.length > 2)
-    .slice(0, 5) // ใช้แค่ 5 คำแรก
-
-  if (keywords.length === 0) {
-    return { data: [], error: null }
-  }
-
-  // สร้าง search pattern สำหรับ ilike
-  // ค้นหาโพลที่มีคำคล้ายกัน
-  const { data: polls, error } = await supabase
-    .from('polls')
-    .select('id, question, ends_at, resolved, options(votes)')
-    .or(keywords.map(k => `question.ilike.%${k}%`).join(','))
-    .eq('resolved', false)
-    .gt('ends_at', new Date().toISOString()) // ยังไม่หมดอายุ
-    .order('created_at', { ascending: false })
-    .limit(limit)
-
-  if (error) return { data: [], error }
-
-  // คำนวณ similarity score
-  const scoredPolls = polls?.map(poll => {
-    const pollQuestion = poll.question.toLowerCase()
-    let matchCount = 0
-    keywords.forEach(keyword => {
-      if (pollQuestion.includes(keyword)) matchCount++
-    })
-    const similarity = matchCount / keywords.length
-    const totalVotes = poll.options?.reduce((sum, o) => sum + o.votes, 0) || 0
-    
-    return {
-      ...poll,
-      similarity,
-      totalVotes
-    }
-  }).filter(p => p.similarity >= 0.4) // แสดงเฉพาะที่คล้ายกัน 40% ขึ้นไป
-    .sort((a, b) => b.similarity - a.similarity)
-
-  return { data: scoredPolls || [], error: null }
-}
-
-// ===== Creator Engagement Points =====
-
-export async function checkAndAwardCreatorPoints(pollId) {
-  // ดึงข้อมูล poll
-  const { data: poll } = await supabase
-    .from('polls')
-    .select('id, created_by, creator_points_100, creator_points_1000, creator_points_10000, options(votes)')
-    .eq('id', pollId)
-    .single()
-
-  if (!poll) return { awarded: false }
-
-  const totalVotes = poll.options?.reduce((sum, o) => sum + o.votes, 0) || 0
-  let pointsToAward = 0
-  let milestone = null
-  const updates = {}
-
-  // ตรวจสอบ milestones
-  if (totalVotes >= 10000 && !poll.creator_points_10000) {
-    pointsToAward = 200
-    milestone = '10000'
-    updates.creator_points_10000 = true
-  } else if (totalVotes >= 1000 && !poll.creator_points_1000) {
-    pointsToAward = 50
-    milestone = '1000'
-    updates.creator_points_1000 = true
-  } else if (totalVotes >= 100 && !poll.creator_points_100) {
-    pointsToAward = 20
-    milestone = '100'
-    updates.creator_points_100 = true
-  }
-
-  if (pointsToAward > 0 && poll.created_by) {
-    // อัพเดท poll flags
-    await supabase.from('polls').update(updates).eq('id', pollId)
-
-    // เพิ่มคะแนนให้ผู้สร้าง
-    const { data: creator } = await supabase
-      .from('users')
-      .select('reputation')
-      .eq('id', poll.created_by)
-      .single()
-
-    if (creator) {
-      await supabase
-        .from('users')
-        .update({ reputation: creator.reputation + pointsToAward })
-        .eq('id', poll.created_by)
-
-      // สร้าง notification
-      await createNotification({
-        userId: poll.created_by,
-        type: 'creator_bonus',
-        message: `🎉 โพลของคุณมีคนโหวตครบ ${milestone} คน! ได้รับ +${pointsToAward} คะแนน`,
-        pollId: pollId,
-        pointsChange: pointsToAward
-      })
-    }
-
-    return { awarded: true, points: pointsToAward, milestone }
-  }
-
-  return { awarded: false }
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&display=swap');
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --primary: #ff6b9d;
+  --primary-light: #ffc2d6;
+  --primary-dark: #e91e63;
+  --green: #22c55e;
+  --green-light: #86efac;
+  --red: #ef4444;
+  --red-light: #fca5a5;
+  --bg: #fafafa;
+  --bg-card: #ffffff;
+  --text: #1a1a2e;
+  --text-secondary: #666;
+  --border: #eee;
+  --shadow: 0 2px 20px rgba(255, 107, 157, 0.1);
+  --shadow-hover: 0 8px 30px rgba(255, 107, 157, 0.2);
+}
+
+.dark {
+  --bg: #0d0d1a;
+  --bg-card: #1a1a2e;
+  --text: #f0f0f0;
+  --text-secondary: #aaa;
+  --border: #3a3a5a;
+  --shadow: 0 2px 20px rgba(0, 0, 0, 0.3);
+}
+
+body { font-family: 'IBM Plex Sans Thai', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+html { background: var(--bg); }
+html.dark, .dark { background: var(--bg); }
+.dark body { background: var(--bg); }
+
+.header { background: var(--bg-card); border-bottom: 1px solid var(--border); padding: 1rem 2rem; position: sticky; top: 0; z-index: 100; box-shadow: var(--shadow); }
+.header-content { max-width: 1400px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.logo { font-size: 1.8rem; font-weight: 700; background: linear-gradient(135deg, var(--primary), var(--primary-dark)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; cursor: pointer; flex-shrink: 0; }
+
+.search-box { flex: 1; max-width: 500px; position: relative; }
+.search-box input { width: 100%; padding: 0.75rem 1rem 0.75rem 2.8rem; border: 2px solid var(--border); border-radius: 50px; font-size: 1rem; background: var(--bg); color: var(--text); font-family: inherit; }
+.search-box input:focus { outline: none; border-color: var(--primary); }
+.search-box input::placeholder { color: var(--text-secondary); }
+.search-icon { position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-secondary); }
+
+.header-actions { display: flex; align-items: center; gap: 0.75rem; }
+
+.btn { padding: 0.6rem 1.2rem; border-radius: 50px; font-weight: 500; cursor: pointer; transition: all 0.2s; font-family: inherit; font-size: 0.9rem; border: none; }
+.btn-primary { background: linear-gradient(135deg, var(--primary), var(--primary-dark)); color: white; }
+.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(255, 107, 157, 0.4); }
+.btn-secondary { background: var(--bg); color: var(--text); border: 2px solid var(--border); }
+.btn-secondary:hover { border-color: var(--primary); color: var(--primary); }
+.btn-create { background: linear-gradient(135deg, #00d4aa, #00b894); color: white; }
+
+.menu-btn { background: var(--bg); border: 2px solid var(--border); font-size: 1.3rem; cursor: pointer; padding: 0.5rem 0.75rem; border-radius: 10px; color: var(--text); }
+
+.dropdown-menu { position: absolute; top: 70px; right: 1rem; background: var(--bg-card); border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); padding: 0.5rem; z-index: 200; min-width: 200px; border: 1px solid var(--border); }
+.dropdown-item { display: flex; align-items: center; gap: 0.75rem; width: 100%; padding: 0.75rem 1rem; border: none; background: none; text-align: left; cursor: pointer; border-radius: 8px; font-family: inherit; font-size: 0.9rem; color: var(--text); }
+.dropdown-item:hover { background: var(--bg); }
+.dropdown-divider { height: 1px; background: var(--border); margin: 0.5rem 0; }
+.user-info-mobile { cursor: default; }
+.user-info-mobile:hover { background: none; }
+
+.categories { background: var(--bg-card); border-bottom: 1px solid var(--border); padding: 0.5rem 1rem; overflow-x: auto; position: sticky; top: 73px; z-index: 99; }
+.categories::-webkit-scrollbar { height: 4px; }
+.categories::-webkit-scrollbar-thumb { background: var(--primary-light); border-radius: 2px; }
+.categories-content { max-width: 1400px; margin: 0 auto; display: flex; gap: 0.3rem; }
+.category-btn { padding: 0.5rem 0.9rem; border: none; background: transparent; color: var(--text-secondary); font-weight: 500; cursor: pointer; border-radius: 50px; transition: all 0.2s; white-space: nowrap; font-family: inherit; font-size: 0.85rem; }
+.category-btn:hover { background: var(--primary-light); color: var(--primary-dark); }
+.category-btn.active { background: linear-gradient(135deg, var(--primary), var(--primary-dark)); color: white; }
+
+.main { max-width: 1400px; margin: 0 auto; padding: 2rem; display: grid; grid-template-columns: 280px 1fr; gap: 2rem; }
+.sidebar { position: sticky; top: 130px; height: fit-content; }
+.sidebar-card { background: var(--bg-card); border-radius: 20px; padding: 1.5rem; box-shadow: var(--shadow); margin-bottom: 1rem; border: 1px solid var(--border); }
+.sidebar-title { font-size: 1rem; font-weight: 600; margin-bottom: 1rem; color: var(--primary); }
+
+.content { display: flex; flex-direction: column; gap: 2rem; }
+.section-title { font-size: 1.2rem; font-weight: 600; margin-bottom: 1rem; color: var(--text); }
+.poll-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.5rem; }
+
+.poll-card { background: var(--bg-card); border-radius: 16px; padding: 1.25rem; box-shadow: var(--shadow); transition: all 0.3s; border: 1px solid var(--border); cursor: pointer; }
+.poll-card:hover { box-shadow: var(--shadow-hover); transform: translateY(-3px); }
+.poll-card-header { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; flex-wrap: wrap; }
+.blind-badge, .prediction-badge, .resolved-badge { font-size: 0.75rem; padding: 0.2rem 0.6rem; border-radius: 20px; font-weight: 500; }
+.blind-badge { background: #fef3c7; color: #92400e; }
+.prediction-badge { background: #dbeafe; color: #1e40af; }
+.resolved-badge { background: #fee2e2; color: #dc2626; }
+.poll-question { font-size: 1.05rem; font-weight: 600; margin-bottom: 1rem; line-height: 1.4; color: var(--text); }
+
+.dual-bar-container { margin-bottom: 1rem; }
+.dual-bar-labels { display: flex; justify-content: space-between; margin-bottom: 0.5rem; font-size: 0.85rem; font-weight: 500; }
+.label-left { color: var(--green); }
+.label-right { color: var(--red); }
+.dual-bar { display: flex; height: 36px; border-radius: 8px; overflow: hidden; background: var(--bg); }
+.dual-bar-left { background: linear-gradient(90deg, var(--green), var(--green-light)); display: flex; align-items: center; justify-content: center; min-width: 40px; }
+.dual-bar-right { background: linear-gradient(90deg, var(--red-light), var(--red)); display: flex; align-items: center; justify-content: center; min-width: 40px; }
+.bar-percent { color: white; font-weight: 600; font-size: 0.85rem; text-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+
+.poll-footer { display: flex; justify-content: space-between; padding-top: 0.75rem; border-top: 1px solid var(--border); font-size: 0.85rem; color: var(--text-secondary); }
+.time-remaining.expired { color: var(--red); }
+
+.blind-container { background: linear-gradient(135deg, #fef3c7, #fde68a); border-radius: 12px; padding: 1.5rem; text-align: center; margin-bottom: 1rem; }
+.blind-message span { font-size: 2rem; }
+.blind-message p { margin-top: 0.5rem; font-weight: 500; color: #92400e; }
+
+.modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.6); display: flex; align-items: center; justify-content: center; z-index: 1000; backdrop-filter: blur(5px); padding: 1rem; }
+.modal { background: var(--bg-card); border-radius: 20px; padding: 1.5rem; width: 90%; max-width: 500px; max-height: 90vh; overflow-y: auto; position: relative; animation: modalIn 0.3s ease; border: 1px solid var(--border); }
+@keyframes modalIn { from { opacity: 0; transform: scale(0.95) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+.modal-close { position: absolute; top: 1rem; right: 1rem; background: var(--bg); border: 1px solid var(--border); width: 32px; height: 32px; border-radius: 50%; cursor: pointer; color: var(--text); font-size: 1.1rem; }
+.modal-close:hover { background: var(--primary); color: white; }
+.modal-title { font-size: 1.3rem; font-weight: 700; margin-bottom: 1.5rem; text-align: center; background: linear-gradient(135deg, var(--primary), var(--primary-dark)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+
+.form-group { margin-bottom: 1rem; }
+.form-group label { display: block; margin-bottom: 0.5rem; font-weight: 500; font-size: 0.9rem; color: var(--text); }
+.form-input { width: 100%; padding: 0.75rem 1rem; border: 2px solid var(--border); border-radius: 10px; font-size: 0.95rem; background: var(--bg); color: var(--text); font-family: inherit; }
+.form-input:focus { outline: none; border-color: var(--primary); }
+.form-input::placeholder { color: var(--text-secondary); }
+.modal-actions { display: flex; gap: 1rem; margin-top: 1.5rem; }
+.modal-actions .btn { flex: 1; padding: 0.9rem; }
+
+.user-badge { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; background: var(--bg); border-radius: 50px; cursor: pointer; transition: all 0.2s; border: 1px solid var(--border); }
+.user-badge:hover { background: var(--primary-light); }
+.user-avatar { width: 32px; height: 32px; background: linear-gradient(135deg, var(--primary), var(--primary-dark)); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; flex-shrink: 0; }
+
+.loading-screen { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--bg); color: var(--text); }
+.loading-spinner { width: 50px; height: 50px; border: 4px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 1rem; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.expired-notice { background: #fee2e2; color: #dc2626; padding: 1rem; border-radius: 10px; text-align: center; margin-bottom: 1rem; font-weight: 500; }
+.dark .expired-notice { background: #7f1d1d; color: #fca5a5; }
+
+.option-btn { position: relative; padding: 1rem; border: 2px solid var(--border); border-radius: 10px; background: var(--bg); cursor: pointer; text-align: left; font-family: inherit; overflow: hidden; width: 100%; color: var(--text); }
+.option-btn:hover:not(.disabled) { border-color: var(--primary); }
+.option-btn.selected { border-color: var(--primary); background: rgba(255, 107, 157, 0.1); }
+.option-btn.disabled { cursor: not-allowed; opacity: 0.7; }
+.option-bar { position: absolute; left: 0; top: 0; bottom: 0; background: rgba(150, 150, 150, 0.2); z-index: 0; }
+.option-content { position: relative; z-index: 1; display: flex; justify-content: space-between; }
+
+.login-prompt { margin-top: 1rem; padding: 0.75rem; background: var(--bg); border-radius: 10px; text-align: center; color: var(--primary); cursor: pointer; font-weight: 500; border: 1px solid var(--border); }
+.login-prompt:hover { background: var(--primary-light); }
+
+@media (max-width: 900px) {
+  .main { grid-template-columns: 1fr; padding: 1rem; }
+  .sidebar { display: none; }
+  .header { padding: 1rem; }
+  .header-content { flex-wrap: wrap; justify-content: space-between; }
+  .search-box { order: 3; flex: none; width: 100%; max-width: 100%; margin-top: 0.75rem; }
+  .hide-mobile { display: none; }
+  .poll-grid { grid-template-columns: 1fr; }
+}
+
+/* ===== Dark Mode Fixes ===== */
+.leaderboard-item { color: var(--text); }
+.leaderboard-name { color: var(--text); }
+.leaderboard-score { color: var(--text-secondary); }
+.leaderboard-rank { color: var(--text); font-size: 1rem; }
+.user-badge span { color: var(--text); }
+.user-badge div { color: var(--text); }
+
+/* ===== Confidence Selector ===== */
+.confidence-selector { margin: 1rem 0; padding: 1rem; background: var(--bg); border-radius: 12px; border: 1px solid var(--border); }
+.confidence-label { display: block; font-weight: 600; margin-bottom: 0.75rem; color: var(--text); font-size: 0.95rem; }
+.confidence-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; }
+.confidence-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0.75rem 0.5rem; border: 2px solid var(--border); border-radius: 12px; background: var(--bg-card); cursor: pointer; transition: all 0.2s ease; font-family: inherit; }
+.confidence-btn:hover:not(:disabled) { border-color: var(--confidence-color, var(--primary)); transform: translateY(-2px); }
+.confidence-btn.active { border-color: var(--confidence-color, var(--primary)); background: color-mix(in srgb, var(--confidence-color, var(--primary)) 15%, var(--bg-card)); }
+.confidence-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.confidence-emoji { font-size: 1.5rem; margin-bottom: 0.25rem; }
+.confidence-text { font-weight: 600; font-size: 0.85rem; color: var(--text); }
+.confidence-desc { font-size: 0.7rem; color: var(--text-secondary); margin-top: 0.15rem; }
+
+.voted-notice { background: linear-gradient(135deg, #d1fae5, #a7f3d0); color: #065f46; padding: 0.75rem 1rem; border-radius: 10px; text-align: center; margin-bottom: 1rem; font-weight: 500; }
+.dark .voted-notice { background: linear-gradient(135deg, #064e3b, #065f46); color: #a7f3d0; }
+.option-btn.voted { border-color: var(--green); background: rgba(34, 197, 94, 0.1); }
+.option-btn.voted .option-bar { background: rgba(34, 197, 94, 0.3); }
+.option-btn.correct { border-color: var(--green); background: rgba(34, 197, 94, 0.15); }
+.option-btn.correct .option-bar { background: rgba(34, 197, 94, 0.4); }
+
+/* ===== Create Poll Modal ===== */
+.create-poll-modal { max-width: 600px; max-height: 90vh; overflow-y: auto; }
+.create-poll-modal .form-group { margin-bottom: 1.25rem; }
+.create-poll-modal label { display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--text); font-size: 0.95rem; }
+.form-input.error { border-color: var(--red); }
+.error-text { display: block; color: var(--red); font-size: 0.8rem; margin-top: 0.25rem; }
+.char-count { display: block; text-align: right; font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem; }
+.option-input-row { display: flex; gap: 0.5rem; margin-bottom: 0.5rem; }
+.option-input-row .form-input { flex: 1; }
+.remove-option-btn { width: 40px; height: 40px; border: 2px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--red); cursor: pointer; font-size: 1rem; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+.remove-option-btn:hover { background: var(--red); color: white; border-color: var(--red); }
+.add-option-btn { width: 100%; padding: 0.75rem; border: 2px dashed var(--border); border-radius: 10px; background: transparent; color: var(--primary); cursor: pointer; font-family: inherit; font-weight: 500; transition: all 0.2s; }
+.add-option-btn:hover { border-color: var(--primary); background: var(--primary-light); }
+select.form-input { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23666'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 1rem center; background-size: 1rem; padding-right: 2.5rem; }
+.tags-selected { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.5rem; }
+.tag-chip { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.75rem; background: linear-gradient(135deg, var(--primary-light), #ffe0eb); color: var(--primary-dark); border-radius: 20px; font-size: 0.85rem; font-weight: 500; }
+.tag-chip button { background: none; border: none; color: var(--primary-dark); cursor: pointer; font-size: 0.9rem; padding: 0; line-height: 1; }
+.tag-input-wrapper { display: flex; gap: 0.5rem; }
+.tag-input-wrapper .form-input { flex: 1; }
+.add-tag-btn { padding: 0.75rem 1.25rem; border: none; border-radius: 10px; background: var(--primary); color: white; cursor: pointer; font-family: inherit; font-weight: 500; white-space: nowrap; }
+.tag-suggestions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }
+.tag-suggestion { padding: 0.4rem 0.75rem; border: 1px solid var(--border); border-radius: 20px; background: var(--bg); color: var(--text); cursor: pointer; font-family: inherit; font-size: 0.85rem; transition: all 0.2s; }
+.tag-suggestion:hover { border-color: var(--primary); background: var(--primary-light); }
+.toggle-label { display: flex; align-items: center; gap: 0.75rem; cursor: pointer; font-weight: 500 !important; }
+.toggle-label input[type="checkbox"] { display: none; }
+.toggle-switch { position: relative; width: 50px; height: 28px; background: #d1d5db; border-radius: 14px; transition: all 0.3s; flex-shrink: 0; }
+.toggle-switch::after { content: ''; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; background: white; border-radius: 50%; transition: all 0.3s; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); }
+.toggle-label input:checked + .toggle-switch { background: #3b82f6 !important; }
+.toggle-label input:checked + .toggle-switch::after { left: 25px; }
+.dark .toggle-switch { background: #4b5563; }
+.dark .toggle-label input:checked + .toggle-switch { background: #3b82f6 !important; }
+
+/* ===== Admin Panel ===== */
+.admin-modal { max-width: 800px; max-height: 90vh; overflow-y: auto; }
+.admin-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.5rem; }
+.stat-card { background: var(--bg); border-radius: 12px; padding: 1rem; text-align: center; border: 1px solid var(--border); }
+.stat-card.warning { background: #fef3c7; border-color: #f59e0b; }
+.stat-card.success { background: #d1fae5; border-color: #22c55e; }
+.dark .stat-card.warning { background: #78350f; }
+.dark .stat-card.success { background: #064e3b; }
+.stat-number { display: block; font-size: 1.5rem; font-weight: 700; color: var(--text); }
+.stat-label { display: block; font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem; }
+.admin-tabs { display: flex; gap: 0.5rem; margin-bottom: 1rem; border-bottom: 2px solid var(--border); padding-bottom: 0.5rem; }
+.admin-tab { padding: 0.5rem 1rem; border: none; background: transparent; color: var(--text-secondary); cursor: pointer; font-family: inherit; font-weight: 500; border-radius: 8px; transition: all 0.2s; display: flex; align-items: center; gap: 0.5rem; }
+.admin-tab:hover { background: var(--bg); color: var(--text); }
+.admin-tab.active { background: var(--primary); color: white; }
+.admin-tab .badge { background: var(--red); color: white; font-size: 0.7rem; padding: 0.15rem 0.5rem; border-radius: 10px; }
+.admin-content { max-height: 400px; overflow-y: auto; }
+.admin-section { margin-bottom: 1.5rem; }
+.admin-section-title { font-size: 0.9rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.75rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); }
+.admin-poll-item { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: var(--bg); border-radius: 10px; margin-bottom: 0.5rem; gap: 1rem; }
+.admin-poll-info { flex: 1; min-width: 0; }
+.admin-poll-question { display: block; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.admin-poll-meta { display: block; font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem; }
+.admin-poll-actions { display: flex; gap: 0.5rem; flex-shrink: 0; }
+.admin-user-item { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: var(--bg); border-radius: 10px; margin-bottom: 0.5rem; }
+.admin-user-info { display: flex; align-items: center; gap: 0.75rem; }
+.admin-user-rank { width: 24px; text-align: center; font-weight: 600; color: var(--text-secondary); }
+.admin-user-name { font-weight: 500; color: var(--text); }
+.admin-user-rep { font-size: 0.85rem; color: var(--primary); }
+.btn-sm { padding: 0.4rem 0.75rem; font-size: 0.8rem; }
+.btn-success { background: var(--green); color: white; border: none; }
+.btn-success:hover { background: #16a34a; }
+.btn-danger { background: var(--red); color: white; border: none; }
+.btn-danger:hover { background: #dc2626; }
+.btn-warning { background: #f59e0b; color: white; border: none; }
+.btn-warning:hover { background: #d97706; }
+.resolve-modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.7); display: flex; align-items: center; justify-content: center; z-index: 1100; }
+.resolve-modal { background: var(--bg-card); border-radius: 16px; padding: 1.5rem; width: 90%; max-width: 400px; }
+.resolve-modal h3 { font-size: 1.2rem; margin-bottom: 1rem; color: var(--text); }
+.resolve-question { font-weight: 500; color: var(--text); margin-bottom: 1rem; padding: 0.75rem; background: var(--bg); border-radius: 8px; }
+.resolve-options { display: flex; flex-direction: column; gap: 0.5rem; }
+.resolve-option { padding: 1rem; border: 2px solid var(--border); border-radius: 10px; background: var(--bg); cursor: pointer; text-align: left; font-family: inherit; color: var(--text); transition: all 0.2s; display: flex; justify-content: space-between; align-items: center; }
+.resolve-option:hover { border-color: var(--green); background: rgba(34, 197, 94, 0.1); }
+.resolve-votes { font-size: 0.8rem; color: var(--text-secondary); }
+
+/* ===== Account Modal ===== */
+.account-modal { max-width: 500px; max-height: 90vh; overflow-y: auto; }
+.account-header { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border); }
+
+/* Avatar Wrapper & Upload */
+.account-avatar-wrapper { position: relative; }
+.account-avatar { width: 70px; height: 70px; border-radius: 50%; background: linear-gradient(135deg, var(--primary), var(--primary-dark)); color: white; display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: 700; }
+.account-avatar-img { width: 70px; height: 70px; border-radius: 50%; object-fit: cover; }
+.avatar-upload-btn { position: absolute; bottom: -5px; right: -5px; width: 28px; height: 28px; border-radius: 50%; background: var(--bg-card); border: 2px solid var(--border); display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 0.8rem; transition: all 0.2s; }
+.avatar-upload-btn:hover { background: var(--primary-light); border-color: var(--primary); }
+.avatar-upload-btn input { display: none; }
+
+/* User Avatar in Header */
+.user-avatar-img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; }
+
+.account-info { flex: 1; }
+.account-username { font-size: 1.5rem; font-weight: 700; color: var(--text); margin-bottom: 0.25rem; }
+.account-level { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem; }
+.level-badge { font-size: 1.2rem; }
+.level-name { font-size: 0.9rem; color: var(--text-secondary); font-weight: 500; }
+.account-reputation { font-size: 1.1rem; color: var(--primary); font-weight: 600; }
+.account-email { font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem; }
+.account-verify-prompt, .account-migrate-prompt { font-size: 0.8rem; color: #f59e0b; background: rgba(245, 158, 11, 0.1); padding: 0.4rem 0.6rem; border-radius: 6px; margin-top: 0.5rem; }
+.account-migrate-prompt { color: #ef4444; background: rgba(239, 68, 68, 0.1); }
+.account-follow-stats { display: flex; gap: 1rem; margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-secondary); }
+.account-follow-stats span:hover { color: var(--primary); }
+.account-follow-stats strong { color: var(--text); }
+
+.account-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; margin-bottom: 1.5rem; }
+.account-stat-card { background: var(--bg); border-radius: 12px; padding: 0.75rem; text-align: center; border: 1px solid var(--border); }
+.account-stat-card.correct { background: rgba(34, 197, 94, 0.1); border-color: var(--green); }
+.account-stat-card.wrong { background: rgba(239, 68, 68, 0.1); border-color: var(--red); }
+.account-stat-card.rate { background: linear-gradient(135deg, rgba(236, 72, 153, 0.1), rgba(168, 85, 247, 0.1)); border-color: var(--primary); }
+.account-stat-number { display: block; font-size: 1.25rem; font-weight: 700; color: var(--text); }
+.account-stat-label { display: block; font-size: 0.7rem; color: var(--text-secondary); margin-top: 0.25rem; }
+
+.account-streak { display: flex; gap: 1rem; margin-bottom: 1.5rem; }
+.streak-item { flex: 1; display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem; background: var(--bg); border-radius: 12px; border: 1px solid var(--border); }
+.streak-icon { font-size: 1.5rem; }
+.streak-value { font-size: 1.5rem; font-weight: 700; color: var(--text); }
+.streak-label { font-size: 0.75rem; color: var(--text-secondary); }
+
+.account-badges { margin-bottom: 1.5rem; }
+.account-section-title { font-size: 0.9rem; font-weight: 600; color: var(--text); margin-bottom: 0.75rem; }
+.badges-grid { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.badge-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; background: linear-gradient(135deg, #fef3c7, #fde68a); border-radius: 20px; font-size: 0.85rem; }
+.dark .badge-item { background: linear-gradient(135deg, #78350f, #92400e); }
+.badge-icon { font-size: 1rem; }
+.badge-name { font-weight: 500; color: #92400e; }
+.dark .badge-name { color: #fde68a; }
+
+.account-tabs { display: flex; gap: 0.25rem; margin-bottom: 1rem; border-bottom: 2px solid var(--border); padding-bottom: 0.5rem; overflow-x: auto; }
+.account-tab { padding: 0.4rem 0.6rem; border: none; background: transparent; color: var(--text-secondary); cursor: pointer; font-family: inherit; font-weight: 500; border-radius: 8px; transition: all 0.2s; white-space: nowrap; font-size: 0.8rem; }
+.account-tab:hover { background: var(--bg); color: var(--text); }
+.account-tab.active { background: var(--primary); color: white; }
+
+.account-content { max-height: 250px; overflow-y: auto; }
+
+.stats-detail { display: flex; flex-direction: column; gap: 0.5rem; }
+.stats-row { display: flex; justify-content: space-between; padding: 0.75rem; background: var(--bg); border-radius: 8px; font-size: 0.9rem; color: var(--text); }
+
+.history-list { display: flex; flex-direction: column; gap: 0.5rem; }
+.history-item { padding: 0.75rem; background: var(--bg); border-radius: 10px; border-left: 3px solid var(--border); }
+.history-item.correct { border-left-color: var(--green); }
+.history-item.wrong { border-left-color: var(--red); }
+.history-question { font-weight: 500; color: var(--text); font-size: 0.9rem; margin-bottom: 0.25rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.history-answer { display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; color: var(--text-secondary); }
+.history-result { font-weight: 600; }
+.history-result.correct { color: var(--green); }
+.history-result.wrong { color: var(--red); }
+.history-pending { color: var(--text-secondary); }
+
+.polls-list { display: flex; flex-direction: column; gap: 0.5rem; }
+.created-poll-item { padding: 0.75rem; background: var(--bg); border-radius: 10px; }
+.created-poll-question { font-weight: 500; color: var(--text); font-size: 0.9rem; margin-bottom: 0.25rem; }
+.created-poll-meta { display: flex; gap: 1rem; font-size: 0.8rem; color: var(--text-secondary); }
+
+/* ===== Follow List ===== */
+.follow-list { display: flex; flex-direction: column; gap: 0.5rem; }
+.follow-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--bg); border-radius: 10px; cursor: pointer; transition: all 0.2s; }
+.follow-item:hover { background: var(--primary-light); }
+.follow-avatar { width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, var(--primary), var(--primary-dark)); color: white; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 1rem; overflow: hidden; }
+.follow-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.follow-info { flex: 1; }
+.follow-name { display: block; font-weight: 500; color: var(--text); font-size: 0.9rem; }
+.follow-rep { display: block; font-size: 0.8rem; color: var(--text-secondary); }
+
+/* ===== User Profile Modal ===== */
+.user-profile-modal { max-width: 400px; }
+.profile-header { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem; }
+.profile-avatar { width: 80px; height: 80px; border-radius: 50%; background: linear-gradient(135deg, var(--primary), var(--primary-dark)); color: white; display: flex; align-items: center; justify-content: center; font-size: 2.5rem; font-weight: 700; overflow: hidden; }
+.profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.profile-avatar span { font-size: 2.5rem; }
+.profile-info { flex: 1; }
+.profile-username { font-size: 1.3rem; font-weight: 700; color: var(--text); margin-bottom: 0.25rem; }
+.profile-level { font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 0.25rem; }
+.profile-reputation { font-size: 1.1rem; color: var(--primary); font-weight: 600; }
+
+.profile-follow-stats { display: flex; justify-content: center; gap: 2rem; padding: 1rem; background: var(--bg); border-radius: 12px; margin-bottom: 1rem; }
+.follow-stat { text-align: center; }
+.follow-stat strong { display: block; font-size: 1.2rem; color: var(--text); }
+.follow-stat span { font-size: 0.8rem; color: var(--text-secondary); }
+
+.profile-stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; margin-bottom: 1rem; }
+.profile-stat { text-align: center; padding: 0.75rem 0.5rem; background: var(--bg); border-radius: 10px; }
+.profile-stat .stat-value { display: block; font-size: 1.1rem; font-weight: 700; color: var(--text); }
+.profile-stat .stat-label { display: block; font-size: 0.7rem; color: var(--text-secondary); margin-top: 0.25rem; }
+
+.profile-meta { text-align: center; font-size: 0.85rem; color: var(--text-secondary); }
+
+/* ===== Live Battle Styles ===== */
+.live-battle-card { border: 2px solid #f59e0b; background: linear-gradient(135deg, rgba(245, 158, 11, 0.05), rgba(245, 158, 11, 0.1)); }
+.live-battle-card:hover { border-color: #d97706; box-shadow: 0 8px 30px rgba(245, 158, 11, 0.2); }
+.live-battle-card.expired { border-color: var(--border); opacity: 0.7; background: var(--bg-card); }
+.live-badge { background: linear-gradient(135deg, #f59e0b, #d97706); color: white; font-size: 0.75rem; padding: 0.25rem 0.6rem; border-radius: 20px; font-weight: 600; animation: pulse 2s infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+.live-timer { font-size: 0.9rem; font-weight: 700; color: #f59e0b; font-family: monospace; }
+.live-timer.expired { color: var(--text-secondary); }
+.live-bar { animation: liveGlow 2s infinite; }
+@keyframes liveGlow { 0%, 100% { box-shadow: 0 0 5px rgba(245, 158, 11, 0.3); } 50% { box-shadow: 0 0 15px rgba(245, 158, 11, 0.5); } }
+
+/* ===== Time Capsule Styles ===== */
+.time-capsule-card { border: 2px solid #8b5cf6; background: linear-gradient(135deg, rgba(139, 92, 246, 0.05), rgba(139, 92, 246, 0.1)); }
+.time-capsule-card:hover { border-color: #7c3aed; box-shadow: 0 8px 30px rgba(139, 92, 246, 0.2); }
+.time-capsule-card.opened { border-color: var(--green); }
+.capsule-badge { background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; font-size: 0.75rem; padding: 0.25rem 0.6rem; border-radius: 20px; font-weight: 600; }
+.capsule-info { background: var(--bg); border-radius: 12px; padding: 1rem; margin-top: 1rem; }
+.capsule-timer { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; }
+.capsule-icon { font-size: 1.5rem; }
+.capsule-text { font-weight: 600; color: #8b5cf6; font-size: 1rem; }
+.capsule-meta { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.85rem; color: var(--text-secondary); }
+.capsule-preview { background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(139, 92, 246, 0.2)); border-radius: 10px; padding: 1rem; text-align: center; margin-bottom: 1rem; color: #7c3aed; font-size: 0.9rem; }
+.dark .capsule-preview { background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(139, 92, 246, 0.3)); color: #a78bfa; }
+
+/* ===== Section Header ===== */
+.section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem; }
+
+/* ===== Empty State ===== */
+.empty-state { text-align: center; padding: 3rem; color: var(--text-secondary); }
+.empty-icon { font-size: 3rem; display: block; margin-bottom: 1rem; }
+
+/* ===== Create Buttons ===== */
+.btn-live-create { background: linear-gradient(135deg, #f59e0b, #d97706); color: white; }
+.btn-live-create:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4); }
+.btn-capsule-create { background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; }
+.btn-capsule-create:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4); }
+.btn-live { background: linear-gradient(135deg, #f59e0b, #d97706); color: white; }
+.btn-capsule { background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; }
+
+/* ===== Years Selector ===== */
+.years-selector { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.year-btn { padding: 0.6rem 1rem; border: 2px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text); cursor: pointer; font-family: inherit; font-weight: 500; transition: all 0.2s; }
+.year-btn:hover { border-color: #8b5cf6; color: #8b5cf6; }
+.year-btn.active { background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; border-color: #8b5cf6; }
+
+/* ===== Duration Selector ===== */
+.duration-selector { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.duration-btn { padding: 0.5rem 0.75rem; border: 2px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text); cursor: pointer; font-family: inherit; font-size: 0.85rem; font-weight: 500; transition: all 0.2s; }
+.duration-btn:hover { border-color: #f59e0b; color: #f59e0b; }
+.duration-btn.active { background: linear-gradient(135deg, #f59e0b, #d97706); color: white; border-color: #f59e0b; }
+
+/* ===== Auth Modal ===== */
+.auth-modal { max-width: 420px; }
+.auth-header { text-align: center; margin-bottom: 1.5rem; }
+.auth-title { font-size: 2rem; margin-bottom: 0.25rem; background: linear-gradient(135deg, #ec4899, #f43f5e); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.auth-subtitle { color: var(--text-secondary); font-size: 1rem; }
+.auth-error { background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444; padding: 0.75rem 1rem; border-radius: 10px; margin-bottom: 1rem; font-size: 0.9rem; }
+.auth-success { background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.3); color: #22c55e; padding: 0.75rem 1rem; border-radius: 10px; margin-bottom: 1rem; font-size: 0.9rem; }
+.auth-link { background: none; border: none; color: var(--primary); cursor: pointer; font-family: inherit; font-size: 0.85rem; padding: 0; margin-bottom: 1rem; display: block; text-align: right; }
+.auth-link:hover { text-decoration: underline; }
+.auth-bonus { font-size: 0.9rem; color: var(--green); text-align: center; margin-bottom: 1rem; font-weight: 500; }
+.auth-hint { font-size: 0.85rem; color: var(--text-secondary); text-align: center; margin-bottom: 1rem; }
+.auth-divider { display: flex; align-items: center; gap: 1rem; margin: 1.5rem 0; color: var(--text-secondary); font-size: 0.85rem; }
+.auth-divider::before, .auth-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+.auth-switch { text-align: center; margin-top: 1rem; font-size: 0.9rem; color: var(--text-secondary); }
+.auth-switch button { background: none; border: none; color: var(--primary); cursor: pointer; font-family: inherit; font-weight: 600; }
+.auth-switch button:hover { text-decoration: underline; }
+.btn-full { width: 100%; justify-content: center; }
+.btn-magic { background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; }
+.btn-magic:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4); }
+.btn-google { background: white; color: #333; border: 2px solid var(--border); display: flex; align-items: center; justify-content: center; }
+.btn-google:hover { background: #f8f9fa; border-color: #ddd; transform: translateY(-2px); box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); }
+.btn-sm { padding: 0.4rem 0.6rem !important; font-size: 0.85rem !important; }
+
+/* ===== Verified Badge ===== */
+.verified-badge { font-size: 0.75rem; display: inline-flex; align-items: center; }
+.profile-username .verified-badge, .account-username .verified-badge { font-size: 1rem; margin-left: 4px; }
+.leaderboard-item .verified-badge { font-size: 0.65rem; }
+
+/* ===== PWA Install Banner ===== */
+.pwa-install-banner { position: fixed; bottom: 0; left: 0; right: 0; background: var(--bg-card); border-top: 1px solid var(--border); padding: 1rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; z-index: 1000; box-shadow: 0 -4px 20px rgba(0,0,0,0.1); animation: slideUp 0.3s ease; }
+@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+.pwa-install-content { display: flex; align-items: center; gap: 0.75rem; }
+.pwa-icon { font-size: 2rem; }
+.pwa-text { display: flex; flex-direction: column; }
+.pwa-text strong { font-size: 0.95rem; color: var(--text); }
+.pwa-text span { font-size: 0.8rem; color: var(--text-secondary); }
+.pwa-actions { display: flex; gap: 0.5rem; }
+@media (max-width: 480px) { .pwa-install-banner { flex-direction: column; text-align: center; } .pwa-install-content { flex-direction: column; } .pwa-actions { width: 100%; } .pwa-actions .btn { flex: 1; } }
+
+/* ===== Leaderboard Tabs ===== */
+.leaderboard-tabs { display: flex; gap: 0.25rem; margin-bottom: 1rem; background: var(--bg); border-radius: 8px; padding: 0.25rem; }
+.lb-tab { flex: 1; padding: 0.5rem 0.25rem; border: none; background: transparent; color: var(--text-secondary); cursor: pointer; font-family: inherit; font-size: 0.75rem; font-weight: 500; border-radius: 6px; transition: all 0.2s; }
+.lb-tab:hover { color: var(--text); }
+.lb-tab.active { background: var(--primary); color: white; }
+
+.leaderboard-list { display: flex; flex-direction: column; gap: 0.5rem; }
+.leaderboard-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0; border-bottom: 1px solid var(--border); }
+.leaderboard-item:last-child { border-bottom: none; }
+.lb-rank { min-width: 28px; font-size: 0.9rem; }
+.lb-name { flex: 1; font-weight: 500; font-size: 0.9rem; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lb-points { font-size: 0.85rem; font-weight: 600; color: var(--primary); }
+.lb-points.positive { color: var(--green); }
+.lb-points.negative { color: var(--red); }
+
+/* ===== Share Buttons ===== */
+.share-buttons { display: flex; align-items: center; gap: 0.75rem; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border); position: relative; }
+.share-label { font-size: 0.9rem; color: var(--text-secondary); font-weight: 500; }
+.share-btn { width: 40px; height: 40px; border-radius: 50%; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+.share-btn svg { width: 20px; height: 20px; }
+.share-btn.copy { background: var(--bg); border: 2px solid var(--border); color: var(--text); font-size: 1.1rem; }
+.share-btn.copy:hover { border-color: var(--primary); background: var(--primary-light); }
+.share-btn.facebook { background: #1877f2; color: white; }
+.share-btn.facebook:hover { background: #166fe5; transform: scale(1.1); }
+.share-btn.twitter { background: #000000; color: white; }
+.share-btn.twitter:hover { background: #333; transform: scale(1.1); }
+.copy-toast { position: absolute; bottom: -30px; left: 50%; transform: translateX(-50%); background: var(--green); color: white; padding: 0.4rem 0.8rem; border-radius: 6px; font-size: 0.8rem; font-weight: 500; animation: fadeInOut 2s ease; }
+@keyframes fadeInOut { 0% { opacity: 0; transform: translateX(-50%) translateY(10px); } 10% { opacity: 1; transform: translateX(-50%) translateY(0); } 90% { opacity: 1; } 100% { opacity: 0; } }
+
+/* ===== Notification Button & Dropdown ===== */
+.notification-btn-wrapper { position: relative; }
+.notification-btn { width: 40px; height: 40px; border-radius: 50%; border: 2px solid var(--border); background: var(--bg); cursor: pointer; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; position: relative; transition: all 0.2s; }
+.notification-btn:hover { border-color: var(--primary); background: var(--primary-light); }
+.notification-badge-count { position: absolute; top: -5px; right: -5px; background: var(--red); color: white; font-size: 0.65rem; font-weight: 700; min-width: 18px; height: 18px; border-radius: 9px; display: flex; align-items: center; justify-content: center; padding: 0 4px; }
+
+.notification-dropdown { position: absolute; top: 50px; right: 0; width: 320px; background: var(--bg-card); border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); border: 1px solid var(--border); z-index: 300; overflow: hidden; }
+.notification-header { display: flex; justify-content: space-between; align-items: center; padding: 1rem; border-bottom: 1px solid var(--border); }
+.notification-header h3 { font-size: 1rem; font-weight: 600; color: var(--text); margin: 0; }
+.mark-all-read { background: none; border: none; color: var(--primary); font-size: 0.8rem; cursor: pointer; font-family: inherit; font-weight: 500; }
+.mark-all-read:hover { text-decoration: underline; }
+
+.notification-list { max-height: 350px; overflow-y: auto; }
+.notification-loading, .notification-empty { padding: 2rem; text-align: center; color: var(--text-secondary); font-size: 0.9rem; }
+.notification-item { padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.2s; }
+.notification-item:hover { background: var(--bg); }
+.notification-item:last-child { border-bottom: none; }
+.notification-item.unread { background: rgba(255, 107, 157, 0.05); }
+.notification-item.unread::before { content: ''; position: absolute; left: 0.5rem; top: 50%; transform: translateY(-50%); width: 8px; height: 8px; background: var(--primary); border-radius: 50%; }
+.notification-item.success .notification-message { color: var(--green); }
+.notification-item.danger .notification-message { color: var(--red); }
+.notification-message { font-size: 0.85rem; color: var(--text); line-height: 1.4; margin-bottom: 0.25rem; }
+.notification-time { font-size: 0.75rem; color: var(--text-secondary); }
+
+/* Mobile notification modal */
+.notification-modal { max-width: 400px; padding: 0; overflow: hidden; }
+.notification-modal .notification-dropdown { position: static; width: 100%; box-shadow: none; border: none; border-radius: 0; }
+
+.mobile-notif-badge { background: var(--red); color: white; font-size: 0.7rem; padding: 0.15rem 0.5rem; border-radius: 10px; margin-left: auto; }
+
+/* Dark mode fixes */
+.dark .confidence-selector { background: var(--bg-card); }
+.dark .confidence-btn { background: var(--bg); }
+.dark .tag-chip { background: linear-gradient(135deg, #4a1942, #3d1a35); color: var(--primary-light); }
+.dark select.form-input { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23aaa'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E"); }
+.dark .section-title { color: #f3f4f6 !important; }
+
+/* Mobile responsive */
+@media (max-width: 600px) {
+  .confidence-options { grid-template-columns: 1fr; }
+  .confidence-btn { flex-direction: row; justify-content: flex-start; gap: 0.75rem; padding: 0.75rem 1rem; }
+  .confidence-emoji { font-size: 1.3rem; margin-bottom: 0; }
+  .admin-stats { grid-template-columns: repeat(2, 1fr); }
+  .admin-tabs { flex-wrap: wrap; }
+  .admin-poll-item { flex-direction: column; align-items: flex-start; }
+  .admin-poll-actions { width: 100%; justify-content: flex-end; margin-top: 0.5rem; }
+  .account-stats { grid-template-columns: repeat(2, 1fr); }
+  .account-streak { flex-direction: column; }
+  .account-header { flex-direction: column; text-align: center; }
+  .share-buttons { justify-content: center; }
+  .notification-dropdown { width: 100vw; right: -1rem; border-radius: 0 0 16px 16px; }
+}
+
+/* ===== Verification Modal Styles ===== */
+.verification-modal { max-width: 450px; }
+.verification-header { text-align: center; margin-bottom: 1.5rem; }
+.verification-icon { font-size: 3rem; display: block; margin-bottom: 0.5rem; }
+.verification-header h2 { font-size: 1.5rem; color: var(--text); margin-bottom: 0.25rem; }
+.verification-header p { color: var(--text-secondary); font-size: 0.9rem; }
+
+.verification-benefits { background: linear-gradient(135deg, #fef3c7, #fde68a); border-radius: 12px; padding: 1rem; margin-bottom: 1.5rem; }
+.benefit-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0; font-size: 0.9rem; color: #92400e; }
+.benefit-item span:first-child { font-size: 1.2rem; }
+.benefit-item span:first-child:contains("✓") { color: #3b82f6; font-weight: bold; }
+
+/* Verify hint with blue checkmark */
+.verify-hint { color: #3b82f6; font-size: 0.8rem; font-weight: 500; }
+.verify-upsell { color: #3b82f6; }
+
+.age-display { display: block; margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-secondary); }
+
+.consent-section { display: flex; flex-direction: column; gap: 0.75rem; margin: 1.5rem 0; }
+.consent-item { display: flex; align-items: flex-start; gap: 0.75rem; cursor: pointer; }
+.consent-item input { margin-top: 0.25rem; width: 18px; height: 18px; accent-color: var(--primary); cursor: pointer; }
+.consent-item span { font-size: 0.85rem; line-height: 1.5; color: var(--text); }
+.consent-item a { color: var(--primary); text-decoration: underline; }
+.consent-item.required span { font-weight: 500; }
+.consent-item.optional span { color: var(--text-secondary); }
+.required-mark { color: var(--red); margin-left: 0.25rem; }
+
+.verification-note { display: flex; align-items: center; gap: 0.5rem; background: var(--bg); border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1rem; font-size: 0.8rem; color: var(--text-secondary); }
+
+/* ===== Poll Limit Styles ===== */
+.poll-limit-indicator { display: flex; justify-content: space-between; align-items: center; background: var(--bg); border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1rem; font-size: 0.85rem; }
+.poll-limit-indicator span:first-child { color: var(--text); }
+.verify-hint { color: var(--primary); font-size: 0.8rem; }
+
+.poll-limit-exceeded { text-align: center; padding: 2rem 1rem; }
+.limit-icon { font-size: 4rem; display: block; margin-bottom: 1rem; }
+.poll-limit-exceeded h2 { color: var(--text); margin-bottom: 0.5rem; }
+.poll-limit-exceeded p { color: var(--text-secondary); margin-bottom: 0.5rem; }
+.limit-reset { font-size: 0.85rem; color: var(--primary); margin-bottom: 1.5rem !important; }
+.verify-upsell { background: linear-gradient(135deg, #dbeafe, #bfdbfe); border-radius: 10px; padding: 1rem; margin: 1rem 0; color: #1e40af; }
+
+/* ===== Similar Polls Warning Styles ===== */
+.similar-preview { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem; padding: 0.5rem 0.75rem; background: #fef3c7; border-radius: 6px; font-size: 0.8rem; color: #92400e; }
+.similar-icon { font-size: 1rem; }
+.checking-similar { display: block; margin-top: 0.5rem; font-size: 0.8rem; color: var(--text-secondary); }
+
+.similar-polls-warning { background: var(--bg); border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem; border: 2px solid #fbbf24; }
+.warning-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; font-weight: 600; color: #92400e; font-size: 1rem; }
+.warning-text { color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1rem; }
+
+.similar-polls-list { display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 1rem; }
+.similar-poll-item { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 1rem; cursor: pointer; transition: all 0.2s; }
+.similar-poll-item:hover { border-color: var(--primary); transform: translateY(-2px); }
+.similar-poll-question { font-weight: 500; color: var(--text); margin-bottom: 0.5rem; line-height: 1.4; }
+.similar-poll-meta { display: flex; gap: 1rem; font-size: 0.8rem; color: var(--text-secondary); }
+.similarity-badge { background: #fef3c7; color: #92400e; padding: 0.15rem 0.5rem; border-radius: 20px; font-weight: 500; }
+
+.warning-actions { display: flex; justify-content: center; }
+
+/* ===== Verified Badge (Blue Check) ===== */
+.verified-badge { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; background: linear-gradient(135deg, #3b82f6, #1d4ed8); border-radius: 50%; margin-left: 4px; flex-shrink: 0; }
+.verified-check { width: 12px; height: 12px; fill: white; }
+.verified-badge-full { display: inline-flex; align-items: center; gap: 0.25rem; background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: white; padding: 0.15rem 0.5rem; border-radius: 20px; font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem; }
+
+/* ===== Poll Mode Selector ===== */
+.poll-mode-selector { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+.poll-mode-btn { display: flex; flex-direction: column; align-items: center; gap: 0.25rem; padding: 1rem; border: 2px solid var(--border); border-radius: 12px; background: var(--bg); cursor: pointer; transition: all 0.2s; text-align: center; }
+.poll-mode-btn:hover { border-color: var(--primary); background: rgba(255, 107, 157, 0.05); }
+.poll-mode-btn.active { border-color: var(--primary); background: rgba(255, 107, 157, 0.1); }
+.poll-mode-btn .mode-icon { font-size: 1.5rem; }
+.poll-mode-btn .mode-title { font-weight: 600; color: var(--text); font-size: 0.95rem; }
+.poll-mode-btn .mode-desc { font-size: 0.75rem; color: var(--text-secondary); }
+
+/* ===== Blind Mode Info ===== */
+.blind-mode-info { display: flex; align-items: center; gap: 0.75rem; background: linear-gradient(135deg, #fef3c7, #fde68a); border-radius: 10px; padding: 1rem; margin-bottom: 1rem; }
+.blind-mode-info .blind-icon { font-size: 1.5rem; }
+.blind-mode-info .blind-text { display: flex; flex-direction: column; gap: 0.15rem; }
+.blind-mode-info .blind-text strong { color: #92400e; font-size: 0.9rem; }
+.blind-mode-info .blind-text span { color: #a16207; font-size: 0.8rem; }
+
+/* ===== Creator Bonus Notification ===== */
+.creator-bonus-badge { background: linear-gradient(135deg, #f59e0b, #d97706); color: white; }
+.notification-item.creator_bonus .notification-icon { background: linear-gradient(135deg, #fef3c7, #fde68a); }
+
+/* ===== Dark Mode Adjustments ===== */
+.dark .verification-benefits { background: linear-gradient(135deg, #92400e, #78350f); }
+.dark .benefit-item { color: #fef3c7; }
+.dark .similar-preview { background: #78350f; color: #fef3c7; }
+.dark .similar-polls-warning { background: #1a1a2e; border-color: #92400e; }
+.dark .warning-header { color: #fef3c7; }
+.dark .similarity-badge { background: #78350f; color: #fef3c7; }
+.dark .verify-upsell { background: linear-gradient(135deg, #1e40af, #1e3a8a); color: #bfdbfe; }
+.dark .poll-mode-btn { background: var(--bg-card); }
+.dark .poll-mode-btn:hover { background: rgba(255, 107, 157, 0.1); }
+.dark .poll-mode-btn.active { background: rgba(255, 107, 157, 0.15); }
+.dark .blind-mode-info { background: linear-gradient(135deg, #78350f, #92400e); }
+.dark .blind-mode-info .blind-text strong { color: #fef3c7; }
+.dark .blind-mode-info .blind-text span { color: #fde68a; }
+
+/* ===== v9 Conviction System Styles ===== */
+
+/* Conviction Selector */
+.conviction-selector {
+  background: var(--bg);
+  border-radius: 12px;
+  padding: 1rem;
+  margin-top: 1rem;
+}
+
+.conviction-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 0.75rem;
+  font-size: 0.95rem;
+}
+
+.conviction-options {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.conviction-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.75rem 0.5rem;
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-card);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.conviction-btn:hover:not(:disabled) {
+  border-color: var(--conviction-color);
+  transform: translateY(-2px);
+}
+
+.conviction-btn.active {
+  border-color: var(--conviction-color);
+  background: rgba(var(--conviction-color), 0.1);
+  box-shadow: 0 0 0 3px rgba(var(--conviction-color), 0.2);
+}
+
+.conviction-emoji {
+  font-size: 1.5rem;
+}
+
+.conviction-text {
+  font-weight: 600;
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
+/* High Conviction Warning */
+.conviction-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  background: linear-gradient(135deg, #fef2f2, #fee2e2);
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.warning-icon {
+  font-size: 1.25rem;
+  flex-shrink: 0;
+}
+
+.warning-text {
+  font-size: 0.85rem;
+  color: #991b1b;
+  line-height: 1.5;
+}
+
+.warning-text strong {
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+/* Reputation Preview */
+.reputation-preview {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem;
+}
+
+.preview-header {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 0.75rem;
+}
+
+.preview-outcomes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.preview-correct,
+.preview-incorrect {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.preview-correct {
+  background: rgba(34, 197, 94, 0.1);
+}
+
+.preview-incorrect {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.preview-label {
+  color: var(--text-secondary);
+}
+
+.preview-value {
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.preview-value.positive {
+  color: #16a34a;
+}
+
+.preview-value.negative {
+  color: #dc2626;
+}
+
+.preview-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.note-icon {
+  flex-shrink: 0;
+}
+
+/* ===== First Prediction Onboarding ===== */
+.onboarding-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.onboarding-modal {
+  background: var(--bg-card);
+  border-radius: 20px;
+  max-width: 380px;
+  width: 100%;
+  padding: 2rem 1.5rem;
+  position: relative;
+  text-align: center;
+}
+
+.onboarding-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: var(--bg);
+  border-radius: 50%;
+  font-size: 1.25rem;
+  cursor: pointer;
+  color: var(--text-secondary);
+}
+
+.onboarding-progress {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.progress-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border);
+  transition: all 0.3s;
+}
+
+.progress-dot.active {
+  background: var(--primary);
+  transform: scale(1.3);
+}
+
+.progress-dot.completed {
+  background: var(--primary);
+}
+
+.onboarding-content {
+  margin-bottom: 1.5rem;
+}
+
+.onboarding-title {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 0.75rem;
+}
+
+.onboarding-subtitle {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  white-space: pre-line;
+}
+
+.onboarding-slider-demo {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background: var(--bg);
+  border-radius: 12px;
+}
+
+.onboarding-slider {
+  width: 100%;
+  margin-bottom: 1rem;
+  accent-color: var(--primary);
+}
+
+.onboarding-preview {
+  display: flex;
+  justify-content: space-around;
+  font-size: 0.85rem;
+}
+
+.onboarding-preview .positive {
+  color: #16a34a;
+}
+
+.onboarding-preview .negative {
+  color: #dc2626;
+}
+
+.onboarding-cta {
+  width: 100%;
+  padding: 1rem;
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.onboarding-cta:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(255, 107, 157, 0.4);
+}
+
+/* ===== Post-Result Feedback ===== */
+.post-result-feedback {
+  background: var(--bg-card);
+  border-radius: 16px;
+  padding: 1.5rem;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.result-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  border-radius: 12px;
+  margin-bottom: 1rem;
+}
+
+.result-header.correct {
+  background: linear-gradient(135deg, #dcfce7, #bbf7d0);
+}
+
+.result-header.incorrect {
+  background: linear-gradient(135deg, #fef2f2, #fecaca);
+}
+
+.result-icon {
+  font-size: 2rem;
+}
+
+.result-text {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.result-rep-change {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  background: var(--bg);
+  border-radius: 10px;
+  margin-bottom: 1rem;
+}
+
+.rep-label {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.rep-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.rep-value.positive {
+  color: #16a34a;
+}
+
+.rep-value.negative {
+  color: #dc2626;
+}
+
+.result-breakdown {
+  background: var(--bg);
+  border-radius: 10px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.breakdown-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 0.75rem;
+}
+
+.breakdown-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.breakdown-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+.breakdown-list .check {
+  color: #16a34a;
+  font-weight: bold;
+}
+
+.breakdown-list .cross {
+  color: #dc2626;
+  font-weight: bold;
+}
+
+.result-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  border-radius: 10px;
+  margin-bottom: 1rem;
+}
+
+.hint-icon {
+  font-size: 1.25rem;
+  flex-shrink: 0;
+}
+
+.hint-text {
+  font-size: 0.85rem;
+  color: #92400e;
+  line-height: 1.5;
+}
+
+.result-close-btn {
+  width: 100%;
+  padding: 0.875rem;
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Vote CTA Button */
+.vote-cta {
+  font-size: 1rem !important;
+  font-weight: 600 !important;
+}
+
+/* ===== Dark Mode for v9 Components ===== */
+.dark .conviction-warning {
+  background: linear-gradient(135deg, #450a0a, #7f1d1d);
+  border-color: #991b1b;
+}
+
+.dark .warning-text {
+  color: #fecaca;
+}
+
+.dark .reputation-preview {
+  background: var(--bg);
+}
+
+.dark .preview-correct {
+  background: rgba(34, 197, 94, 0.15);
+}
+
+.dark .preview-incorrect {
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.dark .result-header.correct {
+  background: linear-gradient(135deg, #14532d, #166534);
+}
+
+.dark .result-header.incorrect {
+  background: linear-gradient(135deg, #450a0a, #7f1d1d);
+}
+
+.dark .result-hint {
+  background: linear-gradient(135deg, #78350f, #92400e);
+}
+
+.dark .hint-text {
+  color: #fef3c7;
+}
+
+.dark .onboarding-slider-demo {
+  background: var(--bg-card);
 }
