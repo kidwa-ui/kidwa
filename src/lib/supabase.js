@@ -149,156 +149,6 @@ export async function updatePassword(newPassword) {
   return { data, error }
 }
 
-// อัพเดท username
-export async function updateUsername(userId, newUsername) {
-  // ตรวจสอบว่า username ซ้ำไหม
-  const { data: existing } = await supabase
-    .from('users')
-    .select('id')
-    .eq('username', newUsername)
-    .neq('id', userId)
-    .single()
-  
-  if (existing) {
-    return { data: null, error: { message: 'ชื่อผู้ใช้นี้ถูกใช้แล้ว' } }
-  }
-
-  const { data, error } = await supabase
-    .from('users')
-    .update({ username: newUsername })
-    .eq('id', userId)
-    .select()
-    .single()
-
-  return { data, error }
-}
-
-// สร้าง user จาก Magic Link (สำหรับ user ใหม่ที่ยังไม่มีใน users table)
-export async function createUserFromMagicLink(authId, email, username) {
-  // ตรวจสอบว่ามี user อยู่แล้วหรือไม่
-  const { data: existing } = await supabase
-    .from('users')
-    .select('*')
-    .eq('auth_id', authId)
-    .single()
-  
-  if (existing) {
-    // มีอยู่แล้ว - อัพเดท username ถ้าต้องการ
-    if (username && existing.username !== username) {
-      const { data, error } = await supabase
-        .from('users')
-        .update({ username })
-        .eq('id', existing.id)
-        .select()
-        .single()
-      return { data, error, isNew: false }
-    }
-    return { data: existing, error: null, isNew: false }
-  }
-
-  // ตรวจสอบ username ซ้ำ
-  const { data: existingUsername } = await supabase
-    .from('users')
-    .select('id')
-    .eq('username', username)
-    .single()
-  
-  if (existingUsername) {
-    return { data: null, error: { message: 'ชื่อผู้ใช้นี้ถูกใช้แล้ว' } }
-  }
-
-  // สร้าง user ใหม่
-  const { data, error } = await supabase
-    .from('users')
-    .insert([{
-      auth_id: authId,
-      email,
-      username,
-      reputation: 1000,
-      email_verified: true
-    }])
-    .select()
-    .single()
-
-  return { data, error, isNew: true }
-}
-
-// ตรวจสอบและให้ Daily Check-in bonus
-export async function claimDailyCheckIn(userId) {
-  // ใช้เวลาไทย (UTC+7)
-  const now = new Date()
-  const thailandTime = new Date(now.getTime() + (7 * 60 * 60 * 1000))
-  const today = thailandTime.toISOString().split('T')[0]
-  
-  const { data: user } = await supabase
-    .from('users')
-    .select('last_checkin, reputation')
-    .eq('id', userId)
-    .single()
-  
-  if (!user) return { success: false, error: 'ไม่พบผู้ใช้' }
-  
-  // แปลง last_checkin เป็นเวลาไทยด้วย
-  let lastCheckinDate = null
-  if (user.last_checkin) {
-    const lastCheckin = new Date(user.last_checkin)
-    const lastCheckinThai = new Date(lastCheckin.getTime() + (7 * 60 * 60 * 1000))
-    lastCheckinDate = lastCheckinThai.toISOString().split('T')[0]
-  }
-  
-  if (lastCheckinDate === today) {
-    return { success: false, alreadyClaimed: true, message: 'เช็คอินวันนี้แล้ว' }
-  }
-  
-  // ให้ 20 pt
-  const { error } = await supabase
-    .from('users')
-    .update({ 
-      reputation: user.reputation + 20,
-      last_checkin: now.toISOString() // เก็บเป็น UTC แต่เช็คเป็นเวลาไทย
-    })
-    .eq('id', userId)
-  
-  if (error) return { success: false, error }
-  
-  return { success: true, points: 20, message: '🎉 รับโบนัส Daily Check-in 20 pt!' }
-}
-
-// ตรวจสอบและให้โบนัสแชร์
-export async function claimShareBonus(userId, pollId, platform) {
-  // ตรวจสอบว่าแชร์โพลนี้ไปยัง platform นี้แล้วหรือยัง
-  const { data: existing } = await supabase
-    .from('share_bonuses')
-    .select('id')
-    .eq('user_id', userId)
-    .eq('poll_id', pollId)
-    .eq('platform', platform)
-    .single()
-  
-  if (existing) {
-    return { success: false, alreadyClaimed: true, message: 'รับโบนัสแชร์โพลนี้แล้ว' }
-  }
-  
-  // บันทึกการแชร์
-  await supabase
-    .from('share_bonuses')
-    .insert([{ user_id: userId, poll_id: pollId, platform }])
-  
-  // ให้ 20 pt
-  const { data: user } = await supabase
-    .from('users')
-    .select('reputation')
-    .eq('id', userId)
-    .single()
-  
-  await supabase
-    .from('users')
-    .update({ reputation: (user?.reputation || 0) + 20 })
-    .eq('id', userId)
-  
-  return { success: true, points: 20, message: '🎉 รับโบนัสแชร์ 20 pt!' }
-}
-
 // Subscribe to auth state changes
 export function onAuthStateChange(callback) {
   return supabase.auth.onAuthStateChange(callback)
@@ -334,61 +184,16 @@ export async function createUser(username) {
   return { data, error }
 }
 
-export async function getPolls(page = 1, limit = 30) {
-  const offset = (page - 1) * limit
-  const { data, error, count } = await supabase
+export async function getPolls() {
+  const { data, error } = await supabase
     .from('polls')
-    .select('*, options(id, poll_id, text, votes, confidence_total)', { count: 'exact' })
+    .select('*, options(*), tags(*)')
     .order('created_at', { ascending: false })
-    .range(offset, offset + limit - 1)
-  
-  if (error) {
-    console.error('getPolls error:', error)
-    return { data: [], error, total: 0 }
-  }
-  
-  return { data: data || [], error: null, total: count || 0 }
+    .limit(50)
+  return { data, error }
 }
 
 export async function vote(userId, pollId, optionId, confidence = 50) {
-  // ดึงข้อมูล poll ก่อน
-  const { data: poll } = await supabase
-    .from('polls')
-    .select('poll_type, resolved')
-    .eq('id', pollId)
-    .single()
-  
-  if (!poll) return { data: null, error: { message: 'ไม่พบโพล' } }
-  if (poll.resolved) return { data: null, error: { message: 'โพลนี้เฉลยแล้ว' } }
-  
-  const isPrediction = poll.poll_type === 'prediction'
-  
-  // ดึงข้อมูล user
-  const { data: userData } = await supabase
-    .from('users')
-    .select('reputation, is_admin, last_checkin')
-    .eq('id', userId)
-    .single()
-  
-  if (!userData) return { data: null, error: { message: 'ไม่พบผู้ใช้' } }
-  
-  // ตรวจสอบ Daily Check-in (เวลาไทย)
-  const now = new Date()
-  const thailandTime = new Date(now.getTime() + (7 * 60 * 60 * 1000))
-  const today = thailandTime.toISOString().split('T')[0]
-  let dailyBonus = 0
-  let lastCheckinDate = null
-  
-  if (userData.last_checkin) {
-    const lastCheckin = new Date(userData.last_checkin)
-    const lastCheckinThai = new Date(lastCheckin.getTime() + (7 * 60 * 60 * 1000))
-    lastCheckinDate = lastCheckinThai.toISOString().split('T')[0]
-  }
-  
-  if (lastCheckinDate !== today) {
-    dailyBonus = 20 // Daily check-in bonus
-  }
-
   const { data: existingVote } = await supabase
     .from('votes')
     .select('*')
@@ -397,79 +202,23 @@ export async function vote(userId, pollId, optionId, confidence = 50) {
     .single()
 
   if (existingVote) {
-    return { data: null, error: { message: 'คุณโหวตโพลนี้แล้ว' } }
-  }
-  
-  // คำนวณคะแนน
-  let pointsChange = 0
-  const isAdmin = userData.is_admin === true
-  
-  if (isPrediction && !isAdmin) {
-    // Release points - หักคะแนนทันที
-    pointsChange = -confidence
-  } else if (!isPrediction && !isAdmin) {
-    // Opinion poll - ให้ 5pt + daily bonus
-    pointsChange = 5
-  }
-  
-  // รวม daily bonus
-  const totalChange = pointsChange + (isAdmin ? 0 : dailyBonus)
-  
-  // ตรวจสอบว่ามีคะแนนพอไหม (สำหรับ prediction)
-  if (isPrediction && !isAdmin && userData.reputation < confidence) {
-    return { data: null, error: { message: `คะแนนไม่พอ (มี ${userData.reputation} pt, ต้องการ ${confidence} pt)` } }
-  }
-  
-  // บันทึก vote
-  const { data, error } = await supabase
-    .from('votes')
-    .insert([{ 
-      user_id: userId, 
-      poll_id: pollId, 
-      option_id: optionId, 
-      confidence,
-      points_staked: isPrediction ? confidence : 0 // บันทึกคะแนนที่ลง
-    }])
-    .select()
-    .single()
-  
-  if (error) return { data: null, error }
-  
-  // อัพเดท option votes
-  const { data: option } = await supabase
-    .from('options')
-    .select('votes, confidence_total')
-    .eq('id', optionId)
-    .single()
-  
-  if (option) {
-    await supabase
-      .from('options')
-      .update({ 
-        votes: (option.votes || 0) + 1,
-        confidence_total: (option.confidence_total || 0) + confidence
-      })
-      .eq('id', optionId)
-  }
-  
-  // อัพเดท user reputation และ last_checkin
-  if (!isAdmin) {
-    const newRep = Math.max(0, userData.reputation + totalChange)
-    await supabase
-      .from('users')
-      .update({ 
-        reputation: newRep,
-        ...(dailyBonus > 0 ? { last_checkin: now.toISOString() } : {})
-      })
-      .eq('id', userId)
-  }
-  
-  return { 
-    data, 
-    error: null, 
-    pointsChange: totalChange,
-    dailyBonus: dailyBonus > 0 ? dailyBonus : null,
-    isPrediction
+    await supabase.from('options').update({ votes: supabase.rpc('decrement') }).eq('id', existingVote.option_id)
+    const { data, error } = await supabase
+      .from('votes')
+      .update({ option_id: optionId, confidence })
+      .eq('id', existingVote.id)
+      .select()
+      .single()
+    await supabase.from('options').update({ votes: supabase.rpc('increment') }).eq('id', optionId)
+    return { data, error }
+  } else {
+    const { data, error } = await supabase
+      .from('votes')
+      .insert([{ user_id: userId, poll_id: pollId, option_id: optionId, confidence }])
+      .select()
+      .single()
+    await supabase.from('options').update({ votes: supabase.rpc('increment') }).eq('id', optionId)
+    return { data, error }
   }
 }
 
@@ -486,7 +235,7 @@ export async function getUserVotes(userId) {
 export async function getLeaderboard(limit = 10) {
   const { data, error } = await supabase
     .from('users')
-    .select('id, username, reputation, email_verified, is_verified, avatar_url, selected_skin')
+    .select('id, username, reputation, email_verified, is_verified')
     .order('reputation', { ascending: false })
     .limit(limit)
   return { data, error }
@@ -504,7 +253,7 @@ export async function getWeeklyLeaderboard(limit = 10) {
   
   const { data: votes, error } = await supabase
     .from('votes')
-    .select('user_id, points_earned, users!inner(id, username, reputation, email_verified, is_verified, avatar_url, selected_skin)')
+    .select('user_id, points_earned, users!inner(id, username, reputation, email_verified, is_verified)')
     .gte('created_at', monday.toISOString())
     .not('points_earned', 'is', null)
 
@@ -521,8 +270,6 @@ export async function getWeeklyLeaderboard(limit = 10) {
         reputation: vote.users.reputation,
         email_verified: vote.users.email_verified,
         is_verified: vote.users.is_verified,
-        avatar_url: vote.users.avatar_url,
-        selected_skin: vote.users.selected_skin,
         weeklyPoints: 0
       }
     }
@@ -546,7 +293,7 @@ export async function getMonthlyLeaderboard(limit = 10) {
   
   const { data: votes, error } = await supabase
     .from('votes')
-    .select('user_id, points_earned, users!inner(id, username, reputation, email_verified, is_verified, avatar_url, selected_skin)')
+    .select('user_id, points_earned, users!inner(id, username, reputation, email_verified, is_verified)')
     .gte('created_at', firstDayOfMonth.toISOString())
     .not('points_earned', 'is', null)
 
@@ -563,8 +310,6 @@ export async function getMonthlyLeaderboard(limit = 10) {
         reputation: vote.users.reputation,
         email_verified: vote.users.email_verified,
         is_verified: vote.users.is_verified,
-        avatar_url: vote.users.avatar_url,
-        selected_skin: vote.users.selected_skin,
         monthlyPoints: 0
       }
     }
@@ -634,36 +379,45 @@ export async function createPoll({ question, options, category, tags, blindMode,
 // ===== ฟังก์ชัน Admin =====
 
 export async function getAllPollsAdmin() {
-  const { data, error } = await supabase
-    .from('polls')
-    .select('*, options(id, poll_id, text, votes, confidence_total)')
-    .order('created_at', { ascending: false })
-  
-  if (error) return { data: [], error }
-  
-  const pollsWithOptions = data?.map(poll => ({
-    ...poll,
-    options: poll.options || []
-  })) || []
-  
-  return { data: pollsWithOptions, error: null }
+  const { data, error } = await supabase.from('polls').select('*, options(*), tags(*)').order('created_at', { ascending: false })
+  return { data, error }
 }
 
 export async function getPendingPolls() {
-  const { data, error } = await supabase
-    .from('polls')
-    .select('*, options(id, poll_id, text, votes, confidence_total)')
-    .eq('resolved', false)
-    .order('ends_at', { ascending: true })
+  const { data, error } = await supabase.from('polls').select('*, options(*), tags(*)').eq('resolved', false).order('ends_at', { ascending: true })
+  return { data, error }
+}
+
+// === v9 Reputation Formula ===
+const REPUTATION_CONFIG = {
+  penalty_multiplier: 1.15,
+  conviction: { 20: 0.8, 50: 1.0, 100: 1.3 }, // value -> multiplier
+  daily_rep_cap: 50,
+  daily_loss_cap: 100,
+  experience_threshold: 100
+}
+
+function getConvictionMultiplier(confidence) {
+  return REPUTATION_CONFIG.conviction[confidence] || 1.0
+}
+
+function getExperienceModifier(predictionCount) {
+  if (predictionCount < 15) return 0.2
+  if (predictionCount < 50) return 0.3 + 0.3 * (predictionCount - 15) / 35
+  if (predictionCount < 100) return 0.6 + 0.4 * (predictionCount - 50) / 50
+  return Math.min(1.3, 1.0 + 0.3 * Math.log(predictionCount / 100))
+}
+
+function calculateReputationChange(stake, confidence, isCorrect, predictionCount) {
+  const S = Math.sqrt(stake)
+  const C = getConvictionMultiplier(confidence)
+  const E = getExperienceModifier(predictionCount)
   
-  if (error) return { data: [], error }
-  
-  const pollsWithOptions = data?.map(poll => ({
-    ...poll,
-    options: poll.options || []
-  })) || []
-  
-  return { data: pollsWithOptions, error: null }
+  if (isCorrect) {
+    return Math.round(S * C * E)
+  } else {
+    return -Math.round(S * C * REPUTATION_CONFIG.penalty_multiplier)
+  }
 }
 
 export async function resolvePoll(pollId, correctOptionId) {
@@ -691,22 +445,10 @@ export async function resolvePoll(pollId, correctOptionId) {
       .eq('id', correctOptionId)
       .single()
 
-    const { data: votes } = await supabase.from('votes').select('id, user_id, option_id, confidence, points_staked').eq('poll_id', pollId)
+    const { data: votes } = await supabase.from('votes').select('id, user_id, option_id, confidence').eq('poll_id', pollId)
 
     for (const vote of votes || []) {
       const isCorrect = vote.option_id === correctOptionId
-      const staked = vote.points_staked || vote.confidence || 0
-      
-      // Release & Return calculation:
-      // - ถ้าถูก: คืน staked + โบนัส = 2x staked (เพราะหักไปแล้ว 1x ตอนโหวต)
-      // - ถ้าผิด: 0 (เสียไปแล้วตอนโหวต)
-      let change = 0
-      if (isPrediction) {
-        change = isCorrect ? (staked * 2) : 0
-      } else {
-        // Opinion poll - ไม่มีการคืน/หักเพิ่ม (ได้ 5pt ตอนโหวตแล้ว)
-        change = 0
-      }
       
       const { data: userData } = await supabase
         .from('users')
@@ -717,8 +459,19 @@ export async function resolvePoll(pollId, correctOptionId) {
       if (userData) {
         const isAdmin = userData.is_admin === true
         
-        // คำนวณ reputation ใหม่
-        const newRep = isAdmin ? userData.reputation : Math.max(0, userData.reputation + change)
+        // Calculate reputation change using new formula
+        let repChange = 0
+        if (isPrediction && !isAdmin) {
+          const stake = vote.confidence || 50
+          repChange = calculateReputationChange(
+            stake, 
+            vote.confidence, 
+            isCorrect, 
+            userData.total_predictions || 0
+          )
+        }
+        
+        const newRep = Math.max(0, userData.reputation + repChange)
         const newTotal = (userData.total_predictions || 0) + 1
         const newCorrect = (userData.correct_predictions || 0) + (isCorrect ? 1 : 0)
         const newCurrentStreak = isCorrect ? (userData.current_streak || 0) + 1 : 0
@@ -729,21 +482,14 @@ export async function resolvePoll(pollId, correctOptionId) {
           current_streak: newCurrentStreak, max_streak: newMaxStreak
         }).eq('id', vote.user_id)
 
-        // สร้าง Notification
+        // สร้าง Notification สำหรับผู้โหวต (UX Copy v1)
         let notifMessage
         if (isPrediction) {
-          if (isAdmin) {
-            notifMessage = isCorrect 
-              ? `🎉 ทายถูก! "${pollData?.question?.substring(0, 50)}..." คำตอบคือ "${correctOption?.text}" (Admin)`
-              : `😢 ทายผิด "${pollData?.question?.substring(0, 50)}..." คำตอบคือ "${correctOption?.text}" (Admin)`
-          } else {
-            notifMessage = isCorrect 
-              ? `🎉 ทายถูก! "${pollData?.question?.substring(0, 50)}..." คำตอบคือ "${correctOption?.text}" 🎁 คืน ${staked} + โบนัส ${staked} = +${change} pt`
-              : `😢 ทายผิด "${pollData?.question?.substring(0, 50)}..." คำตอบคือ "${correctOption?.text}" (เสีย ${staked} pt)`
-          }
+          notifMessage = isCorrect 
+            ? `🎯 มุมมองนี้แม่น! "${pollData?.question?.substring(0, 40)}..." (+${repChange} Reputation)`
+            : `❌ มุมมองนี้คลาด "${pollData?.question?.substring(0, 40)}..." (${repChange} Reputation)`
         } else {
-          // Opinion poll
-          notifMessage = `📊 โพลสิ้นสุด "${pollData?.question?.substring(0, 50)}..." ตัวเลือกยอดนิยมคือ "${correctOption?.text}"`
+          notifMessage = `📊 โพลสิ้นสุด "${pollData?.question?.substring(0, 40)}..." ตัวเลือกยอดนิยมคือ "${correctOption?.text}"`
         }
         
         await createNotification({
@@ -751,14 +497,15 @@ export async function resolvePoll(pollId, correctOptionId) {
           type: isCorrect ? 'points_earned' : 'points_lost',
           message: notifMessage,
           pollId: pollId,
-          pointsChange: isAdmin ? 0 : change
+          pointsChange: repChange
         })
       }
 
-      // บันทึกผลโหวต
-      const { data: voterData } = await supabase.from('users').select('is_admin').eq('id', vote.user_id).single()
-      const pointsToRecord = voterData?.is_admin ? 0 : (isPrediction ? (isCorrect ? change : -staked) : 0)
-      await supabase.from('votes').update({ is_correct: isCorrect, points_earned: pointsToRecord }).eq('id', vote.id)
+      // บันทึกผลพร้อม reputation_change
+      await supabase.from('votes').update({ 
+        is_correct: isCorrect, 
+        points_earned: isPrediction ? calculateReputationChange(vote.confidence || 50, vote.confidence, isCorrect, 0) : 0
+      }).eq('id', vote.id)
     }
 
     return { error: null }
@@ -778,199 +525,6 @@ export async function deletePoll(pollId) {
   } catch (error) {
     return { error }
   }
-}
-
-// ===== Auto-resolve Functions =====
-
-// Auto-resolve โพลที่หมดเวลา (สำหรับ Opinion polls)
-export async function autoResolveExpiredPolls() {
-  try {
-    // หาโพลที่หมดเวลาแล้วแต่ยังไม่เฉลย
-    const { data: expiredPolls, error } = await supabase
-      .from('polls')
-      .select('id, question, poll_type, options(id, text, votes)')
-      .eq('resolved', false)
-      .lt('ends_at', new Date().toISOString())
-    
-    if (error) return { error, resolved: [] }
-    
-    const resolved = []
-    
-    for (const poll of expiredPolls || []) {
-      // สำหรับ Opinion polls - เลือกตัวเลือกที่มีคนโหวตมากที่สุด
-      if (poll.poll_type !== 'prediction') {
-        const options = poll.options || []
-        if (options.length === 0) continue
-        
-        // หา option ที่มี votes สูงสุด
-        const topOption = options.reduce((max, opt) => 
-          (opt.votes || 0) > (max.votes || 0) ? opt : max, options[0])
-        
-        // เฉลยโพล
-        await resolvePoll(poll.id, topOption.id)
-        resolved.push({ id: poll.id, question: poll.question, winner: topOption.text })
-      }
-      // Prediction polls ต้องรอ Admin เฉลยเอง
-    }
-    
-    return { error: null, resolved }
-  } catch (error) {
-    return { error, resolved: [] }
-  }
-}
-
-// ดึงโพลที่หมดเวลาแต่ยังไม่เฉลย (สำหรับ Admin)
-export async function getExpiredUnresolvedPolls() {
-  const { data, error } = await supabase
-    .from('polls')
-    .select('*, options(id, poll_id, text, votes, confidence_total)')
-    .eq('resolved', false)
-    .lt('ends_at', new Date().toISOString())
-    .order('ends_at', { ascending: true })
-  
-  if (error) return { data: [], error }
-  
-  const pollsWithOptions = data?.map(poll => ({
-    ...poll,
-    options: poll.options || []
-  })) || []
-  
-  return { data: pollsWithOptions, error: null }
-}
-
-// ===== Appeal System =====
-
-// สร้าง appeal สำหรับเฉลยที่ผิด
-export async function createAppeal(pollId, userId, reason) {
-  const { data, error } = await supabase
-    .from('poll_appeals')
-    .insert([{
-      poll_id: pollId,
-      user_id: userId,
-      reason,
-      status: 'pending'
-    }])
-    .select()
-    .single()
-  
-  return { data, error }
-}
-
-// ดึง appeals ทั้งหมด (สำหรับ Admin)
-export async function getAllAppeals() {
-  const { data, error } = await supabase
-    .from('poll_appeals')
-    .select(`
-      *,
-      polls(id, question, correct_option_id, resolved_at, options(id, text)),
-      users(id, username)
-    `)
-    .order('created_at', { ascending: false })
-  
-  return { data: data || [], error }
-}
-
-// ดึง appeals ของ user
-export async function getUserAppeals(userId) {
-  const { data, error } = await supabase
-    .from('poll_appeals')
-    .select(`
-      *,
-      polls(id, question, correct_option_id)
-    `)
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-  
-  return { data: data || [], error }
-}
-
-// Admin ตอบรับ/ปฏิเสธ appeal
-export async function resolveAppeal(appealId, status, adminNote, newCorrectOptionId = null) {
-  // อัพเดท appeal status
-  const { data: appeal, error: appealError } = await supabase
-    .from('poll_appeals')
-    .update({ 
-      status, 
-      admin_note: adminNote,
-      resolved_at: new Date().toISOString()
-    })
-    .eq('id', appealId)
-    .select('*, polls(id, question)')
-    .single()
-  
-  if (appealError) return { error: appealError }
-  
-  // ถ้า approve และมี newCorrectOptionId - แก้ไขเฉลย
-  if (status === 'approved' && newCorrectOptionId && appeal?.poll_id) {
-    // Reverse ผลเฉลยเดิมก่อน
-    await reverseResolution(appeal.poll_id)
-    
-    // เฉลยใหม่
-    await resolvePoll(appeal.poll_id, newCorrectOptionId)
-    
-    // แจ้งเตือน user ที่ appeal
-    await createNotification({
-      userId: appeal.user_id,
-      type: 'appeal_approved',
-      message: `✅ Appeal ของคุณได้รับการอนุมัติ! โพล "${appeal.polls?.question?.substring(0, 40)}..." ได้รับการแก้ไขแล้ว`,
-      pollId: appeal.poll_id
-    })
-  } else if (status === 'rejected') {
-    // แจ้งเตือน user ที่ appeal ถูกปฏิเสธ
-    await createNotification({
-      userId: appeal.user_id,
-      type: 'appeal_rejected',
-      message: `❌ Appeal ของคุณถูกปฏิเสธ: "${appeal.polls?.question?.substring(0, 40)}..." - ${adminNote || 'ไม่มีหมายเหตุ'}`,
-      pollId: appeal.poll_id
-    })
-  }
-  
-  return { data: appeal, error: null }
-}
-
-// Reverse การเฉลย (สำหรับแก้ไขเฉลยผิด)
-async function reverseResolution(pollId) {
-  // ดึง votes ทั้งหมดของโพลนี้
-  const { data: votes } = await supabase
-    .from('votes')
-    .select('id, user_id, points_earned')
-    .eq('poll_id', pollId)
-  
-  // คืนคะแนนที่ได้/เสียไป
-  for (const vote of votes || []) {
-    if (vote.points_earned && vote.points_earned !== 0) {
-      const { data: userData } = await supabase
-        .from('users')
-        .select('reputation, total_predictions, correct_predictions, is_admin')
-        .eq('id', vote.user_id)
-        .single()
-      
-      if (userData && !userData.is_admin) {
-        // Reverse: ถ้าได้ +100 ก็หัก -100 กลับ, ถ้าเสีย -50 ก็คืน +50
-        const reverseChange = -vote.points_earned
-        await supabase.from('users').update({
-          reputation: Math.max(0, userData.reputation + reverseChange),
-          total_predictions: Math.max(0, (userData.total_predictions || 0) - 1),
-          correct_predictions: vote.points_earned > 0 
-            ? Math.max(0, (userData.correct_predictions || 0) - 1)
-            : userData.correct_predictions
-        }).eq('id', vote.user_id)
-      }
-    }
-    
-    // Reset vote result
-    await supabase.from('votes').update({
-      is_correct: null,
-      points_earned: null
-    }).eq('id', vote.id)
-  }
-  
-  // Reset poll status
-  await supabase.from('polls').update({
-    resolved: false,
-    correct_option_id: null,
-    resolved_at: null
-  }).eq('id', pollId)
 }
 
 export async function getAllUsers() {
@@ -1015,26 +569,12 @@ export async function getUserVoteHistory(userId, limit = 20) {
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .limit(limit)
-  
   return { data, error }
 }
 
 export async function getUserCreatedPolls(userId, limit = 20) {
-  const { data, error } = await supabase
-    .from('polls')
-    .select('*, options(id, poll_id, text, votes, confidence_total)')
-    .eq('created_by', userId)
-    .order('created_at', { ascending: false })
-    .limit(limit)
-  
-  if (error) return { data: [], error }
-  
-  const pollsWithOptions = data?.map(poll => ({
-    ...poll,
-    options: poll.options || []
-  })) || []
-  
-  return { data: pollsWithOptions, error: null }
+  const { data, error } = await supabase.from('polls').select('*, options(*)').eq('created_by', userId).order('created_at', { ascending: false }).limit(limit)
+  return { data, error }
 }
 
 export function calculateBadges(user) {
@@ -1153,7 +693,7 @@ export async function isFollowing(followerId, followingId) {
 export async function getFollowers(userId) {
   const { data, error } = await supabase
     .from('follows')
-    .select('follower_id, users!follows_follower_id_fkey(id, username, reputation, avatar_url, is_verified, selected_skin)')
+    .select('follower_id, users!follows_follower_id_fkey(id, username, reputation, avatar_url)')
     .eq('following_id', userId)
   
   return { data: data?.map(d => d.users) || [], error }
@@ -1162,7 +702,7 @@ export async function getFollowers(userId) {
 export async function getFollowing(userId) {
   const { data, error } = await supabase
     .from('follows')
-    .select('following_id, users!follows_following_id_fkey(id, username, reputation, avatar_url, is_verified, selected_skin)')
+    .select('following_id, users!follows_following_id_fkey(id, username, reputation, avatar_url)')
     .eq('follower_id', userId)
   
   return { data: data?.map(d => d.users) || [], error }
@@ -1215,16 +755,16 @@ export async function uploadAvatar(userId, file) {
 export async function getUserPublicProfile(userId) {
   const { data: user, error } = await supabase
     .from('users')
-    .select('id, username, reputation, avatar_url, is_verified, selected_skin, current_streak, max_streak, total_predictions, correct_predictions, created_at')
+    .select('id, username, reputation, avatar_url, current_streak, max_streak, total_predictions, correct_predictions, created_at')
     .eq('id', userId)
     .single()
   
   if (error) return { data: null, error }
   
-  const { followers } = await getFollowCounts(userId)
+  const { followers, following } = await getFollowCounts(userId)
   
   return { 
-    data: { ...user, followers }, 
+    data: { ...user, followers, following }, 
     error: null 
   }
 }
@@ -1238,51 +778,6 @@ export async function searchUsers(query, limit = 10) {
     .limit(limit)
   
   return { data, error }
-}
-
-// Search users for @mention autocomplete (prioritize following)
-export async function searchUsersForMention(query, currentUserId, limit = 8) {
-  // ถ้าไม่มี query ให้แสดงคนที่ติดตามก่อน
-  if (!query || query.length === 0) {
-    if (currentUserId) {
-      const { data: following } = await supabase
-        .from('follows')
-        .select('following_id, users!follows_following_id_fkey(id, username, reputation, avatar_url, is_verified, selected_skin)')
-        .eq('follower_id', currentUserId)
-        .limit(limit)
-      
-      return { data: following?.map(f => f.users).filter(Boolean) || [], error: null }
-    }
-    return { data: [], error: null }
-  }
-  
-  // ค้นหา users ที่ match
-  const { data: allUsers, error } = await supabase
-    .from('users')
-    .select('id, username, reputation, avatar_url, is_verified, selected_skin')
-    .ilike('username', `${query}%`)
-    .order('reputation', { ascending: false })
-    .limit(20)
-  
-  if (error || !allUsers) return { data: [], error }
-  
-  // ถ้า login อยู่ ให้เรียงคนที่ติดตามขึ้นก่อน
-  if (currentUserId) {
-    const { data: followingData } = await supabase
-      .from('follows')
-      .select('following_id')
-      .eq('follower_id', currentUserId)
-    
-    const followingIds = new Set(followingData?.map(f => f.following_id) || [])
-    
-    // แยกเป็น 2 กลุ่ม: คนที่ติดตาม vs คนอื่น
-    const following = allUsers.filter(u => followingIds.has(u.id))
-    const others = allUsers.filter(u => !followingIds.has(u.id))
-    
-    return { data: [...following, ...others].slice(0, limit), error: null }
-  }
-  
-  return { data: allUsers.slice(0, limit), error: null }
 }
 
 // ===== Time Capsule Functions =====
@@ -1324,50 +819,34 @@ export async function createTimeCapsule({ question, options, tags, endsAt, creat
 export async function getTimeCapsules(limit = 20) {
   const { data, error } = await supabase
     .from('polls')
-    .select('*, options(id, poll_id, text, votes, confidence_total)')
+    .select('*, options(*), tags(*)')
     .eq('poll_type', 'time_capsule')
     .order('ends_at', { ascending: true })
     .limit(limit)
   
-  if (error) return { data: [], error }
-  
-  const pollsWithOptions = data?.map(poll => ({
-    ...poll,
-    options: poll.options || []
-  })) || []
-  
-  return { data: pollsWithOptions, error: null }
+  return { data, error }
 }
 
 // ===== Live Battle Functions =====
 
-export async function createLiveBattle({ question, options, category, tags, endsAt, createdBy }) {
+export async function createLiveBattle({ question, options, category, tags, durationMinutes, createdBy }) {
   try {
-    const nowISO = new Date().toISOString()
-    
-    // คำนวณ duration เป็นนาที (สำหรับ reference)
-    const durationMs = new Date(endsAt).getTime() - Date.now()
-    const durationMinutes = Math.round(durationMs / 60000)
-    
-    console.log('Creating Live Battle:', {
-      endsAt,
-      durationMinutes,
-      nowISO
-    })
+    const now = new Date()
+    const endsAt = new Date(now.getTime() + durationMinutes * 60 * 1000)
     
     const { data: poll, error: pollError } = await supabase
       .from('polls')
       .insert([{ 
         question, 
         category,
-        blind_mode: false,
+        blind_mode: false, // Live Battle เห็นผลแบบ real-time
         poll_type: 'live_battle',
-        ends_at: endsAt,
+        ends_at: endsAt.toISOString(),
         created_by: createdBy, 
         featured: false,
         resolved: false,
         is_live: true,
-        live_started_at: nowISO,
+        live_started_at: now.toISOString(),
         live_duration_minutes: durationMinutes
       }])
       .select()
@@ -1386,27 +865,22 @@ export async function createLiveBattle({ question, options, category, tags, ends
 
     return { data: poll, error: null }
   } catch (error) {
-    console.error('Error creating Live Battle:', error)
     return { data: null, error }
   }
 }
 
 export async function getLiveBattles() {
+  const now = new Date().toISOString()
+  
   const { data, error } = await supabase
     .from('polls')
-    .select('*, options(id, poll_id, text, votes, confidence_total)')
+    .select('*, options(*), tags(*), users:created_by(username, avatar_url)')
     .eq('poll_type', 'live_battle')
     .eq('is_live', true)
+    .gt('ends_at', now) // ยังไม่หมดเวลา
     .order('created_at', { ascending: false })
   
-  if (error) return { data: [], error }
-  
-  const pollsWithOptions = data?.map(poll => ({
-    ...poll,
-    options: poll.options || []
-  })) || []
-  
-  return { data: pollsWithOptions, error: null }
+  return { data, error }
 }
 
 export async function endLiveBattle(pollId) {
@@ -1535,21 +1009,9 @@ export async function checkPollLimit(userId) {
 export async function getUserPollLimit(userId) {
   const { data: user } = await supabase
     .from('users')
-    .select('is_verified, is_admin')
+    .select('is_verified')
     .eq('id', userId)
     .single()
-
-  // Admin = ไม่จำกัด (Unlimited)
-  if (user?.is_admin) {
-    return {
-      canCreate: true,
-      used: 0,
-      limit: Infinity,
-      remaining: Infinity,
-      isVerified: true,
-      isAdmin: true
-    }
-  }
 
   // กำหนดโควต้า: verified = 3 โพล/วัน, ไม่ verified = 1 โพล/วัน
   const dailyLimit = user?.is_verified ? 3 : 1
@@ -1572,128 +1034,58 @@ export async function getUserPollLimit(userId) {
     used,
     limit: dailyLimit,
     remaining,
-    isVerified: user?.is_verified || false,
-    isAdmin: false
+    isVerified: user?.is_verified || false
   }
 }
 
 // ===== Similar Poll Detection =====
 
 export async function findSimilarPolls(question, limit = 5) {
-  // ลบ space และสัญลักษณ์ ออกก่อนเปรียบเทียบ (เก็บตัวเลขไว้)
-  const cleanText = (text) => text.toLowerCase().replace(/[\s\.\,\?\!\:\;\-\_\(\)\/\\\"\']/g, '').trim()
+  // ทำให้เป็น lowercase และ trim
+  const searchQuery = question.toLowerCase().trim()
   
-  const searchQuery = cleanText(question)
-  
-  // ถ้าคำถามสั้นเกินไป ไม่ต้องเช็ค
-  if (searchQuery.length < 3) {
+  // แยกคำสำคัญ (ตัดคำที่สั้นเกินไป)
+  const keywords = searchQuery
+    .split(/\s+/)
+    .filter(word => word.length > 2)
+    .slice(0, 5) // ใช้แค่ 5 คำแรก
+
+  if (keywords.length === 0) {
     return { data: [], error: null }
   }
 
-  // ค้นหาโพลทั้งหมดที่ยังไม่หมดอายุ
+  // สร้าง search pattern สำหรับ ilike
+  // ค้นหาโพลที่มีคำคล้ายกัน
   const { data: polls, error } = await supabase
     .from('polls')
-    .select('id, question, ends_at, resolved')
-    .gt('ends_at', new Date().toISOString())
+    .select('id, question, ends_at, resolved, options(votes)')
+    .or(keywords.map(k => `question.ilike.%${k}%`).join(','))
+    .eq('resolved', false)
+    .gt('ends_at', new Date().toISOString()) // ยังไม่หมดอายุ
     .order('created_at', { ascending: false })
-    .limit(200)
+    .limit(limit)
 
-
-  if (error) {
-    console.error('findSimilarPolls error:', error)
-    return { data: [], error }
-  }
-  
-  if (!polls || polls.length === 0) {
-    return { data: [], error: null }
-  }
-
-  // Fetch options สำหรับคำนวณ votes
-  const pollIds = polls.map(p => p.id)
-  const { data: optionsData } = await supabase
-    .from('options')
-    .select('poll_id, votes')
-    .in('poll_id', pollIds)
-  
-  // คำนวณ total votes per poll
-  const votesMap = {}
-  optionsData?.forEach(opt => {
-    if (!votesMap[opt.poll_id]) votesMap[opt.poll_id] = 0
-    votesMap[opt.poll_id] += opt.votes || 0
-  })
+  if (error) return { data: [], error }
 
   // คำนวณ similarity score
-  const scoredPolls = polls.map(poll => {
-    const pollClean = cleanText(poll.question)
-    
-    // 1. Exact match (เหมือนกันเป๊ะ)
-    if (searchQuery === pollClean) {
-      return {
-        id: poll.id,
-        question: poll.question,
-        ends_at: poll.ends_at,
-        similarity: 1.0,
-        totalVotes: votesMap[poll.id] || 0
-      }
-    }
-    
-    // 2. Contains match (อันนึงอยู่ในอีกอัน)
-    const containsMatch = pollClean.includes(searchQuery) || searchQuery.includes(pollClean)
-    if (containsMatch) {
-      const shorterLen = Math.min(searchQuery.length, pollClean.length)
-      const longerLen = Math.max(searchQuery.length, pollClean.length)
-      const containsScore = shorterLen / longerLen
-      return {
-        id: poll.id,
-        question: poll.question,
-        ends_at: poll.ends_at,
-        similarity: Math.max(0.5, containsScore),
-        totalVotes: votesMap[poll.id] || 0
-      }
-    }
-    
-    // 3. Sliding window chunk matching (สำหรับภาษาไทย)
-    const chunkSizes = [3, 4, 5, 6]
-    const chunks = new Set()
-    
-    for (const size of chunkSizes) {
-      for (let i = 0; i <= searchQuery.length - size; i++) {
-        chunks.add(searchQuery.substring(i, i + size))
-      }
-    }
-    
-    if (chunks.size === 0) {
-      return { id: poll.id, question: poll.question, ends_at: poll.ends_at, similarity: 0, totalVotes: 0 }
-    }
-    
+  const scoredPolls = polls?.map(poll => {
+    const pollQuestion = poll.question.toLowerCase()
     let matchCount = 0
-    chunks.forEach(chunk => {
-      if (pollClean.includes(chunk)) matchCount++
+    keywords.forEach(keyword => {
+      if (pollQuestion.includes(keyword)) matchCount++
     })
-    
-    const chunkScore = matchCount / chunks.size
-    
-    // Log polls ที่มี score > 0
-    if (chunkScore > 0) {
-    }
+    const similarity = matchCount / keywords.length
+    const totalVotes = poll.options?.reduce((sum, o) => sum + o.votes, 0) || 0
     
     return {
-      id: poll.id,
-      question: poll.question,
-      ends_at: poll.ends_at,
-      similarity: chunkScore,
-      totalVotes: votesMap[poll.id] || 0
+      ...poll,
+      similarity,
+      totalVotes
     }
-  })
-  
-  
-  // Filter และ sort
-  const filteredPolls = scoredPolls
-    .filter(p => p.similarity >= 0.2) // ลด threshold เป็น 20%
+  }).filter(p => p.similarity >= 0.4) // แสดงเฉพาะที่คล้ายกัน 40% ขึ้นไป
     .sort((a, b) => b.similarity - a.similarity)
-    .slice(0, limit)
 
-  return { data: filteredPolls, error: null }
+  return { data: scoredPolls || [], error: null }
 }
 
 // ===== Creator Engagement Points =====
@@ -1702,19 +1094,13 @@ export async function checkAndAwardCreatorPoints(pollId) {
   // ดึงข้อมูล poll
   const { data: poll } = await supabase
     .from('polls')
-    .select('id, created_by, creator_points_100, creator_points_1000, creator_points_10000')
+    .select('id, created_by, creator_points_100, creator_points_1000, creator_points_10000, options(votes)')
     .eq('id', pollId)
     .single()
 
   if (!poll) return { awarded: false }
 
-  // Fetch options แยก
-  const { data: optionsData } = await supabase
-    .from('options')
-    .select('votes')
-    .eq('poll_id', pollId)
-  
-  const totalVotes = optionsData?.reduce((sum, o) => sum + (o.votes || 0), 0) || 0
+  const totalVotes = poll.options?.reduce((sum, o) => sum + o.votes, 0) || 0
   let pointsToAward = 0
   let milestone = null
   const updates = {}
@@ -1765,366 +1151,4 @@ export async function checkAndAwardCreatorPoints(pollId) {
   }
 
   return { awarded: false }
-}
-
-// ===== Character System Functions =====
-
-// อัพเดท skin ที่เลือก
-export async function updateSelectedSkin(userId, skinId) {
-  const { data, error } = await supabase
-    .from('users')
-    .update({ selected_skin: skinId })
-    .eq('id', userId)
-    .select()
-    .single()
-  
-  return { data, error }
-}
-
-// ดึงข้อมูล user stats สำหรับ character system
-export async function getUserCharacterStats(userId) {
-  // ดึงยอดโหวตสูงสุดของ poll ที่ user สร้าง
-  const { data: polls } = await supabase
-    .from('polls')
-    .select('id, max_votes_reached')
-    .eq('created_by', userId)
-  
-  let maxPollVotes = 0
-  if (polls && polls.length > 0) {
-    // Fetch options แยก
-    const pollIds = polls.map(p => p.id)
-    const { data: optionsData } = await supabase
-      .from('options')
-      .select('poll_id, votes')
-      .in('poll_id', pollIds)
-    
-    // คำนวณ total votes per poll
-    const votesMap = {}
-    optionsData?.forEach(opt => {
-      if (!votesMap[opt.poll_id]) votesMap[opt.poll_id] = 0
-      votesMap[opt.poll_id] += opt.votes || 0
-    })
-    
-    for (const poll of polls) {
-      const totalVotes = votesMap[poll.id] || 0
-      const maxReached = poll.max_votes_reached || totalVotes
-      if (maxReached > maxPollVotes) {
-        maxPollVotes = maxReached
-      }
-    }
-  }
-  
-  // ดึง night_votes จาก user
-  const { data: user } = await supabase
-    .from('users')
-    .select('night_votes, created_at, max_streak, is_verified')
-    .eq('id', userId)
-    .single()
-  
-  return {
-    maxPollVotes,
-    nightVotes: user?.night_votes || 0,
-    memberSince: user?.created_at,
-    maxStreak: user?.max_streak || 0,
-    isVerified: user?.is_verified || false
-  }
-}
-
-// Track night vote (22:00 - 06:00)
-export async function trackVoteTime(userId) {
-  const hour = new Date().getHours()
-  const isNightTime = hour >= 22 || hour < 6
-  
-  if (isNightTime) {
-    await supabase.rpc('increment_night_votes', { user_uuid: userId })
-  }
-  
-  return { isNightTime }
-}
-
-// อัพโหลด avatar (สำหรับ verified users เท่านั้น, จำกัด 1MB)
-export async function uploadAvatarVerified(userId, file, isVerified) {
-  // ตรวจสอบว่า verified หรือไม่
-  if (!isVerified) {
-    return { data: null, error: { message: 'ต้องยืนยันตัวตนก่อนจึงจะอัพโหลดรูปได้' } }
-  }
-  
-  // ตรวจสอบขนาดไฟล์ (max 1MB)
-  if (file.size > 1 * 1024 * 1024) {
-    return { data: null, error: { message: 'ไฟล์ใหญ่เกินไป (สูงสุด 1MB)' } }
-  }
-  
-  // ตรวจสอบประเภทไฟล์
-  if (!file.type.startsWith('image/')) {
-    return { data: null, error: { message: 'กรุณาเลือกไฟล์รูปภาพ' } }
-  }
-
-  const fileExt = file.name.split('.').pop()
-  const fileName = `${userId}-${Date.now()}.${fileExt}`
-  const filePath = `avatars/${fileName}`
-
-  // อัพโหลดไฟล์
-  const { error: uploadError } = await supabase.storage
-    .from('avatars')
-    .upload(filePath, file, { upsert: true })
-
-  if (uploadError) return { data: null, error: uploadError }
-
-  // ดึง public URL
-  const { data: { publicUrl } } = supabase.storage
-    .from('avatars')
-    .getPublicUrl(filePath)
-
-  // อัพเดท user
-  const { error: updateError } = await supabase
-    .from('users')
-    .update({ avatar_url: publicUrl })
-    .eq('id', userId)
-
-  if (updateError) return { data: null, error: updateError }
-
-  return { data: { url: publicUrl }, error: null }
-}
-
-// ===== COMMENTS =====
-export async function getComments(pollId, sortBy = 'newest') {
-  // Fetch comments
-  const { data: commentsData, error } = await supabase
-    .from('comments')
-    .select('id, content, created_at, user_id, parent_id, likes_count')
-    .eq('poll_id', pollId)
-    .order(sortBy === 'popular' ? 'likes_count' : 'created_at', { ascending: sortBy === 'oldest' })
-  
-  if (error || !commentsData) return { data: [], error }
-  
-  // Fetch users
-  const userIds = [...new Set(commentsData.map(c => c.user_id))]
-  const { data: usersData } = await supabase
-    .from('users')
-    .select('id, username, avatar_url, is_verified, reputation, selected_skin')
-    .in('id', userIds.length > 0 ? userIds : ['00000000-0000-0000-0000-000000000000'])
-  
-  // Map users
-  const usersMap = {}
-  usersData?.forEach(u => { usersMap[u.id] = u })
-  
-  // Build nested comments structure
-  const commentsWithUsers = commentsData.map(c => ({
-    ...c,
-    users: usersMap[c.user_id] || null,
-    replies: []
-  }))
-  
-  // Organize into parent-child structure
-  const commentMap = {}
-  const rootComments = []
-  
-  commentsWithUsers.forEach(c => { commentMap[c.id] = c })
-  commentsWithUsers.forEach(c => {
-    if (c.parent_id && commentMap[c.parent_id]) {
-      commentMap[c.parent_id].replies.push(c)
-    } else if (!c.parent_id) {
-      rootComments.push(c)
-    }
-  })
-  
-  return { data: rootComments, error: null }
-}
-
-export async function createComment(userId, pollId, content, parentId = null) {
-  // Insert comment
-  const insertData = { user_id: userId, poll_id: pollId, content, likes_count: 0 }
-  if (parentId) insertData.parent_id = parentId
-  
-  const { data: insertedData, error: insertError } = await supabase
-    .from('comments')
-    .insert([insertData])
-    .select('id, content, created_at, user_id, parent_id, likes_count')
-    .single()
-  
-  if (insertError) return { data: null, error: insertError }
-  
-  // Fetch user data
-  const { data: userData } = await supabase
-    .from('users')
-    .select('id, username, avatar_url, is_verified, reputation, selected_skin')
-    .eq('id', userId)
-    .single()
-  
-  // ตรวจจับ @mentions และสร้าง notifications
-  const mentions = content.match(/@(\w+)/g)
-  if (mentions) {
-    const usernames = mentions.map(m => m.substring(1))
-    const { data: mentionedUsers } = await supabase
-      .from('users')
-      .select('id, username')
-      .in('username', usernames)
-    
-    // สร้าง notification สำหรับแต่ละคนที่ถูก mention
-    if (mentionedUsers) {
-      for (const mentionedUser of mentionedUsers) {
-        if (mentionedUser.id !== userId) { // ไม่ notify ตัวเอง
-          await supabase.from('notifications').insert([{
-            user_id: mentionedUser.id,
-            type: 'mention',
-            title: 'มีคนแท็กคุณ',
-            message: `${userData?.username || 'Someone'} แท็กคุณในความคิดเห็น`,
-            data: { poll_id: pollId, comment_id: insertedData.id }
-          }])
-        }
-      }
-    }
-  }
-  
-  return { 
-    data: {
-      ...insertedData,
-      users: userData,
-      replies: []
-    }, 
-    error: null 
-  }
-}
-
-export async function deleteComment(commentId, userId) {
-  const { error } = await supabase
-    .from('comments')
-    .delete()
-    .eq('id', commentId)
-    .eq('user_id', userId)
-  
-  return { error }
-}
-
-export async function likeComment(commentId, userId) {
-  // Check if already liked
-  const { data: existing } = await supabase
-    .from('comment_likes')
-    .select('id')
-    .eq('comment_id', commentId)
-    .eq('user_id', userId)
-    .single()
-  
-  if (existing) {
-    return { data: null, error: null, alreadyLiked: true }
-  }
-  
-  // Insert like
-  const { error: likeError } = await supabase
-    .from('comment_likes')
-    .insert([{ comment_id: commentId, user_id: userId }])
-  
-  if (likeError) return { data: null, error: likeError }
-  
-  // Update likes_count
-  await supabase.rpc('increment_comment_likes', { comment_uuid: commentId })
-  
-  // ตรวจสอบ milestone bonus
-  const { data: comment } = await supabase
-    .from('comments')
-    .select('user_id, likes_count, likes_bonus_10, likes_bonus_50, likes_bonus_100, likes_bonus_500')
-    .eq('id', commentId)
-    .single()
-  
-  if (comment) {
-    const newLikes = (comment.likes_count || 0) + 1
-    let bonus = 0
-    let milestone = null
-    const updates = {}
-    
-    // ตรวจสอบ milestones
-    if (newLikes >= 500 && !comment.likes_bonus_500) {
-      bonus = 500
-      milestone = 500
-      updates.likes_bonus_500 = true
-    } else if (newLikes >= 100 && !comment.likes_bonus_100) {
-      bonus = 100
-      milestone = 100
-      updates.likes_bonus_100 = true
-    } else if (newLikes >= 50 && !comment.likes_bonus_50) {
-      bonus = 50
-      milestone = 50
-      updates.likes_bonus_50 = true
-    } else if (newLikes >= 10 && !comment.likes_bonus_10) {
-      bonus = 10
-      milestone = 10
-      updates.likes_bonus_10 = true
-    }
-    
-    if (bonus > 0 && comment.user_id) {
-      // อัพเดท comment flags
-      await supabase.from('comments').update(updates).eq('id', commentId)
-      
-      // ให้ bonus แก่เจ้าของ comment
-      const { data: owner } = await supabase
-        .from('users')
-        .select('reputation')
-        .eq('id', comment.user_id)
-        .single()
-      
-      if (owner) {
-        await supabase
-          .from('users')
-          .update({ reputation: (owner.reputation || 0) + bonus })
-          .eq('id', comment.user_id)
-        
-        // สร้าง notification
-        await createNotification({
-          userId: comment.user_id,
-          type: 'points_earned',
-          message: `🎉 ความคิดเห็นของคุณได้รับ ${milestone} likes! +${bonus} pt`,
-          pointsChange: bonus
-        })
-      }
-    }
-  }
-  
-  return { data: { liked: true }, error: null }
-}
-
-export async function unlikeComment(commentId, userId) {
-  const { error: deleteError } = await supabase
-    .from('comment_likes')
-    .delete()
-    .eq('comment_id', commentId)
-    .eq('user_id', userId)
-  
-  if (deleteError) return { error: deleteError }
-  
-  // Update likes_count
-  await supabase.rpc('decrement_comment_likes', { comment_uuid: commentId })
-  
-  return { error: null }
-}
-
-export async function getCommentLikeStatus(commentIds, userId) {
-  if (!commentIds.length || !userId) return {}
-  
-  const { data } = await supabase
-    .from('comment_likes')
-    .select('comment_id')
-    .in('comment_id', commentIds)
-    .eq('user_id', userId)
-  
-  const likedMap = {}
-  data?.forEach(d => { likedMap[d.comment_id] = true })
-  return likedMap
-}
-
-// ===== GET POLLS BY CREATOR =====
-export async function getPollsByCreator(userId) {
-  const { data, error } = await supabase
-    .from('polls')
-    .select('*, options(id, poll_id, text, votes, confidence_total)')
-    .eq('created_by', userId)
-    .order('created_at', { ascending: false })
-  
-  if (error) return { data: [], error }
-  
-  const pollsWithOptions = data?.map(poll => ({
-    ...poll,
-    options: poll.options || []
-  })) || []
-  
-  return { data: pollsWithOptions, error: null }
 }
