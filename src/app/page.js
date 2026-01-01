@@ -202,11 +202,17 @@ function PollCard({ poll, onClick, userVotes }) {
 }
 
 function ConfidenceSelector({ selectedConfidence, onSelect, disabled, user, stake = 50 }) {
-  // คำนวณ Reputation Preview
+  // คำนวณ Impact Level
   const currentLevel = confidenceLevels.find(l => l.value === selectedConfidence)
   const conviction = currentLevel?.conviction || 'medium'
-  const predictionCount = user?.total_predictions || 0
-  const preview = calculateReputationPreview(stake, conviction, 0.5, predictionCount)
+  
+  // Impact Level mapping
+  const impactLevels = {
+    low: { label: 'ต่ำ', bars: 2, color: '#22c55e', gainText: 'เพิ่มเล็กน้อย', lossText: 'ลดเล็กน้อย' },
+    medium: { label: 'ปานกลาง', bars: 3, color: '#f59e0b', gainText: 'เพิ่ม', lossText: 'ลด' },
+    high: { label: 'สูง', bars: 5, color: '#ef4444', gainText: 'เพิ่มมาก', lossText: 'ลดมาก' }
+  }
+  const impact = impactLevels[conviction] || impactLevels.medium
   
   return (
     <div className="conviction-selector">
@@ -246,22 +252,43 @@ function ConfidenceSelector({ selectedConfidence, onSelect, disabled, user, stak
         </div>
       )}
       
-      {/* Reputation Preview */}
-      <div className="reputation-preview">
-        <div className="preview-header">ผลกระทบต่อชื่อเสียง (ประมาณการ)</div>
-        <div className="preview-outcomes">
-          <div className="preview-correct">
-            <span className="preview-label">ถ้ามุมมองนี้แม่น:</span>
-            <span className="preview-value positive">+{preview.gainMin} ~ +{preview.gainMax}</span>
+      {/* Impact Level Preview (v1.2) */}
+      <div className="impact-preview">
+        <div className="impact-header">
+          <span>ระดับผลกระทบต่อชื่อเสียง:</span>
+          <span className="impact-level" style={{ color: impact.color }}>{impact.label}</span>
+        </div>
+        
+        {/* Impact Bar */}
+        <div className="impact-bar">
+          {[1, 2, 3, 4, 5].map(i => (
+            <div 
+              key={i} 
+              className={`impact-segment ${i <= impact.bars ? 'active' : ''}`}
+              style={{ backgroundColor: i <= impact.bars ? impact.color : 'var(--border)' }}
+            />
+          ))}
+        </div>
+        
+        {/* Impact Outcomes */}
+        <div className="impact-outcomes">
+          <div className="impact-item correct">
+            <span className="impact-dot">•</span>
+            <span>ถ้ามุมมองนี้แม่น → ชื่อเสียง{impact.gainText}</span>
           </div>
-          <div className="preview-incorrect">
-            <span className="preview-label">ถ้าคลาดเคลื่อน:</span>
-            <span className="preview-value negative">−{preview.lossMin} ~ −{preview.lossMax}</span>
+          <div className="impact-item incorrect">
+            <span className="impact-dot">•</span>
+            <span>ถ้าคลาดเคลื่อน → ชื่อเสียง{impact.lossText}</span>
           </div>
         </div>
-        <div className="preview-note">
-          <span className="note-icon">💡</span>
-          ตัวเลขเป็นช่วงเพื่อสะท้อนความไม่แน่นอนของเหตุการณ์จริง
+        
+        {/* Tooltip */}
+        <div className="impact-tooltip">
+          <span className="tooltip-icon">ℹ️</span>
+          <span className="tooltip-text">
+            ความมั่นใจสูง = ผลลัพธ์แรงขึ้นทั้งสองทาง<br/>
+            ระบบออกแบบให้สะท้อนความแม่นในระยะยาว
+          </span>
         </div>
       </div>
     </div>
@@ -293,7 +320,14 @@ function FirstPredictionOnboarding({ onComplete, onDismiss }) {
   ]
   
   const currentStep = steps[step - 1]
-  const preview = calculateReputationPreview(50, step === 2 ? (sliderValue < 40 ? 'low' : sliderValue > 70 ? 'high' : 'medium') : 'low', 0.5, 0)
+  
+  // v1.2: Impact level instead of numbers
+  const getImpactLevel = (value) => {
+    if (value < 40) return { label: 'ต่ำ', bars: 2, color: '#22c55e' }
+    if (value > 70) return { label: 'สูง', bars: 5, color: '#ef4444' }
+    return { label: 'ปานกลาง', bars: 3, color: '#f59e0b' }
+  }
+  const impact = getImpactLevel(sliderValue)
   
   const handleNext = () => {
     if (step < 3) {
@@ -329,9 +363,21 @@ function FirstPredictionOnboarding({ onComplete, onDismiss }) {
                 onChange={(e) => setSliderValue(Number(e.target.value))}
                 className="onboarding-slider"
               />
-              <div className="onboarding-preview">
-                <span>ถ้าแม่น: <strong className="positive">+{preview.gainMin}~+{preview.gainMax}</strong></span>
-                <span>ถ้าคลาด: <strong className="negative">−{preview.lossMin}~−{preview.lossMax}</strong></span>
+              
+              {/* v1.2: Impact Level Preview */}
+              <div className="onboarding-impact">
+                <div className="impact-label">
+                  ระดับผลกระทบ: <span style={{ color: impact.color, fontWeight: 700 }}>{impact.label}</span>
+                </div>
+                <div className="impact-bar-demo">
+                  {[1, 2, 3, 4, 5].map(i => (
+                    <div 
+                      key={i} 
+                      className={`impact-segment ${i <= impact.bars ? 'active' : ''}`}
+                      style={{ backgroundColor: i <= impact.bars ? impact.color : 'var(--border)' }}
+                    />
+                  ))}
+                </div>
               </div>
             </div>
           )}
@@ -350,56 +396,59 @@ function PostResultFeedback({ vote, poll, onClose }) {
   if (!vote || !poll) return null
   
   const isCorrect = vote.is_correct
-  const repChange = vote.reputation_change || 0
+  const [showDetails, setShowDetails] = useState(false)
   
-  // Breakdown (ใช้ข้อมูลที่ freeze ไว้)
-  const breakdown = vote.reputation_breakdown || {
-    conviction_effect: Math.round(Math.abs(repChange) * 0.6),
-    accuracy_effect: Math.round(Math.abs(repChange) * 0.3),
-    underdog_effect: Math.round(Math.abs(repChange) * 0.1)
-  }
+  // Impact level based on conviction
+  const conviction = vote.confidence === 100 ? 'high' : vote.confidence === 20 ? 'low' : 'medium'
+  const impactLabels = { low: 'ต่ำ', medium: 'ปานกลาง', high: 'สูง' }
   
   return (
     <div className="post-result-feedback">
-      {/* Result Header */}
+      {/* Result Header - v1.2 Copy */}
       <div className={`result-header ${isCorrect ? 'correct' : 'incorrect'}`}>
-        <span className="result-icon">{isCorrect ? '🎯' : '❌'}</span>
+        <span className="result-icon">🎯</span>
         <span className="result-text">
-          {isCorrect ? 'มุมมองนี้แม่น' : 'มุมมองนี้คลาด'}
+          {isCorrect 
+            ? 'มุมมองนี้ช่วยเสริมชื่อเสียงของคุณ' 
+            : 'มุมมองนี้กระทบชื่อเสียงของคุณ'}
         </span>
       </div>
       
-      {/* Reputation Change */}
-      <div className="result-rep-change">
-        <span className="rep-label">Reputation</span>
-        <span className={`rep-value ${repChange >= 0 ? 'positive' : 'negative'}`}>
-          {repChange >= 0 ? '+' : ''}{repChange}
-        </span>
-      </div>
+      {/* Additional note for incorrect */}
+      {!isCorrect && (
+        <div className="result-note">
+          ระบบจะพิจารณาจากประวัติระยะยาวร่วมด้วย
+        </div>
+      )}
       
-      {/* Breakdown */}
+      {/* Breakdown - v1.2: ไม่โชว์ตัวเลขดิบก่อน hover */}
       <div className="result-breakdown">
-        <div className="breakdown-title">เหตุผลที่ได้ผลลัพธ์นี้</div>
-        <ul className="breakdown-list">
-          {isCorrect ? (
-            <>
-              <li><span className="check">✔</span> ผลจากระดับความมั่นใจ: <strong>+{breakdown.conviction_effect}</strong></li>
-              {breakdown.accuracy_effect > 0 && (
-                <li><span className="check">✔</span> ประวัติความแม่นของคุณ: <strong>+{breakdown.accuracy_effect}</strong></li>
-              )}
-              {breakdown.underdog_effect > 0 && (
-                <li><span className="check">✔</span> มุมมองนี้สวนกับคนส่วนใหญ่: <strong>+{breakdown.underdog_effect}</strong></li>
-              )}
-            </>
-          ) : (
-            <>
-              <li><span className="cross">✘</span> ความมั่นใจสูงในเหตุการณ์ที่ไม่แน่นอน: <strong>−{breakdown.conviction_effect}</strong></li>
-              {breakdown.accuracy_effect > 0 && (
-                <li><span className="check">✔</span> ประวัติความแม่นช่วยพยุงไว้: <strong>+{breakdown.accuracy_effect}</strong></li>
-              )}
-            </>
-          )}
+        <div className="breakdown-title">สรุปผลการประเมิน</div>
+        <ul className="breakdown-list-v2">
+          <li>
+            <span className="breakdown-label">ระดับความมั่นใจของคุณ</span>
+            <span className="breakdown-value">{impactLabels[conviction]}</span>
+          </li>
+          <li>
+            <span className="breakdown-label">ความแม่นช่วงหลัง</span>
+            <span className="breakdown-value">พิจารณาแล้ว</span>
+          </li>
+          <li>
+            <span className="breakdown-label">บริบทของโพลนี้</span>
+            <span className="breakdown-value">รวมอยู่ในผล</span>
+          </li>
         </ul>
+        
+        {/* Toggle to show raw numbers (optional) */}
+        <button className="show-details-btn" onClick={() => setShowDetails(!showDetails)}>
+          {showDetails ? 'ซ่อนรายละเอียด' : 'ดูรายละเอียดเพิ่มเติม'}
+        </button>
+        
+        {showDetails && (
+          <div className="breakdown-details">
+            <small>การเปลี่ยนแปลง Reputation: {vote.points_earned >= 0 ? '+' : ''}{vote.points_earned || 0}</small>
+          </div>
+        )}
       </div>
       
       {/* Learning Hint */}
@@ -407,7 +456,7 @@ function PostResultFeedback({ vote, poll, onClose }) {
         <span className="hint-icon">💡</span>
         <span className="hint-text">
           ความมั่นใจสูงเหมาะกับเหตุการณ์ที่คุณมีข้อมูลชัด<br/>
-          ครั้งถัดไป ลองปรับระดับดูผลลัพธ์ที่ต่างออกไป
+          ระบบออกแบบให้สะท้อนความแม่นในระยะยาว ไม่ใช่ผลลัพธ์ครั้งเดียว
         </span>
       </div>
       
@@ -1179,6 +1228,8 @@ function AuthModal({ onClose, onSuccess, darkMode }) {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [consentAccepted, setConsentAccepted] = useState(false) // v1.2 PDPA
+  const [showTerms, setShowTerms] = useState(false) // v1.2 Terms popup
 
   const handleLogin = async (e) => {
     e.preventDefault()
@@ -1199,6 +1250,12 @@ function AuthModal({ onClose, onSuccess, darkMode }) {
   const handleRegister = async (e) => {
     e.preventDefault()
     setError('')
+
+    // v1.2: Check consent
+    if (!consentAccepted) {
+      setError('กรุณายอมรับข้อตกลงการใช้งานและนโยบายข้อมูลส่วนบุคคล')
+      return
+    }
 
     if (password !== confirmPassword) {
       setError('รหัสผ่านไม่ตรงกัน')
@@ -1315,11 +1372,54 @@ function AuthModal({ onClose, onSuccess, darkMode }) {
                   <label>🔒 ยืนยันรหัสผ่าน</label>
                   <input type="password" className="form-input" placeholder="พิมพ์รหัสผ่านอีกครั้ง" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required />
                 </div>
+                
+                {/* v1.2 PDPA Consent */}
+                <div className="consent-checkbox">
+                  <label className="consent-label">
+                    <input 
+                      type="checkbox" 
+                      checked={consentAccepted} 
+                      onChange={e => setConsentAccepted(e.target.checked)} 
+                    />
+                    <span>ฉันยอมรับ <button type="button" className="link-btn" onClick={() => setShowTerms(true)}>ข้อตกลงการใช้งาน</button> และ <button type="button" className="link-btn" onClick={() => setShowTerms(true)}>นโยบายข้อมูลส่วนบุคคล</button></span>
+                  </label>
+                </div>
+                
                 <p className="auth-bonus">🎁 สมัครใหม่ได้ 1,000 Point เริ่มต้น!</p>
-                <button type="submit" className="btn btn-primary btn-full" disabled={isLoading}>
+                <button type="submit" className="btn btn-primary btn-full" disabled={isLoading || !consentAccepted}>
                   {isLoading ? '⏳ กำลังสมัคร...' : '✨ สมัครสมาชิก'}
                 </button>
               </form>
+            )}
+            
+            {/* v1.2 Terms & Privacy Popup */}
+            {showTerms && (
+              <div className="terms-popup">
+                <div className="terms-content">
+                  <button className="terms-close" onClick={() => setShowTerms(false)}>✕</button>
+                  
+                  <h3>📜 ข้อตกลงการใช้งาน</h3>
+                  <div className="terms-text">
+                    <strong>Kidwa คือพื้นที่แลกเปลี่ยนมุมมองและการวิเคราะห์</strong><br/>
+                    ระบบ Reputation ใช้เพื่อสะท้อนความแม่นยำของการคิด<br/>
+                    ไม่ใช่เงินจริง และไม่สามารถแลกเปลี่ยนเป็นเงินได้<br/><br/>
+                    คุณสามารถใช้งานได้อย่างอิสระ และลบข้อมูลของคุณได้ตลอดเวลา
+                  </div>
+                  
+                  <h3>🔒 นโยบายข้อมูลส่วนบุคคล</h3>
+                  <div className="terms-text">
+                    Kidwa เก็บข้อมูลที่จำเป็นต่อการใช้งาน เช่น<br/>
+                    อีเมล การโหวต และผลการวิเคราะห์<br/><br/>
+                    เราใช้ข้อมูลเหล่านี้เพื่อปรับปรุงระบบและประสบการณ์ของคุณเท่านั้น<br/>
+                    <strong>ไม่มีการขายหรือส่งต่อข้อมูลส่วนบุคคลให้บุคคลที่สาม</strong><br/><br/>
+                    คุณสามารถขอลบหรือแก้ไขข้อมูลได้ทุกเมื่อ
+                  </div>
+                  
+                  <button className="btn btn-primary btn-full" onClick={() => { setConsentAccepted(true); setShowTerms(false) }}>
+                    ✅ ยอมรับและปิด
+                  </button>
+                </div>
+              </div>
             )}
 
             {mode === 'magic' && (
@@ -2171,9 +2271,16 @@ export default function Home() {
     const { error } = await vote(user.id, pollId, optionId, confidence)
     if (!error) { 
       setUserVotes(prev => ({ ...prev, [pollId]: { optionId, confidence } }))
-      loadPolls()
-      // UX Copy v1: Success message ที่กระชับ
-      alert('✅ บันทึกมุมมองเรียบร้อย\nระบบจะประเมินความแม่นยำเมื่อโพลนี้เฉลย')
+      
+      // Reload polls to get updated count
+      await loadPolls()
+      
+      // Get updated vote count
+      const updatedPoll = polls.find(p => p.id === pollId)
+      const totalVotes = (updatedPoll?.options?.reduce((sum, opt) => sum + (opt.votes || 0), 0) || 0) + 1
+      
+      // UX Copy v1.2: แสดงจำนวนผู้ร่วมวิเคราะห์
+      alert(`✅ บันทึกมุมมองของคุณแล้ว\nตอนนี้มีผู้ร่วมวิเคราะห์ ${totalVotes.toLocaleString()} คน`)
       
       // Check and award creator engagement points
       await checkAndAwardCreatorPoints(pollId)
