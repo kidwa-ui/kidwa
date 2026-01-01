@@ -30,7 +30,7 @@ export default function RootLayout({ children }) {
         {/* Google Analytics - Replace GA_MEASUREMENT_ID */}
         <script
           async
-          src={`https://www.googletagmanager.com/gtag/js?id=GA_MEASUREMENT_ID`}
+          src={`https://www.googletagmanager.com/gtag/js?id=G-M6RLVGFFS7`}
         />
         <script
           dangerouslySetInnerHTML={{
@@ -38,7 +38,7 @@ export default function RootLayout({ children }) {
               window.dataLayer = window.dataLayer || [];
               function gtag(){dataLayer.push(arguments);}
               gtag('js', new Date());
-              gtag('config', 'GA_MEASUREMENT_ID', {
+              gtag('config', 'G-M6RLVGFFS7', {
                 page_path: window.location.pathname,
               });
             `,
