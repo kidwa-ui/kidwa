@@ -15,6 +15,51 @@ export const supabase = createClient(
   }
 )
 
+// =====================================================
+// THAILAND TIMEZONE HELPERS (UTC+7)
+// =====================================================
+
+// Get current time in Thailand
+export function getThailandNow() {
+  return new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }))
+}
+
+// Get current season identifier (YYYY-MM in Thailand time)
+export function getThailandSeason() {
+  const thai = getThailandNow()
+  const year = thai.getFullYear()
+  const month = String(thai.getMonth() + 1).padStart(2, '0')
+  return `${year}-${month}`
+}
+
+// Convert UTC date to Thailand display
+export function toThailandTime(utcDate) {
+  if (!utcDate) return null
+  const date = new Date(utcDate)
+  return new Date(date.toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }))
+}
+
+// Format date for Thai display
+export function formatThaiDate(date, options = {}) {
+  if (!date) return ''
+  const d = typeof date === 'string' ? new Date(date) : date
+  return d.toLocaleDateString('th-TH', {
+    timeZone: 'Asia/Bangkok',
+    ...options
+  })
+}
+
+// Format time for Thai display
+export function formatThaiTime(date) {
+  if (!date) return ''
+  const d = typeof date === 'string' ? new Date(date) : date
+  return d.toLocaleTimeString('th-TH', {
+    timeZone: 'Asia/Bangkok',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+
 // ===== Auth Functions =====
 
 export async function signUpWithEmail(email, password, username) {
@@ -48,6 +93,8 @@ export async function signUpWithEmail(email, password, username) {
 
   if (authError) return { data: null, error: authError }
 
+  const currentSeason = getThailandSeason()
+
   const { data: userData, error: userError } = await supabase
     .from('users')
     .insert([{
@@ -55,7 +102,9 @@ export async function signUpWithEmail(email, password, username) {
       email,
       auth_id: authData.user?.id,
       email_verified: false,
-      reputation: 1000
+      reputation: 1000,
+      seasonal_reputation: 0,
+      current_season: currentSeason
     }])
     .select()
     .single()
@@ -126,6 +175,22 @@ export async function getUserFromSession() {
     userData.email_verified = true
   }
 
+  // Check and reset seasonal reputation if new month
+  if (userData) {
+    const currentSeason = getThailandSeason()
+    if (userData.current_season !== currentSeason) {
+      await supabase
+        .from('users')
+        .update({ 
+          seasonal_reputation: 0,
+          current_season: currentSeason
+        })
+        .eq('id', userData.id)
+      userData.seasonal_reputation = 0
+      userData.current_season = currentSeason
+    }
+  }
+
   return { data: userData, error }
 }
 
@@ -170,9 +235,20 @@ export async function getUserByUsername(username) {
 }
 
 export async function createUser(username) {
+  const currentSeason = getThailandSeason()
   const { data, error } = await supabase
     .from('users')
-    .insert([{ username, reputation: 1000, streak: 0, current_streak: 0, max_streak: 0, total_predictions: 0, correct_predictions: 0 }])
+    .insert([{ 
+      username, 
+      reputation: 1000, 
+      seasonal_reputation: 0,
+      current_season: currentSeason,
+      streak: 0, 
+      current_streak: 0, 
+      max_streak: 0, 
+      total_predictions: 0, 
+      correct_predictions: 0 
+    }])
     .select()
     .single()
   return { data, error }
@@ -190,13 +266,8 @@ export async function getPolls() {
 // =====================================================
 // TRIGGER-BASED VOTE FUNCTION
 // =====================================================
-// Client just INSERT/UPDATE votes table
-// PostgreSQL trigger automatically updates options.votes
-// This is atomic, reliable, and realtime-friendly
-// =====================================================
 
 export async function vote(userId, pollId, optionId, confidence = 50) {
-  // Check if user already voted on this poll
   const { data: existingVote } = await supabase
     .from('votes')
     .select('id, option_id')
@@ -205,8 +276,6 @@ export async function vote(userId, pollId, optionId, confidence = 50) {
     .single()
 
   if (existingVote) {
-    // User already voted → UPDATE their vote
-    // Trigger handles: decrement old option, increment new option
     const { data, error } = await supabase
       .from('votes')
       .update({ 
@@ -220,8 +289,6 @@ export async function vote(userId, pollId, optionId, confidence = 50) {
     
     return { data, error }
   } else {
-    // New vote → INSERT
-    // Trigger handles: increment option
     const { data, error } = await supabase
       .from('votes')
       .insert([{ 
@@ -245,28 +312,52 @@ export async function getUserVotes(userId) {
   return { data, error }
 }
 
-// ===== Leaderboard Functions =====
+// =====================================================
+// LEADERBOARD FUNCTIONS (Seasonal + Lifetime)
+// =====================================================
 
-export async function getLeaderboard(limit = 10) {
+// Seasonal Leaderboard (default) - current month in Thailand time
+export async function getSeasonalLeaderboard(limit = 10) {
+  const currentSeason = getThailandSeason()
+  
   const { data, error } = await supabase
     .from('users')
-    .select('id, username, reputation, email_verified, is_verified, avatar_url')
+    .select('id, username, reputation, seasonal_reputation, current_season, avatar_url, is_verified, email_verified')
+    .eq('current_season', currentSeason)
+    .order('seasonal_reputation', { ascending: false })
+    .limit(limit)
+  
+  return { data, error }
+}
+
+// Lifetime Leaderboard (prestige)
+export async function getLifetimeLeaderboard(limit = 10) {
+  const { data, error } = await supabase
+    .from('users')
+    .select('id, username, reputation, seasonal_reputation, avatar_url, is_verified, email_verified')
     .order('reputation', { ascending: false })
     .limit(limit)
   return { data, error }
 }
 
+// Legacy function - now defaults to seasonal
+export async function getLeaderboard(limit = 10) {
+  return getSeasonalLeaderboard(limit)
+}
+
+// Weekly leaderboard (within current week, Thailand time)
 export async function getWeeklyLeaderboard(limit = 10) {
-  const now = new Date()
-  const dayOfWeek = now.getDay()
+  // Get Monday of current week in Thailand time
+  const thai = getThailandNow()
+  const dayOfWeek = thai.getDay()
   const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
-  const monday = new Date(now)
-  monday.setDate(now.getDate() + mondayOffset)
+  const monday = new Date(thai)
+  monday.setDate(thai.getDate() + mondayOffset)
   monday.setHours(0, 0, 0, 0)
   
   const { data: votes, error } = await supabase
     .from('votes')
-    .select('user_id, points_earned, users!inner(id, username, reputation, email_verified, is_verified, avatar_url)')
+    .select('user_id, points_earned, users!inner(id, username, reputation, seasonal_reputation, email_verified, is_verified, avatar_url)')
     .gte('created_at', monday.toISOString())
     .not('points_earned', 'is', null)
 
@@ -280,6 +371,7 @@ export async function getWeeklyLeaderboard(limit = 10) {
         id: userId,
         username: vote.users.username,
         reputation: vote.users.reputation,
+        seasonal_reputation: vote.users.seasonal_reputation,
         email_verified: vote.users.email_verified,
         is_verified: vote.users.is_verified,
         avatar_url: vote.users.avatar_url,
@@ -296,41 +388,37 @@ export async function getWeeklyLeaderboard(limit = 10) {
   return { data: sorted, error: null }
 }
 
+// Monthly leaderboard (same as seasonal for this month)
 export async function getMonthlyLeaderboard(limit = 10) {
-  const now = new Date()
-  const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-  firstDayOfMonth.setHours(0, 0, 0, 0)
-  
-  const { data: votes, error } = await supabase
-    .from('votes')
-    .select('user_id, points_earned, users!inner(id, username, reputation, email_verified, is_verified, avatar_url)')
-    .gte('created_at', firstDayOfMonth.toISOString())
-    .not('points_earned', 'is', null)
+  return getSeasonalLeaderboard(limit)
+}
 
-  if (error) return { data: null, error }
+// =====================================================
+// SILENT THINKER TRACKING
+// =====================================================
 
-  const userPoints = {}
-  votes?.forEach(vote => {
-    const userId = vote.user_id
-    if (!userPoints[userId]) {
-      userPoints[userId] = {
-        id: userId,
-        username: vote.users.username,
-        reputation: vote.users.reputation,
-        email_verified: vote.users.email_verified,
-        is_verified: vote.users.is_verified,
-        avatar_url: vote.users.avatar_url,
-        monthlyPoints: 0
-      }
-    }
-    userPoints[userId].monthlyPoints += vote.points_earned || 0
-  })
+// Mark user as having viewed leaderboard
+export async function markLeaderboardViewed(userId) {
+  const { error } = await supabase
+    .from('users')
+    .update({ has_viewed_leaderboard: true })
+    .eq('id', userId)
+  return { error }
+}
 
-  const sorted = Object.values(userPoints)
-    .sort((a, b) => b.monthlyPoints - a.monthlyPoints)
-    .slice(0, limit)
+// Mark user as having viewed profile insights
+export async function markProfileInsightsViewed(userId) {
+  const { error } = await supabase
+    .from('users')
+    .update({ has_viewed_profile_insights: true })
+    .eq('id', userId)
+  return { error }
+}
 
-  return { data: sorted, error: null }
+// Check if user is a "silent thinker" (hasn't engaged with competitive features)
+export function isSilentThinker(user) {
+  if (!user) return true
+  return !user.has_viewed_leaderboard && !user.has_viewed_profile_insights
 }
 
 // ===== Poll Creation Functions =====
@@ -454,12 +542,14 @@ export async function resolvePoll(pollId, correctOptionId) {
 
     const { data: votes } = await supabase.from('votes').select('id, user_id, option_id, confidence').eq('poll_id', pollId)
 
+    const currentSeason = getThailandSeason()
+
     for (const vote of votes || []) {
       const isCorrect = vote.option_id === correctOptionId
       
       const { data: userData } = await supabase
         .from('users')
-        .select('reputation, current_streak, max_streak, total_predictions, correct_predictions, is_admin')
+        .select('reputation, seasonal_reputation, current_season, current_streak, max_streak, total_predictions, correct_predictions, is_admin, has_viewed_leaderboard')
         .eq('id', vote.user_id)
         .single()
       
@@ -483,16 +573,45 @@ export async function resolvePoll(pollId, correctOptionId) {
         const newCurrentStreak = isCorrect ? (userData.current_streak || 0) + 1 : 0
         const newMaxStreak = Math.max(userData.max_streak || 0, newCurrentStreak)
         
+        // Handle seasonal reputation with season rollover
+        let newSeasonalRep = userData.seasonal_reputation || 0
+        let userSeason = userData.current_season
+        
+        if (userSeason !== currentSeason) {
+          // New season - reset seasonal rep
+          newSeasonalRep = Math.max(0, repChange)
+          userSeason = currentSeason
+        } else {
+          // Same season - accumulate
+          newSeasonalRep = Math.max(0, newSeasonalRep + repChange)
+        }
+        
         await supabase.from('users').update({ 
-          reputation: newRep, total_predictions: newTotal, correct_predictions: newCorrect,
-          current_streak: newCurrentStreak, max_streak: newMaxStreak
+          reputation: newRep, 
+          seasonal_reputation: newSeasonalRep,
+          current_season: userSeason,
+          total_predictions: newTotal, 
+          correct_predictions: newCorrect,
+          current_streak: newCurrentStreak, 
+          max_streak: newMaxStreak
         }).eq('id', vote.user_id)
 
+        // Notification message - neutral for silent thinkers
         let notifMessage
+        const isSilent = !userData.has_viewed_leaderboard
+        
         if (isPrediction) {
-          notifMessage = isCorrect 
-            ? `🎯 มุมมองนี้แม่น! "${pollData?.question?.substring(0, 40)}..." (+${repChange} Reputation)`
-            : `❌ มุมมองนี้คลาด "${pollData?.question?.substring(0, 40)}..." (${repChange} Reputation)`
+          if (isSilent) {
+            // Neutral message for silent thinkers
+            notifMessage = isCorrect 
+              ? `✓ "${pollData?.question?.substring(0, 50)}..." - มุมมองของคุณตรงกับผลลัพธ์`
+              : `✗ "${pollData?.question?.substring(0, 50)}..." - มุมมองของคุณไม่ตรงกับผลลัพธ์`
+          } else {
+            // Full message for engaged users
+            notifMessage = isCorrect 
+              ? `🎯 มุมมองนี้แม่น! "${pollData?.question?.substring(0, 40)}..." (+${repChange} Reputation)`
+              : `❌ มุมมองนี้คลาด "${pollData?.question?.substring(0, 40)}..." (${repChange} Reputation)`
+          }
         } else {
           notifMessage = `📊 โพลสิ้นสุด "${pollData?.question?.substring(0, 40)}..." ตัวเลือกยอดนิยมคือ "${correctOption?.text}"`
         }
@@ -502,7 +621,7 @@ export async function resolvePoll(pollId, correctOptionId) {
           type: isCorrect ? 'points_earned' : 'points_lost',
           message: notifMessage,
           pollId: pollId,
-          pointsChange: repChange
+          pointsChange: isSilent ? null : repChange // Don't show points for silent thinkers
         })
       }
 
@@ -755,7 +874,7 @@ export async function uploadAvatar(userId, file) {
 export async function getUserPublicProfile(userId) {
   const { data: user, error } = await supabase
     .from('users')
-    .select('id, username, reputation, avatar_url, current_streak, max_streak, total_predictions, correct_predictions, created_at, is_verified')
+    .select('id, username, reputation, seasonal_reputation, avatar_url, current_streak, max_streak, total_predictions, correct_predictions, created_at, is_verified')
     .eq('id', userId)
     .single()
   
@@ -831,7 +950,8 @@ export async function getTimeCapsules(limit = 20) {
 
 export async function createLiveBattle({ question, options, category, tags, durationMinutes, createdBy }) {
   try {
-    const now = new Date()
+    // Use Thailand time for Live Battle
+    const now = getThailandNow()
     const endsAt = new Date(now.getTime() + durationMinutes * 60 * 1000)
     
     const { data: poll, error: pollError } = await supabase
@@ -977,14 +1097,15 @@ export async function checkPollLimit(userId) {
 
   const dailyLimit = user?.is_verified ? 3 : 1
 
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
+  // Use Thailand midnight for daily reset
+  const thai = getThailandNow()
+  thai.setHours(0, 0, 0, 0)
 
   const { count } = await supabase
     .from('polls')
     .select('*', { count: 'exact', head: true })
     .eq('created_by', userId)
-    .gte('created_at', today.toISOString())
+    .gte('created_at', thai.toISOString())
 
   const used = count || 0
   const remaining = Math.max(0, dailyLimit - used)
@@ -1007,14 +1128,15 @@ export async function getUserPollLimit(userId) {
 
   const dailyLimit = user?.is_verified ? 3 : 1
 
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
+  // Use Thailand midnight for daily reset
+  const thai = getThailandNow()
+  thai.setHours(0, 0, 0, 0)
 
   const { count } = await supabase
     .from('polls')
     .select('*', { count: 'exact', head: true })
     .eq('created_by', userId)
-    .gte('created_at', today.toISOString())
+    .gte('created_at', thai.toISOString())
 
   const used = count || 0
   const remaining = Math.max(0, dailyLimit - used)
@@ -1108,14 +1230,27 @@ export async function checkAndAwardCreatorPoints(pollId) {
 
     const { data: creator } = await supabase
       .from('users')
-      .select('reputation')
+      .select('reputation, seasonal_reputation, current_season')
       .eq('id', poll.created_by)
       .single()
 
     if (creator) {
+      const currentSeason = getThailandSeason()
+      let newSeasonalRep = creator.seasonal_reputation || 0
+      
+      if (creator.current_season === currentSeason) {
+        newSeasonalRep += pointsToAward
+      } else {
+        newSeasonalRep = pointsToAward
+      }
+      
       await supabase
         .from('users')
-        .update({ reputation: creator.reputation + pointsToAward })
+        .update({ 
+          reputation: creator.reputation + pointsToAward,
+          seasonal_reputation: newSeasonalRep,
+          current_season: currentSeason
+        })
         .eq('id', poll.created_by)
 
       await createNotification({
