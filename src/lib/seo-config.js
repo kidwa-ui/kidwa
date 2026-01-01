@@ -3,7 +3,7 @@
 
 export const siteConfig = {
   name: 'คิดว่า.. (Kidwa)',
-  description: 'แพลตฟอร์มวิเคราะห์และทำนายผลลัพธ์ ร่วมแสดงมุมมองและสะสม Reputation จากความแม่นยำของคุณ',
+  description: 'แพลตฟอร์มที่จะกระตุกความคิดคุณ แล้วคุณล่ะ คิดว่า..',
   url: 'https://i-kidwa.com',
   ogImage: '/og-image.png',
   links: {
@@ -13,8 +13,8 @@ export const siteConfig = {
 
 // Generate metadata for a poll page
 export function generatePollMetadata(poll) {
-  const title = `คิดว่า.. ${poll.question} | วิเคราะห์แม่นยำที่ Kidwa`
-  const description = `ร่วมวิเคราะห์ "${poll.question}" กับสังคมไทย ดู Consensus ล่าสุด และสะสม Reputation จากความแม่นยำของคุณที่ Kidwa (คิดว่า..)`
+  const title = `คิดว่า.. ${poll.question} | ร่วมโหวตที่ Kidwa`
+  const description = `ร่วมโหวต "${poll.question}" กับสังคมไทย ดู Consensus ล่าสุด และสะสม Reputation จากการโหวตของคุณที่ Kidwa (คิดว่า..)`
   
   return {
     title,
@@ -64,7 +64,7 @@ export function generatePollStructuredData(poll) {
 // Site-wide metadata
 export const defaultMetadata = {
   title: {
-    default: 'คิดว่า.. (Kidwa) | แพลตฟอร์มวิเคราะห์และทำนายผลลัพธ์',
+    default: 'คิดว่า.. (Kidwa) | แพลตฟอร์มที่จะกระตุกความคิดคุณ แล้วคุณล่ะ คิดว่า..',
     template: '%s | Kidwa',
   },
   description: siteConfig.description,
@@ -76,7 +76,9 @@ export const defaultMetadata = {
     'วิเคราะห์',
     'ทำนาย',
     'โพล',
+    'ดุสิตโพล',
     'poll',
+    'dusitpoll',
     'consensus',
     'reputation',
     'Thailand',
