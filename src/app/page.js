@@ -1123,7 +1123,7 @@ function NotificationDropdown({ user, onClose }) {
   return (
     <div className="notification-dropdown" onClick={e => e.stopPropagation()}>
       <div className="notification-header">
-        <h3>🔔 การแจ้งเตือน</h3>
+        <h3>การแจ้งเตือน</h3>
         {notifications.some(n => !n.is_read) && (
           <button className="mark-all-read" onClick={handleMarkAllAsRead}>อ่านทั้งหมด</button>
         )}
@@ -2489,10 +2489,10 @@ export default function Home() {
         </div>
         {showMenu && (
           <div className="dropdown-menu">
-            {!user && <><button className="dropdown-item" onClick={() => { setShowAuthModal(true); setShowMenu(false) }}>🔐 เข้าสู่ระบบ</button><button className="dropdown-item" onClick={() => { setShowAuthModal(true); setShowMenu(false) }}>✨ สมัครสมาชิก</button><div className="dropdown-divider"></div></>}
-            {user && <><div className="dropdown-item user-info-mobile"><div className="user-avatar">{user.username[0].toUpperCase()}</div><div><span style={{ color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '4px' }}>{user.username}{user.is_verified && <span className="verified-badge"><svg viewBox="0 0 24 24" className="verified-check"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg></span>}</span><div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{getReputationLevel(user.reputation).badge} {user.reputation} pt</div></div></div><button className="dropdown-item" onClick={() => { setShowNotifications(true); setShowMenu(false) }}>🔔 การแจ้งเตือน {unreadCount > 0 && <span className="mobile-notif-badge">{unreadCount}</span>}</button><button className="dropdown-item" onClick={() => { setShowAccount(true); setShowMenu(false) }}>👤 บัญชีของฉัน</button><button className="dropdown-item" onClick={() => { setShowCreatePoll(true); setShowMenu(false) }}>➕ สร้างโพล</button>{user.is_admin && <button className="dropdown-item" onClick={() => { setShowAdminPanel(true); setShowMenu(false) }}>🔧 Admin Panel</button>}<div className="dropdown-divider"></div></>}
-            <button className="dropdown-item" onClick={() => { setDarkMode(!darkMode); setShowMenu(false) }}>{darkMode ? '☀️ โหมดสว่าง' : '🌙 โหมดมืด'}</button>
-            {user && <><div className="dropdown-divider"></div><button className="dropdown-item" onClick={handleLogout} style={{ color: 'var(--red)' }}>🚪 ออกจากระบบ</button></>}
+            {!user && <><button className="dropdown-item" onClick={() => { setShowAuthModal(true); setShowMenu(false) }}>เข้าสู่ระบบ</button><button className="dropdown-item" onClick={() => { setShowAuthModal(true); setShowMenu(false) }}>สมัครสมาชิก</button><div className="dropdown-divider"></div></>}
+            {user && <><div className="dropdown-item user-info-mobile"><div className="user-avatar">{user.username[0].toUpperCase()}</div><div><span style={{ color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '4px' }}>{user.username}{user.is_verified && <span className="verified-badge"><svg viewBox="0 0 24 24" className="verified-check"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg></span>}</span><div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{getReputationLevel(user.reputation).badge} {user.reputation} pt</div></div></div><button className="dropdown-item" onClick={() => { setShowNotifications(true); setShowMenu(false) }}>การแจ้งเตือน {unreadCount > 0 && <span className="mobile-notif-badge">{unreadCount}</span>}</button><button className="dropdown-item" onClick={() => { setShowAccount(true); setShowMenu(false) }}>บัญชีของฉัน</button><button className="dropdown-item" onClick={() => { setShowCreatePoll(true); setShowMenu(false) }}>สร้างโพล</button>{user.is_admin && <button className="dropdown-item" onClick={() => { setShowAdminPanel(true); setShowMenu(false) }}>🔧 Admin Panel</button>}<div className="dropdown-divider"></div></>}
+            <button className="dropdown-item" onClick={() => { setDarkMode(!darkMode); setShowMenu(false) }}>{darkMode ? 'โหมดสว่าง' : 'โหมดมืด'}</button>
+            {user && <><div className="dropdown-divider"></div><button className="dropdown-item" onClick={handleLogout} style={{ color: 'var(--red)' }}>ออกจากระบบ</button></>}
           </div>
         )}
       </header>
