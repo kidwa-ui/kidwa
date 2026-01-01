@@ -2306,7 +2306,7 @@ export default function Home() {
 
   return () => {
     supabase.removeChannel(channel)
-  }
+    }
 }, [poll.id])
       .subscribe()
 
