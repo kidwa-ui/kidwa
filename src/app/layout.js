@@ -18,7 +18,7 @@ export default function RootLayout({ children }) {
     <html lang="th">
       <head>
         {/* Preconnect to Supabase */}
-        <link rel="preconnect" href="https://your-supabase-url.supabase.co" />
+        <link rel="preconnect" href="https://mrkfniaofoesgqprpoxu.supabase.co" />
         
         {/* PWA */}
         <link rel="manifest" href="/manifest.json" />
