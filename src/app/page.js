@@ -521,8 +521,9 @@ function ShareButtons({ poll }) {
 // ===== Live Battle Card =====
 function LiveBattleCard({ poll, onClick, userVotes }) {
   const [timeLeft, setTimeLeft] = useState(getLiveTimeRemaining(poll.ends_at))
-  const totalVotes = poll.options?.reduce((sum, opt) => sum + opt.votes, 0) || 0
-  const [first, second] = getTopTwo(poll.options)
+  const [liveVotes, setLiveVotes] = useState(poll.options || [])
+  const totalVotes = liveVotes?.reduce((sum, opt) => sum + opt.votes, 0) || 0
+  const [first, second] = getTopTwo(liveVotes)
   const hasVoted = userVotes && userVotes[poll.id]
   const firstPercent = totalVotes > 0 && first ? Math.round((first.votes / totalVotes) * 100) : 50
   const secondPercent = totalVotes > 0 && second ? Math.round((second.votes / totalVotes) * 100) : 50
@@ -533,6 +534,27 @@ function LiveBattleCard({ poll, onClick, userVotes }) {
     }, 1000)
     return () => clearInterval(timer)
   }, [poll.ends_at])
+  
+  // v2: Real-time subscription สำหรับ Live Battle
+  useEffect(() => {
+    const channel = supabase
+      .channel(`live-battle-${poll.id}`)
+      .on('postgres_changes', 
+        { event: 'UPDATE', schema: 'public', table: 'options', filter: `poll_id=eq.${poll.id}` }, 
+        (payload) => {
+          setLiveVotes(prev => prev.map(opt => 
+            opt.id === payload.new.id 
+              ? { ...opt, votes: payload.new.votes }
+              : opt
+          ))
+        }
+      )
+      .subscribe()
+    
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [poll.id])
 
   return (
     <div className={`poll-card live-battle-card ${timeLeft.expired ? 'expired' : ''}`} onClick={onClick}>
@@ -560,7 +582,10 @@ function LiveBattleCard({ poll, onClick, userVotes }) {
         </div>
       )}
       <div className="poll-footer">
-        <span>👥 {totalVotes.toLocaleString()} คน</span>
+        <span className="live-vote-count">
+          <span className="live-pulse"></span>
+          👥 {totalVotes.toLocaleString()} คน
+        </span>
         {poll.users && <span>โดย @{poll.users.username}</span>}
         {hasVoted && <span style={{ color: 'var(--green)' }}>✓ โหวตแล้ว</span>}
       </div>
@@ -1228,8 +1253,6 @@ function AuthModal({ onClose, onSuccess, darkMode }) {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
-  const [consentAccepted, setConsentAccepted] = useState(false) // v1.2 PDPA
-  const [showTerms, setShowTerms] = useState(false) // v1.2 Terms popup
 
   const handleLogin = async (e) => {
     e.preventDefault()
@@ -1250,12 +1273,6 @@ function AuthModal({ onClose, onSuccess, darkMode }) {
   const handleRegister = async (e) => {
     e.preventDefault()
     setError('')
-
-    // v1.2: Check consent
-    if (!consentAccepted) {
-      setError('กรุณายอมรับข้อตกลงการใช้งานและนโยบายข้อมูลส่วนบุคคล')
-      return
-    }
 
     if (password !== confirmPassword) {
       setError('รหัสผ่านไม่ตรงกัน')
@@ -1373,53 +1390,11 @@ function AuthModal({ onClose, onSuccess, darkMode }) {
                   <input type="password" className="form-input" placeholder="พิมพ์รหัสผ่านอีกครั้ง" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required />
                 </div>
                 
-                {/* v1.2 PDPA Consent */}
-                <div className="consent-checkbox">
-                  <label className="consent-label">
-                    <input 
-                      type="checkbox" 
-                      checked={consentAccepted} 
-                      onChange={e => setConsentAccepted(e.target.checked)} 
-                    />
-                    <span>ฉันยอมรับ <button type="button" className="link-btn" onClick={() => setShowTerms(true)}>ข้อตกลงการใช้งาน</button> และ <button type="button" className="link-btn" onClick={() => setShowTerms(true)}>นโยบายข้อมูลส่วนบุคคล</button></span>
-                  </label>
-                </div>
-                
                 <p className="auth-bonus">🎁 สมัครใหม่ได้ 1,000 Point เริ่มต้น!</p>
-                <button type="submit" className="btn btn-primary btn-full" disabled={isLoading || !consentAccepted}>
+                <button type="submit" className="btn btn-primary btn-full" disabled={isLoading}>
                   {isLoading ? '⏳ กำลังสมัคร...' : '✨ สมัครสมาชิก'}
                 </button>
               </form>
-            )}
-            
-            {/* v1.2 Terms & Privacy Popup */}
-            {showTerms && (
-              <div className="terms-popup">
-                <div className="terms-content">
-                  <button className="terms-close" onClick={() => setShowTerms(false)}>✕</button>
-                  
-                  <h3>📜 ข้อตกลงการใช้งาน</h3>
-                  <div className="terms-text">
-                    <strong>Kidwa คือพื้นที่แลกเปลี่ยนมุมมองและการวิเคราะห์</strong><br/>
-                    ระบบ Reputation ใช้เพื่อสะท้อนความแม่นยำของการคิด<br/>
-                    ไม่ใช่เงินจริง และไม่สามารถแลกเปลี่ยนเป็นเงินได้<br/><br/>
-                    คุณสามารถใช้งานได้อย่างอิสระ และลบข้อมูลของคุณได้ตลอดเวลา
-                  </div>
-                  
-                  <h3>🔒 นโยบายข้อมูลส่วนบุคคล</h3>
-                  <div className="terms-text">
-                    Kidwa เก็บข้อมูลที่จำเป็นต่อการใช้งาน เช่น<br/>
-                    อีเมล การโหวต และผลการวิเคราะห์<br/><br/>
-                    เราใช้ข้อมูลเหล่านี้เพื่อปรับปรุงระบบและประสบการณ์ของคุณเท่านั้น<br/>
-                    <strong>ไม่มีการขายหรือส่งต่อข้อมูลส่วนบุคคลให้บุคคลที่สาม</strong><br/><br/>
-                    คุณสามารถขอลบหรือแก้ไขข้อมูลได้ทุกเมื่อ
-                  </div>
-                  
-                  <button className="btn btn-primary btn-full" onClick={() => { setConsentAccepted(true); setShowTerms(false) }}>
-                    ✅ ยอมรับและปิด
-                  </button>
-                </div>
-              </div>
             )}
 
             {mode === 'magic' && (
@@ -2049,6 +2024,90 @@ function AccountModal({ onClose, user, darkMode, onUpdateUser }) {
 
   const winRate = profile?.total_predictions > 0 ? Math.round((profile.correct_predictions / profile.total_predictions) * 100) : 0
   const level = profile ? getReputationLevel(profile.reputation) : reputationLevels[0]
+  
+  // v2: Calculate category accuracy
+  const getCategoryAccuracy = () => {
+    if (!voteHistory || voteHistory.length === 0) return []
+    
+    const categoryStats = {}
+    voteHistory.forEach(vote => {
+      const category = vote.polls?.category || 'other'
+      if (!categoryStats[category]) {
+        categoryStats[category] = { total: 0, correct: 0 }
+      }
+      categoryStats[category].total++
+      if (vote.is_correct) categoryStats[category].correct++
+    })
+    
+    return Object.entries(categoryStats)
+      .map(([cat, stats]) => ({
+        category: cat,
+        accuracy: stats.total > 0 ? Math.round((stats.correct / stats.total) * 100) : 0,
+        total: stats.total,
+        correct: stats.correct
+      }))
+      .filter(c => c.total >= 3) // ต้องมีอย่างน้อย 3 votes
+      .sort((a, b) => b.accuracy - a.accuracy)
+  }
+  
+  // v2: Get voting time pattern
+  const getVotingTimePattern = () => {
+    if (!voteHistory || voteHistory.length === 0) return null
+    
+    const timeStats = { morning: 0, afternoon: 0, evening: 0, night: 0 }
+    const correctByTime = { morning: 0, afternoon: 0, evening: 0, night: 0 }
+    
+    voteHistory.forEach(vote => {
+      const hour = new Date(vote.created_at).getHours()
+      let period = 'night'
+      if (hour >= 6 && hour < 12) period = 'morning'
+      else if (hour >= 12 && hour < 17) period = 'afternoon'
+      else if (hour >= 17 && hour < 21) period = 'evening'
+      
+      timeStats[period]++
+      if (vote.is_correct) correctByTime[period]++
+    })
+    
+    // หาช่วงเวลาที่แม่นที่สุด
+    let bestPeriod = null
+    let bestAccuracy = 0
+    Object.entries(timeStats).forEach(([period, total]) => {
+      if (total >= 3) {
+        const accuracy = correctByTime[period] / total
+        if (accuracy > bestAccuracy) {
+          bestAccuracy = accuracy
+          bestPeriod = period
+        }
+      }
+    })
+    
+    const periodNames = { morning: 'ช่วงเช้า', afternoon: 'ช่วงบ่าย', evening: 'ช่วงเย็น', night: 'ช่วงกลางคืน' }
+    return bestPeriod ? { period: periodNames[bestPeriod], accuracy: Math.round(bestAccuracy * 100) } : null
+  }
+  
+  // v2: Get conviction style
+  const getConvictionStyle = () => {
+    if (!voteHistory || voteHistory.length === 0) return null
+    
+    const avgConfidence = voteHistory.reduce((sum, v) => sum + (v.confidence || 50), 0) / voteHistory.length
+    
+    if (avgConfidence <= 30) return { style: 'ระมัดระวัง', desc: 'มักใช้ความมั่นใจต่ำ' }
+    if (avgConfidence >= 80) return { style: 'กล้าได้กล้าเสีย', desc: 'มักใช้ความมั่นใจสูง' }
+    return { style: 'รอบคอบ', desc: 'ใช้ความมั่นใจระดับกลาง' }
+  }
+  
+  const categoryAccuracy = getCategoryAccuracy()
+  const timePattern = getVotingTimePattern()
+  const convictionStyle = getConvictionStyle()
+  
+  const categoryIcons = {
+    sports: '⚽', entertainment: '🎬', politics: '🏛️', tech: '💻',
+    finance: '💰', lifestyle: '🌟', education: '📚', other: '📌'
+  }
+  const categoryNames = {
+    sports: 'กีฬา', entertainment: 'บันเทิง', politics: 'การเมือง', tech: 'เทคโนโลยี',
+    finance: 'การเงิน', lifestyle: 'ไลฟ์สไตล์', education: 'การศึกษา', other: 'อื่นๆ'
+  }
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -2110,6 +2169,7 @@ function AccountModal({ onClose, user, darkMode, onUpdateUser }) {
             {badges.length > 0 && <div className="account-badges"><h3 className="account-section-title">🏅 Badges</h3><div className="badges-grid">{badges.map(badge => <div key={badge.id} className="badge-item" title={badge.description}><span className="badge-icon">{badge.icon}</span><span className="badge-name">{badge.name}</span></div>)}</div></div>}
             <div className="account-tabs">
               <button className={`account-tab ${activeTab === 'stats' ? 'active' : ''}`} onClick={() => setActiveTab('stats')}>📊 สถิติ</button>
+              <button className={`account-tab ${activeTab === 'insight' ? 'active' : ''}`} onClick={() => setActiveTab('insight')}>🧠 Insight</button>
               <button className={`account-tab ${activeTab === 'history' ? 'active' : ''}`} onClick={() => setActiveTab('history')}>📜 ประวัติ</button>
               <button className={`account-tab ${activeTab === 'polls' ? 'active' : ''}`} onClick={() => setActiveTab('polls')}>📝 โพล</button>
               <button className={`account-tab ${activeTab === 'followers' ? 'active' : ''}`} onClick={() => setActiveTab('followers')}>👥 ผู้ติดตาม</button>
@@ -2117,6 +2177,58 @@ function AccountModal({ onClose, user, darkMode, onUpdateUser }) {
             </div>
             <div className="account-content">
               {activeTab === 'stats' && <div className="stats-detail"><div className="stats-row"><span>สมาชิกตั้งแต่</span><span>{new Date(profile.created_at).toLocaleDateString('th-TH')}</span></div><div className="stats-row"><span>Point เริ่มต้น</span><span>1,000</span></div><div className="stats-row"><span>ได้/เสีย รวม</span><span style={{ color: profile.reputation >= 1000 ? 'var(--green)' : 'var(--red)' }}>{profile.reputation >= 1000 ? '+' : ''}{profile.reputation - 1000}</span></div></div>}
+              
+              {/* v2: Profile Insight */}
+              {activeTab === 'insight' && (
+                <div className="insight-content">
+                  <div className="insight-section">
+                    <h4 className="insight-title">🎯 คุณมักวิเคราะห์ได้ดีในเรื่อง</h4>
+                    {categoryAccuracy.length > 0 ? (
+                      <div className="category-accuracy-list">
+                        {categoryAccuracy.slice(0, 3).map((cat, i) => (
+                          <div key={cat.category} className="category-accuracy-item">
+                            <span className="category-icon">{categoryIcons[cat.category] || '📌'}</span>
+                            <span className="category-name">{categoryNames[cat.category] || cat.category}</span>
+                            <span className="category-percent">(แม่น {cat.accuracy}%)</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="insight-empty">ยังไม่มีข้อมูลเพียงพอ (ต้องมีอย่างน้อย 3 votes ต่อหมวด)</p>
+                    )}
+                  </div>
+                  
+                  <div className="insight-section">
+                    <h4 className="insight-title">⏰ ช่วงเวลาที่คุณมักตัดสินใจได้ดี</h4>
+                    {timePattern ? (
+                      <p className="insight-value">{timePattern.period} (แม่น {timePattern.accuracy}%)</p>
+                    ) : (
+                      <p className="insight-empty">ยังไม่มีข้อมูลเพียงพอ</p>
+                    )}
+                  </div>
+                  
+                  <div className="insight-section">
+                    <h4 className="insight-title">💭 สไตล์การแสดงมุมมอง</h4>
+                    {convictionStyle ? (
+                      <div className="style-badge">
+                        <span className="style-name">{convictionStyle.style}</span>
+                        <span className="style-desc">{convictionStyle.desc}</span>
+                      </div>
+                    ) : (
+                      <p className="insight-empty">ยังไม่มีข้อมูลเพียงพอ</p>
+                    )}
+                  </div>
+                  
+                  <div className="insight-note">
+                    <span className="note-icon">📌</span>
+                    <span className="note-text">
+                      Insight นี้มาจากพฤติกรรมการใช้งาน<br/>
+                      ไม่มีผลต่อ Reputation และไม่มีการเปิดเผยต่อผู้อื่น
+                    </span>
+                  </div>
+                </div>
+              )}
+              
               {activeTab === 'history' && <div className="history-list">{voteHistory.length > 0 ? voteHistory.map(vote => <div key={vote.id} className={`history-item ${vote.is_correct === true ? 'correct' : vote.is_correct === false ? 'wrong' : ''}`}><div className="history-question">{vote.polls?.question || 'โพลถูกลบ'}</div><div className="history-answer"><span>เลือก: {vote.options?.text || '-'}</span>{vote.is_correct !== null && <span className={`history-result ${vote.is_correct ? 'correct' : 'wrong'}`}>{vote.is_correct ? '✅ ถูก' : '❌ ผิด'} ({vote.points_earned > 0 ? '+' : ''}{vote.points_earned})</span>}{vote.is_correct === null && vote.polls && <span className="history-pending">⏳ รอเฉลย</span>}</div></div>) : <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '2rem' }}>ยังไม่มีประวัติการโหวต</div>}</div>}
               {activeTab === 'polls' && <div className="polls-list">{createdPolls.length > 0 ? createdPolls.map(poll => <div key={poll.id} className="created-poll-item"><div className="created-poll-question">{poll.resolved && '✅ '}{poll.question}</div><div className="created-poll-meta"><span>👥 {poll.options?.reduce((s, o) => s + o.votes, 0) || 0} โหวต</span><span>⏱️ {getDaysRemaining(poll.ends_at)}</span></div></div>) : <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '2rem' }}>ยังไม่ได้สร้างโพล</div>}</div>}
               {activeTab === 'followers' && <div className="follow-list">{followers.length > 0 ? followers.map(f => <div key={f.id} className="follow-item"><div className="follow-avatar">{f.avatar_url ? <img src={f.avatar_url} alt={f.username} /> : f.username[0].toUpperCase()}</div><div className="follow-info"><span className="follow-name">{f.username}</span><span className="follow-rep">{getReputationLevel(f.reputation).badge} {f.reputation} pt</span></div></div>) : <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '2rem' }}>ยังไม่มีผู้ติดตาม</div>}</div>}
@@ -2164,6 +2276,29 @@ export default function Home() {
     checkAuthSession();
     const d = localStorage.getItem('kidwa-darkmode'); 
     if (d) setDarkMode(JSON.parse(d)) 
+    
+    // v2: Realtime subscription สำหรับ vote count
+    const optionsChannel = supabase
+      .channel('options-changes')
+      .on('postgres_changes', 
+        { event: 'UPDATE', schema: 'public', table: 'options' }, 
+        (payload) => {
+          // อัปเดต polls เมื่อมีการเปลี่ยนแปลง votes
+          setPolls(prev => prev.map(poll => ({
+            ...poll,
+            options: poll.options?.map(opt => 
+              opt.id === payload.new.id 
+                ? { ...opt, votes: payload.new.votes }
+                : opt
+            )
+          })))
+        }
+      )
+      .subscribe()
+    
+    return () => {
+      supabase.removeChannel(optionsChannel)
+    }
   }, [])
 
   const checkAuthSession = async () => {
