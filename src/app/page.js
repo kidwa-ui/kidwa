@@ -540,7 +540,7 @@ function LiveBattleCard({ poll, onClick, userVotes }) {
     const channel = supabase
       .channel(`live-battle-${poll.id}`)
       .on('postgres_changes', 
-        { event: 'UPDATE', schema: 'public', table: 'options', filter: `poll_id=eq.${poll.id}` }, 
+        { event: 'UPDATE', schema: 'public', table: 'options'}, 
         (payload) => {
           setLiveVotes(prev => prev.map(opt => 
             opt.id === payload.new.id 
