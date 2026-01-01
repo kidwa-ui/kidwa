@@ -1389,3 +1389,177 @@ select.form-input { appearance: none; background-image: url("data:image/svg+xml,
 .impact-bar-demo .impact-segment.active {
   transform: scaleY(1.3);
 }
+
+/* ===== v2 Profile Insight ===== */
+.insight-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.insight-section {
+  background: var(--bg);
+  border-radius: 12px;
+  padding: 1rem;
+}
+
+.insight-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 0.75rem 0;
+}
+
+.category-accuracy-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.category-accuracy-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-card);
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.category-icon {
+  font-size: 1.1rem;
+}
+
+.category-name {
+  font-weight: 500;
+  color: var(--text);
+}
+
+.category-percent {
+  color: var(--green);
+  font-weight: 600;
+  margin-left: auto;
+}
+
+.insight-value {
+  font-size: 1rem;
+  color: var(--text);
+  margin: 0;
+  font-weight: 500;
+}
+
+.insight-empty {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  margin: 0;
+  font-style: italic;
+}
+
+.style-badge {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.75rem 1rem;
+  background: linear-gradient(135deg, rgba(255, 107, 157, 0.1), rgba(255, 107, 157, 0.05));
+  border: 1px solid rgba(255, 107, 157, 0.2);
+  border-radius: 10px;
+}
+
+.style-name {
+  font-weight: 600;
+  color: var(--primary);
+  font-size: 1rem;
+}
+
+.style-desc {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.insight-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  background: var(--bg);
+  border-radius: 8px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-top: 0.5rem;
+}
+
+.insight-note .note-icon {
+  flex-shrink: 0;
+}
+
+.insight-note .note-text {
+  line-height: 1.5;
+}
+
+/* ===== v2 Live Battle Real-time ===== */
+.live-battle-realtime {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.live-vote-count {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+.live-pulse {
+  width: 8px;
+  height: 8px;
+  background: var(--red);
+  border-radius: 50%;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.2); }
+}
+
+.live-ratio-bar {
+  display: flex;
+  height: 24px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--border);
+}
+
+.ratio-segment {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: white;
+  transition: width 0.5s ease;
+  min-width: 30px;
+}
+
+.ratio-segment.left {
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+}
+
+.ratio-segment.right {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+}
+
+/* Dark mode for v2 */
+.dark .insight-section {
+  background: var(--bg-card);
+}
+
+.dark .category-accuracy-item {
+  background: var(--bg);
+}
+
+.dark .style-badge {
+  background: linear-gradient(135deg, rgba(255, 107, 157, 0.15), rgba(255, 107, 157, 0.08));
+}
