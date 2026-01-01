@@ -2309,11 +2309,6 @@ export default function Home() {
   }
 }, [poll.id])
       .subscribe()
-    
-    return () => {
-      supabase.removeChannel(optionsChannel)
-    }
-  }, [])
 
   const checkAuthSession = async () => {
     // ตรวจสอบ Supabase Auth session ก่อน
