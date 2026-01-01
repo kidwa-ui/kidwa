@@ -20,7 +20,6 @@ import {
 const categories = [
   { id: 'home', name: 'หน้าแรก', icon: '🏠' },
   { id: 'live', name: 'Live Battle', icon: '⚡' },
-  { id: 'timecapsule', name: 'Time Capsule', icon: '💊' },
   { id: 'sports', name: 'กีฬา', icon: '⚽' },
   { id: 'entertainment', name: 'บันเทิง', icon: '🎬' },
   { id: 'politics', name: 'การเมือง', icon: '🏛️' },
@@ -35,7 +34,8 @@ const categories = [
   { id: 'education', name: 'การศึกษา', icon: '📚' },
   { id: 'pets', name: 'สัตว์เลี้ยง', icon: '🐱' },
   { id: 'housing', name: 'บ้าน', icon: '🏡' },
-  { id: 'other', name: 'อื่นๆ', icon: '🎭' }
+  { id: 'other', name: 'อื่นๆ', icon: '🎭' },
+  { id: 'timecapsule', name: 'Time Capsule', icon: '💊' }
 ]
 
 const reputationLevels = [
@@ -49,8 +49,8 @@ const reputationLevels = [
 
 // === NEW v9 Conviction System ===
 const convictionLevels = [
-  { value: 'low', label: 'มั่นใจน้อย', multiplier: 0.8, color: '#22c55e' },
-  { value: 'medium', label: 'มั่นใจ', multiplier: 1.0, color: '#f59e0b' },
+  { value: 'low', label: 'ไม่ค่อยมั่นใจ', multiplier: 0.8, color: '#22c55e' },
+  { value: 'medium', label: 'โหวตเลย', multiplier: 1.0, color: '#f59e0b' },
   { value: 'high', label: 'มั่นใจมาก', multiplier: 1.3, color: '#ef4444' }
 ]
 
@@ -89,9 +89,9 @@ const calculateReputationPreview = (stake, conviction, userAccuracy = 0.5, predi
 
 // Legacy mapping for backward compatibility
 const confidenceLevels = [
-  { value: 20, label: 'มั่นใจน้อย', emoji: '🤔', color: '#22c55e', description: 'ผลกระทบต่ำ', conviction: 'low' },
-  { value: 50, label: 'มั่นใจ', emoji: '🎯', color: '#f59e0b', description: 'ผลกระทบปานกลาง', conviction: 'medium' },
-  { value: 100, label: 'มั่นใจมาก', emoji: '💪', color: '#ef4444', description: 'ผลกระทบสูง', conviction: 'high' }
+  { value: 20, label: 'ไม่ค่อยมั่นใจ', emoji: '🥶', color: '#22c55e', description: 'ผลกระทบต่ำ', conviction: 'low' },
+  { value: 50, label: 'โหวตเลย', emoji: '🥺', color: '#f59e0b', description: 'ผลกระทบปานกลาง', conviction: 'medium' },
+  { value: 100, label: 'มั่นใจมาก', emoji: '😎', color: '#ef4444', description: 'ผลกระทบสูง', conviction: 'high' }
 ]
 
 const getReputationLevel = (rep) => reputationLevels.find(l => rep >= l.min && rep <= l.max) || reputationLevels[0]
@@ -246,8 +246,8 @@ function ConfidenceSelector({ selectedConfidence, onSelect, disabled, user, stak
         <div className="conviction-warning">
           <span className="warning-icon">⚠️</span>
           <span className="warning-text">
-            <strong>ผลกระทบสูงต่อชื่อเสียง</strong><br/>
-            ถ้ามุมมองนี้คลาดเคลื่อน จะเสีย Reputation มากขึ้น
+            <strong>การโหวตของคุณมีผลกระทบสูงต่อชื่อเสียง</strong><br/>
+            ถ้าโหวตนี้คลาดเคลื่อน อาจจะเสีย Reputation มากขึ้น
           </span>
         </div>
       )}
@@ -274,7 +274,7 @@ function ConfidenceSelector({ selectedConfidence, onSelect, disabled, user, stak
         <div className="impact-outcomes">
           <div className="impact-item correct">
             <span className="impact-dot">•</span>
-            <span>ถ้ามุมมองนี้แม่น → ชื่อเสียง{impact.gainText}</span>
+            <span>ถ้าโหวตของคุณดี → ชื่อเสียง{impact.gainText}</span>
           </div>
           <div className="impact-item incorrect">
             <span className="impact-dot">•</span>
@@ -304,16 +304,16 @@ function FirstPredictionOnboarding({ onComplete, onDismiss }) {
     {
       title: 'ยินดีต้อนรับสู่ "คิดว่า.."',
       subtitle: 'ที่นี่ไม่วัดว่าใครเสียงดัง\nแต่วัดว่าใครคิดได้แม่น',
-      cta: 'เริ่มลองแสดงมุมมอง'
+      cta: 'เริ่มโหวต'
     },
     {
-      title: 'ทุกมุมมองมีผลต่อชื่อเสียง',
+      title: 'ทุกการโหวตมีผลต่ออันดับของคุณ',
       subtitle: 'ลองเลื่อนระดับความมั่นใจ\nแล้วดูว่าผลกระทบเปลี่ยนยังไง',
       cta: 'เข้าใจแล้ว ลองดู',
       hasSlider: true
     },
     {
-      title: 'เริ่มจากมั่นใจน้อยไม่ใช่เรื่องผิด',
+      title: 'เริ่มจากไม่ค่อยมั่นใจไม่ใช่เรื่องผิด',
       subtitle: 'ระบบนี้ออกแบบให้คุณเรียนรู้จากผลลัพธ์จริง',
       cta: 'แสดงมุมมองแรก'
     }
@@ -409,8 +409,8 @@ function PostResultFeedback({ vote, poll, onClose }) {
         <span className="result-icon">🎯</span>
         <span className="result-text">
           {isCorrect 
-            ? 'มุมมองนี้ช่วยเสริมชื่อเสียงของคุณ' 
-            : 'มุมมองนี้กระทบชื่อเสียงของคุณ'}
+            ? 'การโหวตนี้ช่วยเสริมชื่อเสียงของคุณ' 
+            : 'การโหวตนี้กระทบชื่อเสียงของคุณ'}
         </span>
       </div>
       
@@ -652,7 +652,7 @@ function CreateTimeCapsuleModal({ onClose, user, onSuccess, darkMode }) {
 
   const validate = () => { 
     const e = {}
-    if (!question.trim()) e.question = 'กรุณาใส่คำถาม'
+    if (!question.trim()) e.question = 'กรุณาใส่หัวข้อ'
     if (options.filter(o => o.trim()).length < 2) e.options = 'ต้องมีตัวเลือกอย่างน้อย 2 ตัว'
     if (years < 1 || years > 10) e.years = 'เลือก 1-10 ปี'
     setErrors(e)
@@ -677,7 +677,7 @@ function CreateTimeCapsuleModal({ onClose, user, onSuccess, darkMode }) {
     
     setIsSubmitting(false)
     if (error) alert('เกิดข้อผิดพลาด')
-    else { alert('🎉 สร้าง Time Capsule สำเร็จ!'); onSuccess(); onClose() }
+    else { alert('สร้าง Time Capsule สำเร็จ!'); onSuccess(); onClose() }
   }
 
   const filteredTags = availableTags.filter(tag => 
@@ -932,7 +932,7 @@ function VerificationModal({ onClose, user, onSuccess, darkMode }) {
     }
 
     if (!pdpaConsent) {
-      setError('กรุณายอมรับเงื่อนไขการใช้งานและนโยบายความเป็นส่วนตัว')
+      setError('กรุณาอ่านเงื่อนไขการใช้งานและนโยบายความเป็นส่วนตัว')
       return
     }
 
@@ -996,7 +996,7 @@ function VerificationModal({ onClose, user, onSuccess, darkMode }) {
             <input 
               type="text" 
               className="form-input" 
-              placeholder="เช่น สมชาย ใจดี" 
+              placeholder="เช่น สมทรง มั่งมี" 
               value={fullName} 
               onChange={e => setFullName(e.target.value)}
               maxLength={100}
@@ -1069,9 +1069,9 @@ function SimilarPollsWarning({ similarPolls, onContinue, onViewPoll }) {
     <div className="similar-polls-warning">
       <div className="warning-header">
         <span>⚠️</span>
-        <span>พบโพลที่คล้ายกัน</span>
+        <span>พบหัวข้อที่คล้ายกัน</span>
       </div>
-      <p className="warning-text">เราพบโพลที่อาจซ้ำกับที่คุณกำลังสร้าง ลองดูโพลเหล่านี้ก่อนไหม?</p>
+      <p className="warning-text">เราพบหัวข้อที่อาจซ้ำกับที่คุณกำลังสร้าง ลองดูหัวข้อเหล่านี้ก่อนไหม?</p>
       
       <div className="similar-polls-list">
         {similarPolls.map(poll => (
@@ -1087,7 +1087,7 @@ function SimilarPollsWarning({ similarPolls, onContinue, onViewPoll }) {
 
       <div className="warning-actions">
         <button className="btn btn-secondary" onClick={onContinue}>
-          🆕 สร้างโพลใหม่ต่อ
+          🆕 สร้างหัวข้อใหม่ต่อ
         </button>
       </div>
     </div>
@@ -1301,7 +1301,7 @@ function AuthModal({ onClose, onSuccess, darkMode }) {
     if (error) {
       setError(error.message)
     } else {
-      setSuccess('✅ สมัครสำเร็จ! กรุณาตรวจสอบอีเมลเพื่อยืนยันบัญชี')
+      setSuccess('✅ สำเร็จ! กรุณาตรวจสอบอีเมลเพื่อยืนยันบัญชี')
     }
     
     setIsLoading(false)
@@ -1754,7 +1754,7 @@ function CreatePollModal({ onClose, user, onSuccess, darkMode }) {
               <input 
                 type="text" 
                 className={`form-input ${errors.question ? 'error' : ''}`} 
-                placeholder={pollMode === 'prediction' ? 'เช่น ทีมไหนจะชนะฟุตบอลโลก 2026?' : 'เช่น คุณชอบสีอะไรมากกว่ากัน?'} 
+                placeholder={pollMode === 'prediction' ? 'เช่น ใครจะชนะเลือกตั้ง 2026?' : 'เช่น คุณชอบไปสวนสนุกที่ไหนมากกว่ากัน?'} 
                 value={question} 
                 onChange={(e) => setQuestion(e.target.value)} 
                 maxLength={200} 
@@ -2096,9 +2096,9 @@ function AccountModal({ onClose, user, darkMode, onUpdateUser }) {
     
     const avgConfidence = voteHistory.reduce((sum, v) => sum + (v.confidence || 50), 0) / voteHistory.length
     
-    if (avgConfidence <= 30) return { style: 'ระมัดระวัง', desc: 'มักใช้ความมั่นใจต่ำ' }
+    if (avgConfidence <= 30) return { style: 'ระมัดระวัง', desc: 'มักไม่ค่อยมั่นใจ' }
     if (avgConfidence >= 80) return { style: 'กล้าได้กล้าเสีย', desc: 'มักใช้ความมั่นใจสูง' }
-    return { style: 'รอบคอบ', desc: 'ใช้ความมั่นใจระดับกลาง' }
+    return { style: 'รอบคอบ', desc: 'ใช้ความมั่นใจระดับปกติ' }
   }
   
   const categoryAccuracy = getCategoryAccuracy()
