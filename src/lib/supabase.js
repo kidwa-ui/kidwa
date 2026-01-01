@@ -14,6 +14,7 @@ export const supabase = createClient(
     }
   }
 )
+
 // ===== Auth Functions =====
 
 // สมัครสมาชิกด้วย Email + Password
@@ -202,6 +203,8 @@ export async function getPolls() {
   return { data, error }
 }
 
+// ===== FIXED VOTE FUNCTION =====
+// แก้ไขให้ increment/decrement votes ถูกต้อง
 export async function vote(userId, pollId, optionId, confidence = 50) {
   const { data: existingVote } = await supabase
     .from('votes')
@@ -211,23 +214,71 @@ export async function vote(userId, pollId, optionId, confidence = 50) {
     .single()
 
   if (existingVote) {
-    await supabase.from('options').update({ votes: supabase.rpc('decrement') }).eq('id', existingVote.option_id)
+    // ถ้าเคยโหวตแล้ว → decrement option เก่า, increment option ใหม่
+    
+    // 1. ดึง votes ปัจจุบันของ option เก่า
+    const { data: oldOption } = await supabase
+      .from('options')
+      .select('votes')
+      .eq('id', existingVote.option_id)
+      .single()
+    
+    if (oldOption) {
+      // 2. Decrement option เก่า
+      await supabase
+        .from('options')
+        .update({ votes: Math.max(0, (oldOption.votes || 0) - 1) })
+        .eq('id', existingVote.option_id)
+    }
+    
+    // 3. อัพเดท vote record
     const { data, error } = await supabase
       .from('votes')
       .update({ option_id: optionId, confidence })
       .eq('id', existingVote.id)
       .select()
       .single()
-    await supabase.from('options').update({ votes: supabase.rpc('increment') }).eq('id', optionId)
+    
+    // 4. ดึง votes ปัจจุบันของ option ใหม่
+    const { data: newOption } = await supabase
+      .from('options')
+      .select('votes')
+      .eq('id', optionId)
+      .single()
+    
+    // 5. Increment option ใหม่
+    await supabase
+      .from('options')
+      .update({ votes: (newOption?.votes || 0) + 1 })
+      .eq('id', optionId)
+    
     return { data, error }
   } else {
+    // โหวตใหม่ → insert vote record และ increment option
+    
+    // 1. Insert vote record
     const { data, error } = await supabase
       .from('votes')
       .insert([{ user_id: userId, poll_id: pollId, option_id: optionId, confidence }])
       .select()
       .single()
-    await supabase.from('options').update({ votes: supabase.rpc('increment') }).eq('id', optionId)
-    return { data, error }
+    
+    if (error) return { data: null, error }
+    
+    // 2. ดึง votes ปัจจุบันของ option
+    const { data: currentOption } = await supabase
+      .from('options')
+      .select('votes')
+      .eq('id', optionId)
+      .single()
+    
+    // 3. Increment option
+    await supabase
+      .from('options')
+      .update({ votes: (currentOption?.votes || 0) + 1 })
+      .eq('id', optionId)
+    
+    return { data, error: null }
   }
 }
 
@@ -244,7 +295,7 @@ export async function getUserVotes(userId) {
 export async function getLeaderboard(limit = 10) {
   const { data, error } = await supabase
     .from('users')
-    .select('id, username, reputation, email_verified, is_verified')
+    .select('id, username, reputation, email_verified, is_verified, avatar_url')
     .order('reputation', { ascending: false })
     .limit(limit)
   return { data, error }
@@ -262,7 +313,7 @@ export async function getWeeklyLeaderboard(limit = 10) {
   
   const { data: votes, error } = await supabase
     .from('votes')
-    .select('user_id, points_earned, users!inner(id, username, reputation, email_verified, is_verified)')
+    .select('user_id, points_earned, users!inner(id, username, reputation, email_verified, is_verified, avatar_url)')
     .gte('created_at', monday.toISOString())
     .not('points_earned', 'is', null)
 
@@ -279,6 +330,7 @@ export async function getWeeklyLeaderboard(limit = 10) {
         reputation: vote.users.reputation,
         email_verified: vote.users.email_verified,
         is_verified: vote.users.is_verified,
+        avatar_url: vote.users.avatar_url,
         weeklyPoints: 0
       }
     }
@@ -302,7 +354,7 @@ export async function getMonthlyLeaderboard(limit = 10) {
   
   const { data: votes, error } = await supabase
     .from('votes')
-    .select('user_id, points_earned, users!inner(id, username, reputation, email_verified, is_verified)')
+    .select('user_id, points_earned, users!inner(id, username, reputation, email_verified, is_verified, avatar_url)')
     .gte('created_at', firstDayOfMonth.toISOString())
     .not('points_earned', 'is', null)
 
@@ -319,6 +371,7 @@ export async function getMonthlyLeaderboard(limit = 10) {
         reputation: vote.users.reputation,
         email_verified: vote.users.email_verified,
         is_verified: vote.users.is_verified,
+        avatar_url: vote.users.avatar_url,
         monthlyPoints: 0
       }
     }
@@ -764,7 +817,7 @@ export async function uploadAvatar(userId, file) {
 export async function getUserPublicProfile(userId) {
   const { data: user, error } = await supabase
     .from('users')
-    .select('id, username, reputation, avatar_url, current_streak, max_streak, total_predictions, correct_predictions, created_at')
+    .select('id, username, reputation, avatar_url, current_streak, max_streak, total_predictions, correct_predictions, created_at, is_verified')
     .eq('id', userId)
     .single()
   
