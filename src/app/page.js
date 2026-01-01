@@ -542,19 +542,25 @@ function LiveBattleCard({ poll, onClick, userVotes }) {
       .on('postgres_changes', 
         { event: 'UPDATE', schema: 'public', table: 'options'}, 
         (payload) => {
-          setLiveVotes(prev => prev.map(opt => 
-            opt.id === payload.new.id 
+        console.log('REALTIME EVENT:', payload)
+
+        setOptions(prev =>
+          prev.map(opt =>
+            opt.id === payload.new.id
               ? { ...opt, votes: payload.new.votes }
               : opt
-          ))
-        }
-      )
-      .subscribe()
-    
-    return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [poll.id])
+          )
+        )
+      }
+    )
+    .subscribe(status => {
+      console.log('Realtime status:', status)
+    })
+
+  return () => {
+    supabase.removeChannel(channel)
+  }
+}, [poll.id])
 
   return (
     <div className={`poll-card live-battle-card ${timeLeft.expired ? 'expired' : ''}`} onClick={onClick}>
@@ -2283,17 +2289,25 @@ export default function Home() {
       .on('postgres_changes', 
         { event: 'UPDATE', schema: 'public', table: 'options' }, 
         (payload) => {
-          // อัปเดต polls เมื่อมีการเปลี่ยนแปลง votes
-          setPolls(prev => prev.map(poll => ({
-            ...poll,
-            options: poll.options?.map(opt => 
-              opt.id === payload.new.id 
-                ? { ...opt, votes: payload.new.votes }
-                : opt
-            )
-          })))
-        }
-      )
+        console.log('REALTIME EVENT:', payload)
+
+        setOptions(prev =>
+          prev.map(opt =>
+            opt.id === payload.new.id
+              ? { ...opt, votes: payload.new.votes }
+              : opt
+          )
+        )
+      }
+    )
+    .subscribe(status => {
+      console.log('Realtime status:', status)
+    })
+
+  return () => {
+    supabase.removeChannel(channel)
+  }
+}, [poll.id])
       .subscribe()
     
     return () => {
