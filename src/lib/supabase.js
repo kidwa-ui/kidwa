@@ -17,9 +17,7 @@ export const supabase = createClient(
 
 // ===== Auth Functions =====
 
-// สมัครสมาชิกด้วย Email + Password
 export async function signUpWithEmail(email, password, username) {
-  // ตรวจสอบว่า username ซ้ำไหม
   const { data: existingUser } = await supabase
     .from('users')
     .select('id')
@@ -30,7 +28,6 @@ export async function signUpWithEmail(email, password, username) {
     return { data: null, error: { message: 'ชื่อผู้ใช้นี้ถูกใช้แล้ว' } }
   }
 
-  // ตรวจสอบว่า email ซ้ำไหม
   const { data: existingEmail } = await supabase
     .from('users')
     .select('id')
@@ -41,7 +38,6 @@ export async function signUpWithEmail(email, password, username) {
     return { data: null, error: { message: 'อีเมลนี้ถูกใช้แล้ว' } }
   }
 
-  // สมัครกับ Supabase Auth
   const { data: authData, error: authError } = await supabase.auth.signUp({
     email,
     password,
@@ -52,7 +48,6 @@ export async function signUpWithEmail(email, password, username) {
 
   if (authError) return { data: null, error: authError }
 
-  // สร้าง user ใน users table
   const { data: userData, error: userError } = await supabase
     .from('users')
     .insert([{
@@ -70,7 +65,6 @@ export async function signUpWithEmail(email, password, username) {
   return { data: { auth: authData, user: userData }, error: null }
 }
 
-// เข้าสู่ระบบด้วย Email + Password
 export async function signInWithEmail(email, password) {
   const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
     email,
@@ -79,7 +73,6 @@ export async function signInWithEmail(email, password) {
 
   if (authError) return { data: null, error: authError }
 
-  // ดึงข้อมูล user จาก users table
   const { data: userData, error: userError } = await supabase
     .from('users')
     .select('*')
@@ -93,7 +86,6 @@ export async function signInWithEmail(email, password) {
   return { data: { auth: authData, user: userData }, error: null }
 }
 
-// เข้าสู่ระบบด้วย Magic Link
 export async function signInWithMagicLink(email) {
   const { data, error } = await supabase.auth.signInWithOtp({
     email,
@@ -105,19 +97,16 @@ export async function signInWithMagicLink(email) {
   return { data, error }
 }
 
-// ออกจากระบบ
 export async function signOut() {
   const { error } = await supabase.auth.signOut()
   return { error }
 }
 
-// ดึง session ปัจจุบัน
 export async function getSession() {
   const { data: { session }, error } = await supabase.auth.getSession()
   return { session, error }
 }
 
-// ดึงข้อมูล user จาก auth session
 export async function getUserFromSession() {
   const { data: { session } } = await supabase.auth.getSession()
   
@@ -129,7 +118,6 @@ export async function getUserFromSession() {
     .eq('auth_id', session.user.id)
     .single()
 
-  // อัพเดท email_verified ถ้ายืนยันแล้ว
   if (userData && session.user.email_confirmed_at && !userData.email_verified) {
     await supabase
       .from('users')
@@ -141,7 +129,6 @@ export async function getUserFromSession() {
   return { data: userData, error }
 }
 
-// ลืมรหัสผ่าน
 export async function resetPassword(email) {
   const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: `${window.location.origin}/auth/callback?type=recovery`
@@ -150,7 +137,6 @@ export async function resetPassword(email) {
   return { data, error }
 }
 
-// เปลี่ยนรหัสผ่าน
 export async function updatePassword(newPassword) {
   const { data, error } = await supabase.auth.updateUser({
     password: newPassword
@@ -159,12 +145,10 @@ export async function updatePassword(newPassword) {
   return { data, error }
 }
 
-// Subscribe to auth state changes
 export function onAuthStateChange(callback) {
   return supabase.auth.onAuthStateChange(callback)
 }
 
-// Sign in with Google
 export async function signInWithGoogle() {
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
@@ -203,82 +187,53 @@ export async function getPolls() {
   return { data, error }
 }
 
-// ===== FIXED VOTE FUNCTION =====
-// แก้ไขให้ increment/decrement votes ถูกต้อง
+// =====================================================
+// TRIGGER-BASED VOTE FUNCTION
+// =====================================================
+// Client just INSERT/UPDATE votes table
+// PostgreSQL trigger automatically updates options.votes
+// This is atomic, reliable, and realtime-friendly
+// =====================================================
+
 export async function vote(userId, pollId, optionId, confidence = 50) {
+  // Check if user already voted on this poll
   const { data: existingVote } = await supabase
     .from('votes')
-    .select('*')
+    .select('id, option_id')
     .eq('user_id', userId)
     .eq('poll_id', pollId)
     .single()
 
   if (existingVote) {
-    // ถ้าเคยโหวตแล้ว → decrement option เก่า, increment option ใหม่
-    
-    // 1. ดึง votes ปัจจุบันของ option เก่า
-    const { data: oldOption } = await supabase
-      .from('options')
-      .select('votes')
-      .eq('id', existingVote.option_id)
-      .single()
-    
-    if (oldOption) {
-      // 2. Decrement option เก่า
-      await supabase
-        .from('options')
-        .update({ votes: Math.max(0, (oldOption.votes || 0) - 1) })
-        .eq('id', existingVote.option_id)
-    }
-    
-    // 3. อัพเดท vote record
+    // User already voted → UPDATE their vote
+    // Trigger handles: decrement old option, increment new option
     const { data, error } = await supabase
       .from('votes')
-      .update({ option_id: optionId, confidence })
+      .update({ 
+        option_id: optionId, 
+        confidence,
+        updated_at: new Date().toISOString()
+      })
       .eq('id', existingVote.id)
       .select()
       .single()
     
-    // 4. ดึง votes ปัจจุบันของ option ใหม่
-    const { data: newOption } = await supabase
-      .from('options')
-      .select('votes')
-      .eq('id', optionId)
-      .single()
-    
-    // 5. Increment option ใหม่
-    await supabase
-      .from('options')
-      .update({ votes: (newOption?.votes || 0) + 1 })
-      .eq('id', optionId)
-    
     return { data, error }
   } else {
-    // โหวตใหม่ → insert vote record และ increment option
-    
-    // 1. Insert vote record
+    // New vote → INSERT
+    // Trigger handles: increment option
     const { data, error } = await supabase
       .from('votes')
-      .insert([{ user_id: userId, poll_id: pollId, option_id: optionId, confidence }])
+      .insert([{ 
+        user_id: userId, 
+        poll_id: pollId, 
+        option_id: optionId, 
+        confidence 
+      }])
       .select()
       .single()
     
-    if (error) return { data: null, error }
-    
-    // 2. ดึง votes ปัจจุบันของ option
-    const { data: currentOption } = await supabase
-      .from('options')
-      .select('votes')
-      .eq('id', optionId)
-      .single()
-    
-    // 3. Increment option
-    await supabase
-      .from('options')
-      .update({ votes: (currentOption?.votes || 0) + 1 })
-      .eq('id', optionId)
-    
-    return { data, error: null }
+    return { data, error }
   }
 }
 
@@ -301,11 +256,9 @@ export async function getLeaderboard(limit = 10) {
   return { data, error }
 }
 
-// Leaderboard รายสัปดาห์ - ตัดรอบจันทร์-อาทิตย์
 export async function getWeeklyLeaderboard(limit = 10) {
-  // หาวันจันทร์ของสัปดาห์นี้
   const now = new Date()
-  const dayOfWeek = now.getDay() // 0 = อาทิตย์, 1 = จันทร์, ...
+  const dayOfWeek = now.getDay()
   const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
   const monday = new Date(now)
   monday.setDate(now.getDate() + mondayOffset)
@@ -319,7 +272,6 @@ export async function getWeeklyLeaderboard(limit = 10) {
 
   if (error) return { data: null, error }
 
-  // รวมคะแนนตาม user
   const userPoints = {}
   votes?.forEach(vote => {
     const userId = vote.user_id
@@ -337,7 +289,6 @@ export async function getWeeklyLeaderboard(limit = 10) {
     userPoints[userId].weeklyPoints += vote.points_earned || 0
   })
 
-  // เรียงลำดับและ return
   const sorted = Object.values(userPoints)
     .sort((a, b) => b.weeklyPoints - a.weeklyPoints)
     .slice(0, limit)
@@ -345,9 +296,7 @@ export async function getWeeklyLeaderboard(limit = 10) {
   return { data: sorted, error: null }
 }
 
-// Leaderboard รายเดือน - ตัดรอบตามเดือนปฏิทิน (วันที่ 1 - สิ้นเดือน)
 export async function getMonthlyLeaderboard(limit = 10) {
-  // หาวันที่ 1 ของเดือนนี้
   const now = new Date()
   const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
   firstDayOfMonth.setHours(0, 0, 0, 0)
@@ -360,7 +309,6 @@ export async function getMonthlyLeaderboard(limit = 10) {
 
   if (error) return { data: null, error }
 
-  // รวมคะแนนตาม user
   const userPoints = {}
   votes?.forEach(vote => {
     const userId = vote.user_id
@@ -378,7 +326,6 @@ export async function getMonthlyLeaderboard(limit = 10) {
     userPoints[userId].monthlyPoints += vote.points_earned || 0
   })
 
-  // เรียงลำดับและ return
   const sorted = Object.values(userPoints)
     .sort((a, b) => b.monthlyPoints - a.monthlyPoints)
     .slice(0, limit)
@@ -386,7 +333,7 @@ export async function getMonthlyLeaderboard(limit = 10) {
   return { data: sorted, error: null }
 }
 
-// ===== ฟังก์ชันสำหรับสร้างโพล =====
+// ===== Poll Creation Functions =====
 
 export async function getTags() {
   const { data, error } = await supabase
@@ -438,7 +385,7 @@ export async function createPoll({ question, options, category, tags, blindMode,
   }
 }
 
-// ===== ฟังก์ชัน Admin =====
+// ===== Admin Functions =====
 
 export async function getAllPollsAdmin() {
   const { data, error } = await supabase.from('polls').select('*, options(*), tags(*)').order('created_at', { ascending: false })
@@ -450,10 +397,10 @@ export async function getPendingPolls() {
   return { data, error }
 }
 
-// === v9 Reputation Formula ===
+// === Reputation Formula ===
 const REPUTATION_CONFIG = {
   penalty_multiplier: 1.15,
-  conviction: { 20: 0.8, 50: 1.0, 100: 1.3 }, // value -> multiplier
+  conviction: { 20: 0.8, 50: 1.0, 100: 1.3 },
   daily_rep_cap: 50,
   daily_loss_cap: 100,
   experience_threshold: 100
@@ -484,7 +431,6 @@ function calculateReputationChange(stake, confidence, isCorrect, predictionCount
 
 export async function resolvePoll(pollId, correctOptionId) {
   try {
-    // ดึงข้อมูล poll ก่อน
     const { data: pollData } = await supabase
       .from('polls')
       .select('question, poll_type')
@@ -500,7 +446,6 @@ export async function resolvePoll(pollId, correctOptionId) {
     
     if (pollError) throw pollError
 
-    // ดึงข้อมูล correct option
     const { data: correctOption } = await supabase
       .from('options')
       .select('text')
@@ -521,7 +466,6 @@ export async function resolvePoll(pollId, correctOptionId) {
       if (userData) {
         const isAdmin = userData.is_admin === true
         
-        // Calculate reputation change using new formula
         let repChange = 0
         if (isPrediction && !isAdmin) {
           const stake = vote.confidence || 50
@@ -544,7 +488,6 @@ export async function resolvePoll(pollId, correctOptionId) {
           current_streak: newCurrentStreak, max_streak: newMaxStreak
         }).eq('id', vote.user_id)
 
-        // สร้าง Notification สำหรับผู้โหวต (UX Copy v1)
         let notifMessage
         if (isPrediction) {
           notifMessage = isCorrect 
@@ -563,7 +506,6 @@ export async function resolvePoll(pollId, correctOptionId) {
         })
       }
 
-      // บันทึกผลพร้อม reputation_change
       await supabase.from('votes').update({ 
         is_correct: isCorrect, 
         points_earned: isPrediction ? calculateReputationChange(vote.confidence || 50, vote.confidence, isCorrect, 0) : 0
@@ -617,7 +559,7 @@ export async function getAdminStats() {
   return { totalPolls: polls?.length || 0, activePolls, expiredUnresolved, resolvedPolls, totalUsers: users?.length || 0, totalVotes: votes?.length || 0 }
 }
 
-// ===== ฟังก์ชัน Account =====
+// ===== Account Functions =====
 
 export async function getUserProfile(userId) {
   const { data, error } = await supabase.from('users').select('*').eq('id', userId).single()
@@ -655,7 +597,7 @@ export function calculateBadges(user) {
   return badges
 }
 
-// ===== ฟังก์ชัน Notification =====
+// ===== Notification Functions =====
 
 export async function createNotification({ userId, type, message, pollId = null, pointsChange = null }) {
   const { data, error } = await supabase
@@ -709,10 +651,9 @@ export async function markAllNotificationsAsRead(userId) {
   return { error }
 }
 
-// ===== ฟังก์ชัน Follow System =====
+// ===== Follow System Functions =====
 
 export async function followUser(followerId, followingId) {
-  // ตรวจสอบว่าติดตามอยู่แล้วหรือไม่
   const { data: existing } = await supabase
     .from('follows')
     .select('*')
@@ -784,26 +725,23 @@ export async function getFollowCounts(userId) {
   return { followers: followersCount || 0, following: followingCount || 0 }
 }
 
-// ===== ฟังก์ชัน Avatar Upload =====
+// ===== Avatar Upload Functions =====
 
 export async function uploadAvatar(userId, file) {
   const fileExt = file.name.split('.').pop()
   const fileName = `${userId}-${Date.now()}.${fileExt}`
   const filePath = `avatars/${fileName}`
 
-  // อัพโหลดไฟล์ไปยัง Supabase Storage
   const { error: uploadError } = await supabase.storage
     .from('avatars')
     .upload(filePath, file, { upsert: true })
 
   if (uploadError) return { error: uploadError }
 
-  // รับ public URL
   const { data: { publicUrl } } = supabase.storage
     .from('avatars')
     .getPublicUrl(filePath)
 
-  // อัพเดท avatar_url ใน users table
   const { error: updateError } = await supabase
     .from('users')
     .update({ avatar_url: publicUrl })
@@ -851,11 +789,11 @@ export async function createTimeCapsule({ question, options, tags, endsAt, creat
       .insert([{ 
         question, 
         category: 'time_capsule',
-        blind_mode: true, // Time Capsule บังคับ Blind Mode
+        blind_mode: true,
         poll_type: 'time_capsule',
         ends_at: endsAt, 
         created_by: createdBy, 
-        featured: true, // Time Capsule แสดงเด่นเสมอ
+        featured: true,
         resolved: false 
       }])
       .select()
@@ -901,7 +839,7 @@ export async function createLiveBattle({ question, options, category, tags, dura
       .insert([{ 
         question, 
         category,
-        blind_mode: false, // Live Battle เห็นผลแบบ real-time
+        blind_mode: false,
         poll_type: 'live_battle',
         ends_at: endsAt.toISOString(),
         created_by: createdBy, 
@@ -939,7 +877,7 @@ export async function getLiveBattles() {
     .select('*, options(*), tags(*), users:created_by(username, avatar_url)')
     .eq('poll_type', 'live_battle')
     .eq('is_live', true)
-    .gt('ends_at', now) // ยังไม่หมดเวลา
+    .gt('ends_at', now)
     .order('created_at', { ascending: false })
   
   return { data, error }
@@ -954,7 +892,6 @@ export async function endLiveBattle(pollId) {
   return { error }
 }
 
-// Subscribe to live battle updates (real-time)
 export function subscribeLiveBattle(pollId, callback) {
   const subscription = supabase
     .channel(`live_battle_${pollId}`)
@@ -976,7 +913,6 @@ export function unsubscribeLiveBattle(subscription) {
 // ===== Verification + PDPA Functions =====
 
 export async function submitVerification(userId, { fullName, birthDate, pdpaConsent, marketingConsent }) {
-  // คำนวณอายุ
   const today = new Date()
   const birth = new Date(birthDate)
   let age = today.getFullYear() - birth.getFullYear()
@@ -985,7 +921,6 @@ export async function submitVerification(userId, { fullName, birthDate, pdpaCons
     age--
   }
 
-  // ตรวจสอบอายุขั้นต่ำ (13 ปี)
   if (age < 13) {
     return { data: null, error: { message: 'ต้องมีอายุอย่างน้อย 13 ปี' } }
   }
@@ -1009,7 +944,6 @@ export async function submitVerification(userId, { fullName, birthDate, pdpaCons
 }
 
 export async function skipVerification(userId) {
-  // ข้ามการ verify แต่ยังใช้งานได้ (ไม่ได้ verified badge)
   const { data, error } = await supabase
     .from('users')
     .update({ verification_skipped: true })
@@ -1029,24 +963,20 @@ export async function checkNeedsVerification(userId) {
 
   if (!data) return false
 
-  // ต้องแสดง popup ถ้า: email verified แล้ว + ยังไม่ verify ตัวตน + ยังไม่ skip
   return data.email_verified && !data.is_verified && !data.verification_skipped
 }
 
 // ===== Poll Limit Functions =====
 
 export async function checkPollLimit(userId) {
-  // ดึงข้อมูล user เพื่อเช็คว่า verified หรือไม่
   const { data: user } = await supabase
     .from('users')
     .select('is_verified, reputation')
     .eq('id', userId)
     .single()
 
-  // กำหนดโควต้า: verified = 3 โพล/วัน, ไม่ verified = 1 โพล/วัน
   const dailyLimit = user?.is_verified ? 3 : 1
 
-  // นับโพลที่สร้างวันนี้
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
@@ -1075,10 +1005,8 @@ export async function getUserPollLimit(userId) {
     .eq('id', userId)
     .single()
 
-  // กำหนดโควต้า: verified = 3 โพล/วัน, ไม่ verified = 1 โพล/วัน
   const dailyLimit = user?.is_verified ? 3 : 1
 
-  // นับโพลที่สร้างวันนี้
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
@@ -1103,33 +1031,28 @@ export async function getUserPollLimit(userId) {
 // ===== Similar Poll Detection =====
 
 export async function findSimilarPolls(question, limit = 5) {
-  // ทำให้เป็น lowercase และ trim
   const searchQuery = question.toLowerCase().trim()
   
-  // แยกคำสำคัญ (ตัดคำที่สั้นเกินไป)
   const keywords = searchQuery
     .split(/\s+/)
     .filter(word => word.length > 2)
-    .slice(0, 5) // ใช้แค่ 5 คำแรก
+    .slice(0, 5)
 
   if (keywords.length === 0) {
     return { data: [], error: null }
   }
 
-  // สร้าง search pattern สำหรับ ilike
-  // ค้นหาโพลที่มีคำคล้ายกัน
   const { data: polls, error } = await supabase
     .from('polls')
     .select('id, question, ends_at, resolved, options(votes)')
     .or(keywords.map(k => `question.ilike.%${k}%`).join(','))
     .eq('resolved', false)
-    .gt('ends_at', new Date().toISOString()) // ยังไม่หมดอายุ
+    .gt('ends_at', new Date().toISOString())
     .order('created_at', { ascending: false })
     .limit(limit)
 
   if (error) return { data: [], error }
 
-  // คำนวณ similarity score
   const scoredPolls = polls?.map(poll => {
     const pollQuestion = poll.question.toLowerCase()
     let matchCount = 0
@@ -1144,7 +1067,7 @@ export async function findSimilarPolls(question, limit = 5) {
       similarity,
       totalVotes
     }
-  }).filter(p => p.similarity >= 0.4) // แสดงเฉพาะที่คล้ายกัน 40% ขึ้นไป
+  }).filter(p => p.similarity >= 0.4)
     .sort((a, b) => b.similarity - a.similarity)
 
   return { data: scoredPolls || [], error: null }
@@ -1153,7 +1076,6 @@ export async function findSimilarPolls(question, limit = 5) {
 // ===== Creator Engagement Points =====
 
 export async function checkAndAwardCreatorPoints(pollId) {
-  // ดึงข้อมูล poll
   const { data: poll } = await supabase
     .from('polls')
     .select('id, created_by, creator_points_100, creator_points_1000, creator_points_10000, options(votes)')
@@ -1167,7 +1089,6 @@ export async function checkAndAwardCreatorPoints(pollId) {
   let milestone = null
   const updates = {}
 
-  // ตรวจสอบ milestones
   if (totalVotes >= 10000 && !poll.creator_points_10000) {
     pointsToAward = 200
     milestone = '10000'
@@ -1183,10 +1104,8 @@ export async function checkAndAwardCreatorPoints(pollId) {
   }
 
   if (pointsToAward > 0 && poll.created_by) {
-    // อัพเดท poll flags
     await supabase.from('polls').update(updates).eq('id', pollId)
 
-    // เพิ่มคะแนนให้ผู้สร้าง
     const { data: creator } = await supabase
       .from('users')
       .select('reputation')
@@ -1199,7 +1118,6 @@ export async function checkAndAwardCreatorPoints(pollId) {
         .update({ reputation: creator.reputation + pointsToAward })
         .eq('id', poll.created_by)
 
-      // สร้าง notification
       await createNotification({
         userId: poll.created_by,
         type: 'creator_bonus',
