@@ -540,27 +540,26 @@ function LiveBattleCard({ poll, onClick, userVotes }) {
     const channel = supabase
       .channel(`live-battle-${poll.id}`)
       .on('postgres_changes', 
-        { event: 'UPDATE', schema: 'public', table: 'options'}, 
+        { event: 'UPDATE', schema: 'public', table: 'options', filter: `poll_id=eq.${poll.id}` }, 
         (payload) => {
-        console.log('REALTIME EVENT:', payload)
-
-        setOptions(prev =>
-          prev.map(opt =>
-            opt.id === payload.new.id
-              ? { ...opt, votes: payload.new.votes }
-              : opt
+          console.log('REALTIME EVENT:', payload)
+          setLiveVotes(prev =>
+            prev.map(opt =>
+              opt.id === payload.new.id
+                ? { ...opt, votes: payload.new.votes }
+                : opt
+            )
           )
-        )
-      }
-    )
-    .subscribe(status => {
-      console.log('Realtime status:', status)
-    })
+        }
+      )
+      .subscribe(status => {
+        console.log('Live Battle Realtime status:', status)
+      })
 
-  return () => {
-    supabase.removeChannel(channel)
-  }
-}, [poll.id])
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [poll.id])
 
   return (
     <div className={`poll-card live-battle-card ${timeLeft.expired ? 'expired' : ''}`} onClick={onClick}>
@@ -2289,26 +2288,26 @@ export default function Home() {
       .on('postgres_changes', 
         { event: 'UPDATE', schema: 'public', table: 'options' }, 
         (payload) => {
-        console.log('REALTIME EVENT:', payload)
+          console.log('REALTIME EVENT:', payload)
+          // อัปเดต polls เมื่อมีการเปลี่ยนแปลง votes
+          setPolls(prev => prev.map(poll => ({
+            ...poll,
+            options: poll.options?.map(opt => 
+              opt.id === payload.new.id 
+                ? { ...opt, votes: payload.new.votes }
+                : opt
+            )
+          })))
+        }
+      )
+      .subscribe(status => {
+        console.log('Realtime status:', status)
+      })
 
-        setOptions(prev =>
-          prev.map(opt =>
-            opt.id === payload.new.id
-              ? { ...opt, votes: payload.new.votes }
-              : opt
-          )
-        )
-      }
-    )
-    .subscribe(status => {
-      console.log('Realtime status:', status)
-    })
-
-  return () => {
-    supabase.removeChannel(channel)
+    return () => {
+      supabase.removeChannel(optionsChannel)
     }
-}, [poll.id])
-      .subscribe()
+  }, [])
 
   const checkAuthSession = async () => {
     // ตรวจสอบ Supabase Auth session ก่อน
