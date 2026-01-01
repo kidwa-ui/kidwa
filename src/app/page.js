@@ -303,7 +303,7 @@ function FirstPredictionOnboarding({ onComplete, onDismiss }) {
   const steps = [
     {
       title: 'ยินดีต้อนรับสู่ "คิดว่า.."',
-      subtitle: 'ที่นี่ไม่วัดว่าใครเสียงดัง\nแต่วัดว่าใครคิดได้แม่น',
+      subtitle: 'แพลตฟอร์มที่จะกระตุกความคิดคุณ\nแล้วคุณล่ะ\nคิดว่า..',
       cta: 'เริ่มโหวต'
     },
     {
@@ -2423,7 +2423,7 @@ export default function Home() {
       const totalVotes = (updatedPoll?.options?.reduce((sum, opt) => sum + (opt.votes || 0), 0) || 0) + 1
       
       // UX Copy v1.2: แสดงจำนวนผู้ร่วมวิเคราะห์
-      alert(`✅ บันทึกมุมมองของคุณแล้ว\nตอนนี้มีผู้ร่วมวิเคราะห์ ${totalVotes.toLocaleString()} คน`)
+      alert(`✅ บันทึกมุมมองของคุณแล้ว\nตอนนี้มีผู้ร่วมโหวต ${totalVotes.toLocaleString()} คน`)
       
       // Check and award creator engagement points
       await checkAndAwardCreatorPoints(pollId)
