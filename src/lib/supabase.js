@@ -15,51 +15,6 @@ export const supabase = createClient(
   }
 )
 
-// =====================================================
-// THAILAND TIMEZONE HELPERS (UTC+7)
-// =====================================================
-
-// Get current time in Thailand
-export function getThailandNow() {
-  return new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }))
-}
-
-// Get current season identifier (YYYY-MM in Thailand time)
-export function getThailandSeason() {
-  const thai = getThailandNow()
-  const year = thai.getFullYear()
-  const month = String(thai.getMonth() + 1).padStart(2, '0')
-  return `${year}-${month}`
-}
-
-// Convert UTC date to Thailand display
-export function toThailandTime(utcDate) {
-  if (!utcDate) return null
-  const date = new Date(utcDate)
-  return new Date(date.toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }))
-}
-
-// Format date for Thai display
-export function formatThaiDate(date, options = {}) {
-  if (!date) return ''
-  const d = typeof date === 'string' ? new Date(date) : date
-  return d.toLocaleDateString('th-TH', {
-    timeZone: 'Asia/Bangkok',
-    ...options
-  })
-}
-
-// Format time for Thai display
-export function formatThaiTime(date) {
-  if (!date) return ''
-  const d = typeof date === 'string' ? new Date(date) : date
-  return d.toLocaleTimeString('th-TH', {
-    timeZone: 'Asia/Bangkok',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
-}
-
 // ===== Auth Functions =====
 
 export async function signUpWithEmail(email, password, username) {
@@ -93,8 +48,6 @@ export async function signUpWithEmail(email, password, username) {
 
   if (authError) return { data: null, error: authError }
 
-  const currentSeason = getThailandSeason()
-
   const { data: userData, error: userError } = await supabase
     .from('users')
     .insert([{
@@ -102,9 +55,7 @@ export async function signUpWithEmail(email, password, username) {
       email,
       auth_id: authData.user?.id,
       email_verified: false,
-      reputation: 1000,
-      seasonal_reputation: 0,
-      current_season: currentSeason
+      reputation: 1000
     }])
     .select()
     .single()
@@ -175,22 +126,6 @@ export async function getUserFromSession() {
     userData.email_verified = true
   }
 
-  // Check and reset seasonal reputation if new month
-  if (userData) {
-    const currentSeason = getThailandSeason()
-    if (userData.current_season !== currentSeason) {
-      await supabase
-        .from('users')
-        .update({ 
-          seasonal_reputation: 0,
-          current_season: currentSeason
-        })
-        .eq('id', userData.id)
-      userData.seasonal_reputation = 0
-      userData.current_season = currentSeason
-    }
-  }
-
   return { data: userData, error }
 }
 
@@ -235,20 +170,9 @@ export async function getUserByUsername(username) {
 }
 
 export async function createUser(username) {
-  const currentSeason = getThailandSeason()
   const { data, error } = await supabase
     .from('users')
-    .insert([{ 
-      username, 
-      reputation: 1000, 
-      seasonal_reputation: 0,
-      current_season: currentSeason,
-      streak: 0, 
-      current_streak: 0, 
-      max_streak: 0, 
-      total_predictions: 0, 
-      correct_predictions: 0 
-    }])
+    .insert([{ username, reputation: 1000, streak: 0, current_streak: 0, max_streak: 0, total_predictions: 0, correct_predictions: 0 }])
     .select()
     .single()
   return { data, error }
@@ -263,43 +187,71 @@ export async function getPolls() {
   return { data, error }
 }
 
-// =====================================================
-// TRIGGER-BASED VOTE FUNCTION
-// =====================================================
+// Get polls by category
+export async function getPollsByCategory(category) {
+  const { data, error } = await supabase
+    .from('polls')
+    .select('*, options(*), tags(*)')
+    .eq('category', category)
+    .order('ends_at', { ascending: true })
+    .limit(50)
+  return { data, error }
+}
+
+// Get polls by tag
+export async function getPollsByTag(tagName) {
+  const { data: tag } = await supabase
+    .from('tags')
+    .select('id')
+    .eq('name', tagName.toLowerCase())
+    .single()
+
+  if (!tag) return { data: [], error: null }
+
+  const { data: pollTags } = await supabase
+    .from('poll_tags')
+    .select('poll_id')
+    .eq('tag_id', tag.id)
+
+  if (!pollTags || pollTags.length === 0) return { data: [], error: null }
+
+  const pollIds = pollTags.map(pt => pt.poll_id)
+
+  const { data, error } = await supabase
+    .from('polls')
+    .select('*, options(*), tags(*)')
+    .in('id', pollIds)
+    .order('ends_at', { ascending: true })
+    .limit(50)
+
+  return { data, error }
+}
 
 export async function vote(userId, pollId, optionId, confidence = 50) {
   const { data: existingVote } = await supabase
     .from('votes')
-    .select('id, option_id')
+    .select('*')
     .eq('user_id', userId)
     .eq('poll_id', pollId)
     .single()
 
   if (existingVote) {
+    await supabase.from('options').update({ votes: supabase.rpc('decrement') }).eq('id', existingVote.option_id)
     const { data, error } = await supabase
       .from('votes')
-      .update({ 
-        option_id: optionId, 
-        confidence,
-        updated_at: new Date().toISOString()
-      })
+      .update({ option_id: optionId, confidence })
       .eq('id', existingVote.id)
       .select()
       .single()
-    
+    await supabase.from('options').update({ votes: supabase.rpc('increment') }).eq('id', optionId)
     return { data, error }
   } else {
     const { data, error } = await supabase
       .from('votes')
-      .insert([{ 
-        user_id: userId, 
-        poll_id: pollId, 
-        option_id: optionId, 
-        confidence 
-      }])
+      .insert([{ user_id: userId, poll_id: pollId, option_id: optionId, confidence }])
       .select()
       .single()
-    
+    await supabase.from('options').update({ votes: supabase.rpc('increment') }).eq('id', optionId)
     return { data, error }
   }
 }
@@ -312,52 +264,28 @@ export async function getUserVotes(userId) {
   return { data, error }
 }
 
-// =====================================================
-// LEADERBOARD FUNCTIONS (Seasonal + Lifetime)
-// =====================================================
+// ===== Leaderboard Functions =====
 
-// Seasonal Leaderboard (default) - current month in Thailand time
-export async function getSeasonalLeaderboard(limit = 10) {
-  const currentSeason = getThailandSeason()
-  
+export async function getLeaderboard(limit = 10) {
   const { data, error } = await supabase
     .from('users')
-    .select('id, username, reputation, seasonal_reputation, current_season, avatar_url, is_verified, email_verified')
-    .eq('current_season', currentSeason)
-    .order('seasonal_reputation', { ascending: false })
-    .limit(limit)
-  
-  return { data, error }
-}
-
-// Lifetime Leaderboard (prestige)
-export async function getLifetimeLeaderboard(limit = 10) {
-  const { data, error } = await supabase
-    .from('users')
-    .select('id, username, reputation, seasonal_reputation, avatar_url, is_verified, email_verified')
+    .select('id, username, reputation, email_verified, is_verified, avatar_url')
     .order('reputation', { ascending: false })
     .limit(limit)
   return { data, error }
 }
 
-// Legacy function - now defaults to seasonal
-export async function getLeaderboard(limit = 10) {
-  return getSeasonalLeaderboard(limit)
-}
-
-// Weekly leaderboard (within current week, Thailand time)
 export async function getWeeklyLeaderboard(limit = 10) {
-  // Get Monday of current week in Thailand time
-  const thai = getThailandNow()
-  const dayOfWeek = thai.getDay()
+  const now = new Date()
+  const dayOfWeek = now.getDay()
   const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
-  const monday = new Date(thai)
-  monday.setDate(thai.getDate() + mondayOffset)
+  const monday = new Date(now)
+  monday.setDate(now.getDate() + mondayOffset)
   monday.setHours(0, 0, 0, 0)
   
   const { data: votes, error } = await supabase
     .from('votes')
-    .select('user_id, points_earned, users!inner(id, username, reputation, seasonal_reputation, email_verified, is_verified, avatar_url)')
+    .select('user_id, points_earned, users!inner(id, username, reputation, email_verified, is_verified, avatar_url)')
     .gte('created_at', monday.toISOString())
     .not('points_earned', 'is', null)
 
@@ -371,7 +299,6 @@ export async function getWeeklyLeaderboard(limit = 10) {
         id: userId,
         username: vote.users.username,
         reputation: vote.users.reputation,
-        seasonal_reputation: vote.users.seasonal_reputation,
         email_verified: vote.users.email_verified,
         is_verified: vote.users.is_verified,
         avatar_url: vote.users.avatar_url,
@@ -388,40 +315,44 @@ export async function getWeeklyLeaderboard(limit = 10) {
   return { data: sorted, error: null }
 }
 
-// Monthly leaderboard (same as seasonal for this month)
 export async function getMonthlyLeaderboard(limit = 10) {
-  return getSeasonalLeaderboard(limit)
+  const now = new Date()
+  const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+  firstDayOfMonth.setHours(0, 0, 0, 0)
+  
+  const { data: votes, error } = await supabase
+    .from('votes')
+    .select('user_id, points_earned, users!inner(id, username, reputation, email_verified, is_verified, avatar_url)')
+    .gte('created_at', firstDayOfMonth.toISOString())
+    .not('points_earned', 'is', null)
+
+  if (error) return { data: null, error }
+
+  const userPoints = {}
+  votes?.forEach(vote => {
+    const userId = vote.user_id
+    if (!userPoints[userId]) {
+      userPoints[userId] = {
+        id: userId,
+        username: vote.users.username,
+        reputation: vote.users.reputation,
+        email_verified: vote.users.email_verified,
+        is_verified: vote.users.is_verified,
+        avatar_url: vote.users.avatar_url,
+        monthlyPoints: 0
+      }
+    }
+    userPoints[userId].monthlyPoints += vote.points_earned || 0
+  })
+
+  const sorted = Object.values(userPoints)
+    .sort((a, b) => b.monthlyPoints - a.monthlyPoints)
+    .slice(0, limit)
+
+  return { data: sorted, error: null }
 }
 
-// =====================================================
-// SILENT THINKER TRACKING
-// =====================================================
-
-// Mark user as having viewed leaderboard
-export async function markLeaderboardViewed(userId) {
-  const { error } = await supabase
-    .from('users')
-    .update({ has_viewed_leaderboard: true })
-    .eq('id', userId)
-  return { error }
-}
-
-// Mark user as having viewed profile insights
-export async function markProfileInsightsViewed(userId) {
-  const { error } = await supabase
-    .from('users')
-    .update({ has_viewed_profile_insights: true })
-    .eq('id', userId)
-  return { error }
-}
-
-// Check if user is a "silent thinker" (hasn't engaged with competitive features)
-export function isSilentThinker(user) {
-  if (!user) return true
-  return !user.has_viewed_leaderboard && !user.has_viewed_profile_insights
-}
-
-// ===== Poll Creation Functions =====
+// ===== Tag Functions =====
 
 export async function getTags() {
   const { data, error } = await supabase
@@ -447,6 +378,176 @@ export async function createTag(name) {
     .single()
   return { data, error }
 }
+
+// ===== Trending Tags Functions =====
+
+// Get trending tags based on vote activity with anti-spam guardrails
+export async function getTrendingTags(limit = 10, timeframeDays = 7) {
+  const cutoffDate = new Date()
+  cutoffDate.setDate(cutoffDate.getDate() - timeframeDays)
+
+  // Get all votes within timeframe with poll and tag info
+  const { data: votes, error } = await supabase
+    .from('votes')
+    .select(`
+      id,
+      created_at,
+      poll_id,
+      polls!inner(
+        id,
+        poll_tags(
+          tag_id,
+          tags(id, name)
+        )
+      )
+    `)
+    .gte('created_at', cutoffDate.toISOString())
+
+  if (error) return { data: [], error }
+
+  // Calculate tag scores with guardrails
+  const tagScores = {}
+  const pollContributions = {} // Track per-poll contributions to each tag
+
+  votes?.forEach(vote => {
+    const voteAge = (Date.now() - new Date(vote.created_at).getTime()) / (1000 * 60 * 60 * 24)
+    const timeDecay = Math.exp(-0.1 * voteAge) // Decay factor
+
+    vote.polls?.poll_tags?.forEach(pt => {
+      const tag = pt.tags
+      if (!tag) return
+
+      const tagId = tag.id
+      const pollId = vote.poll_id
+
+      if (!tagScores[tagId]) {
+        tagScores[tagId] = {
+          id: tagId,
+          name: tag.name,
+          score: 0,
+          pollCount: new Set(),
+          voteCount: 0
+        }
+      }
+
+      if (!pollContributions[tagId]) {
+        pollContributions[tagId] = {}
+      }
+
+      if (!pollContributions[tagId][pollId]) {
+        pollContributions[tagId][pollId] = 0
+      }
+
+      // Cap per-poll contribution at 30% of total
+      const MAX_POLL_CONTRIBUTION = 0.3
+      const currentPollContribution = pollContributions[tagId][pollId]
+      const totalScoreSoFar = tagScores[tagId].score || 1
+      
+      if (currentPollContribution / totalScoreSoFar < MAX_POLL_CONTRIBUTION || tagScores[tagId].pollCount.size < 2) {
+        const voteWeight = 1 * timeDecay
+        tagScores[tagId].score += voteWeight
+        pollContributions[tagId][pollId] += voteWeight
+        tagScores[tagId].pollCount.add(pollId)
+        tagScores[tagId].voteCount++
+      }
+    })
+  })
+
+  // Filter and sort tags
+  // Must have >= 2 polls and >= 5 votes to be considered trending
+  const trendingTags = Object.values(tagScores)
+    .filter(tag => tag.pollCount.size >= 2 && tag.voteCount >= 5)
+    .map(tag => ({
+      id: tag.id,
+      name: tag.name,
+      score: Math.round(tag.score * 100) / 100,
+      pollCount: tag.pollCount.size,
+      voteCount: tag.voteCount
+    }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+
+  return { data: trendingTags, error: null }
+}
+
+// Get tag suggestions based on question and category
+export async function getTagSuggestions(question, category, limit = 5) {
+  // Extract keywords from question
+  const keywords = question.toLowerCase()
+    .replace(/[?!.,;:'"]/g, '')
+    .split(/\s+/)
+    .filter(word => word.length > 2)
+  
+  if (keywords.length === 0) return { data: [], error: null }
+
+  // Get tags frequently used in this category
+  const { data: categoryPolls } = await supabase
+    .from('polls')
+    .select('id')
+    .eq('category', category)
+    .limit(100)
+
+  const pollIds = categoryPolls?.map(p => p.id) || []
+
+  // Get tags used in these polls
+  const { data: pollTags } = await supabase
+    .from('poll_tags')
+    .select('tag_id, tags(id, name)')
+    .in('poll_id', pollIds)
+
+  // Count tag frequency
+  const tagFrequency = {}
+  pollTags?.forEach(pt => {
+    if (pt.tags) {
+      const tagId = pt.tags.id
+      if (!tagFrequency[tagId]) {
+        tagFrequency[tagId] = { ...pt.tags, count: 0 }
+      }
+      tagFrequency[tagId].count++
+    }
+  })
+
+  // Also search for tags matching keywords
+  const { data: keywordTags } = await supabase
+    .from('tags')
+    .select('*')
+    .or(keywords.map(k => `name.ilike.%${k}%`).join(','))
+    .limit(10)
+
+  // Combine and score suggestions
+  const suggestions = {}
+  
+  // Add category-based tags with lower weight
+  Object.values(tagFrequency).forEach(tag => {
+    suggestions[tag.id] = {
+      id: tag.id,
+      name: tag.name,
+      score: tag.count * 0.5
+    }
+  })
+
+  // Add keyword-matching tags with higher weight
+  keywordTags?.forEach(tag => {
+    if (suggestions[tag.id]) {
+      suggestions[tag.id].score += 10
+    } else {
+      suggestions[tag.id] = {
+        id: tag.id,
+        name: tag.name,
+        score: 10
+      }
+    }
+  })
+
+  // Sort and return top suggestions
+  const sortedSuggestions = Object.values(suggestions)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+
+  return { data: sortedSuggestions, error: null }
+}
+
+// ===== Poll Functions =====
 
 export async function createPoll({ question, options, category, tags, blindMode, endsAt, pollType, createdBy }) {
   try {
@@ -485,7 +586,7 @@ export async function getPendingPolls() {
   return { data, error }
 }
 
-// === Reputation Formula ===
+// === v9 Reputation Formula ===
 const REPUTATION_CONFIG = {
   penalty_multiplier: 1.15,
   conviction: { 20: 0.8, 50: 1.0, 100: 1.3 },
@@ -542,14 +643,12 @@ export async function resolvePoll(pollId, correctOptionId) {
 
     const { data: votes } = await supabase.from('votes').select('id, user_id, option_id, confidence').eq('poll_id', pollId)
 
-    const currentSeason = getThailandSeason()
-
     for (const vote of votes || []) {
       const isCorrect = vote.option_id === correctOptionId
       
       const { data: userData } = await supabase
         .from('users')
-        .select('reputation, seasonal_reputation, current_season, current_streak, max_streak, total_predictions, correct_predictions, is_admin, has_viewed_leaderboard')
+        .select('reputation, current_streak, max_streak, total_predictions, correct_predictions, is_admin')
         .eq('id', vote.user_id)
         .single()
       
@@ -573,45 +672,16 @@ export async function resolvePoll(pollId, correctOptionId) {
         const newCurrentStreak = isCorrect ? (userData.current_streak || 0) + 1 : 0
         const newMaxStreak = Math.max(userData.max_streak || 0, newCurrentStreak)
         
-        // Handle seasonal reputation with season rollover
-        let newSeasonalRep = userData.seasonal_reputation || 0
-        let userSeason = userData.current_season
-        
-        if (userSeason !== currentSeason) {
-          // New season - reset seasonal rep
-          newSeasonalRep = Math.max(0, repChange)
-          userSeason = currentSeason
-        } else {
-          // Same season - accumulate
-          newSeasonalRep = Math.max(0, newSeasonalRep + repChange)
-        }
-        
         await supabase.from('users').update({ 
-          reputation: newRep, 
-          seasonal_reputation: newSeasonalRep,
-          current_season: userSeason,
-          total_predictions: newTotal, 
-          correct_predictions: newCorrect,
-          current_streak: newCurrentStreak, 
-          max_streak: newMaxStreak
+          reputation: newRep, total_predictions: newTotal, correct_predictions: newCorrect,
+          current_streak: newCurrentStreak, max_streak: newMaxStreak
         }).eq('id', vote.user_id)
 
-        // Notification message - neutral for silent thinkers
         let notifMessage
-        const isSilent = !userData.has_viewed_leaderboard
-        
         if (isPrediction) {
-          if (isSilent) {
-            // Neutral message for silent thinkers
-            notifMessage = isCorrect 
-              ? `✓ "${pollData?.question?.substring(0, 50)}..." - มุมมองของคุณตรงกับผลลัพธ์`
-              : `✗ "${pollData?.question?.substring(0, 50)}..." - มุมมองของคุณไม่ตรงกับผลลัพธ์`
-          } else {
-            // Full message for engaged users
-            notifMessage = isCorrect 
-              ? `🎯 มุมมองนี้แม่น! "${pollData?.question?.substring(0, 40)}..." (+${repChange} Reputation)`
-              : `❌ มุมมองนี้คลาด "${pollData?.question?.substring(0, 40)}..." (${repChange} Reputation)`
-          }
+          notifMessage = isCorrect 
+            ? `🎯 มุมมองนี้แม่น! "${pollData?.question?.substring(0, 40)}..." (+${repChange} Reputation)`
+            : `❌ มุมมองนี้คลาด "${pollData?.question?.substring(0, 40)}..." (${repChange} Reputation)`
         } else {
           notifMessage = `📊 โพลสิ้นสุด "${pollData?.question?.substring(0, 40)}..." ตัวเลือกยอดนิยมคือ "${correctOption?.text}"`
         }
@@ -621,7 +691,7 @@ export async function resolvePoll(pollId, correctOptionId) {
           type: isCorrect ? 'points_earned' : 'points_lost',
           message: notifMessage,
           pollId: pollId,
-          pointsChange: isSilent ? null : repChange // Don't show points for silent thinkers
+          pointsChange: repChange
         })
       }
 
@@ -874,7 +944,7 @@ export async function uploadAvatar(userId, file) {
 export async function getUserPublicProfile(userId) {
   const { data: user, error } = await supabase
     .from('users')
-    .select('id, username, reputation, seasonal_reputation, avatar_url, current_streak, max_streak, total_predictions, correct_predictions, created_at, is_verified')
+    .select('id, username, reputation, avatar_url, current_streak, max_streak, total_predictions, correct_predictions, created_at, is_verified')
     .eq('id', userId)
     .single()
   
@@ -907,7 +977,7 @@ export async function createTimeCapsule({ question, options, tags, endsAt, creat
       .from('polls')
       .insert([{ 
         question, 
-        category: 'time_capsule',
+        category: 'timecapsule',
         blind_mode: true,
         poll_type: 'time_capsule',
         ends_at: endsAt, 
@@ -948,10 +1018,17 @@ export async function getTimeCapsules(limit = 20) {
 
 // ===== Live Battle Functions =====
 
+// Helper function to create Thailand timezone ISO string
+function toThailandISOString(date) {
+  // Thailand is UTC+7
+  const tzOffset = 7 * 60 // minutes
+  const localTime = new Date(date.getTime() + tzOffset * 60 * 1000)
+  return localTime.toISOString().replace('Z', '+07:00')
+}
+
 export async function createLiveBattle({ question, options, category, tags, durationMinutes, createdBy }) {
   try {
-    // Use Thailand time for Live Battle
-    const now = getThailandNow()
+    const now = new Date()
     const endsAt = new Date(now.getTime() + durationMinutes * 60 * 1000)
     
     const { data: poll, error: pollError } = await supabase
@@ -990,17 +1067,39 @@ export async function createLiveBattle({ question, options, category, tags, dura
 }
 
 export async function getLiveBattles() {
-  const now = new Date().toISOString()
+  const now = new Date()
+  // Show battles that ended within 5 minutes as well
+  const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000)
   
   const { data, error } = await supabase
     .from('polls')
     .select('*, options(*), tags(*), users:created_by(username, avatar_url)')
     .eq('poll_type', 'live_battle')
     .eq('is_live', true)
-    .gt('ends_at', now)
-    .order('created_at', { ascending: false })
+    .gt('ends_at', fiveMinutesAgo.toISOString())
+    .order('ends_at', { ascending: true })
+
+  if (error) return { data: null, error }
+
+  // Sort: active (closest to ending) first, then recently ended, then older ended
+  const sortedData = (data || []).sort((a, b) => {
+    const aEnds = new Date(a.ends_at)
+    const bEnds = new Date(b.ends_at)
+    const aActive = aEnds > now
+    const bActive = bEnds > now
+
+    // Both active: sort by closest to ending
+    if (aActive && bActive) {
+      return aEnds - bEnds
+    }
+    // Active comes before ended
+    if (aActive && !bActive) return -1
+    if (!aActive && bActive) return 1
+    // Both ended: sort by most recently ended
+    return bEnds - aEnds
+  })
   
-  return { data, error }
+  return { data: sortedData, error: null }
 }
 
 export async function endLiveBattle(pollId) {
@@ -1097,15 +1196,14 @@ export async function checkPollLimit(userId) {
 
   const dailyLimit = user?.is_verified ? 3 : 1
 
-  // Use Thailand midnight for daily reset
-  const thai = getThailandNow()
-  thai.setHours(0, 0, 0, 0)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
 
   const { count } = await supabase
     .from('polls')
     .select('*', { count: 'exact', head: true })
     .eq('created_by', userId)
-    .gte('created_at', thai.toISOString())
+    .gte('created_at', today.toISOString())
 
   const used = count || 0
   const remaining = Math.max(0, dailyLimit - used)
@@ -1128,15 +1226,14 @@ export async function getUserPollLimit(userId) {
 
   const dailyLimit = user?.is_verified ? 3 : 1
 
-  // Use Thailand midnight for daily reset
-  const thai = getThailandNow()
-  thai.setHours(0, 0, 0, 0)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
 
   const { count } = await supabase
     .from('polls')
     .select('*', { count: 'exact', head: true })
     .eq('created_by', userId)
-    .gte('created_at', thai.toISOString())
+    .gte('created_at', today.toISOString())
 
   const used = count || 0
   const remaining = Math.max(0, dailyLimit - used)
@@ -1195,6 +1292,301 @@ export async function findSimilarPolls(question, limit = 5) {
   return { data: scoredPolls || [], error: null }
 }
 
+// ===== Category & Tag Routes =====
+
+export async function getPollsByCategory(category, limit = 50) {
+  const { data, error } = await supabase
+    .from('polls')
+    .select('*, options(*), tags(*), users:created_by(username, avatar_url)')
+    .eq('category', category)
+    .order('ends_at', { ascending: true })
+    .limit(limit)
+  
+  return { data, error }
+}
+
+export async function getPollsByTag(tagName, limit = 50) {
+  // First find the tag
+  const { data: tag } = await supabase
+    .from('tags')
+    .select('id')
+    .eq('name', tagName.toLowerCase())
+    .single()
+  
+  if (!tag) return { data: [], error: null }
+  
+  // Get poll IDs with this tag
+  const { data: pollTags } = await supabase
+    .from('poll_tags')
+    .select('poll_id')
+    .eq('tag_id', tag.id)
+  
+  if (!pollTags || pollTags.length === 0) return { data: [], error: null }
+  
+  const pollIds = pollTags.map(pt => pt.poll_id)
+  
+  // Get the polls
+  const { data, error } = await supabase
+    .from('polls')
+    .select('*, options(*), tags(*), users:created_by(username, avatar_url)')
+    .in('id', pollIds)
+    .order('ends_at', { ascending: true })
+    .limit(limit)
+  
+  return { data, error }
+}
+
+// ===== Trending Tags =====
+
+export async function getTrendingTags(limit = 10, timeframeDays = 7) {
+  const cutoffDate = new Date()
+  cutoffDate.setDate(cutoffDate.getDate() - timeframeDays)
+  
+  // Get recent votes with poll and tag info
+  const { data: recentVotes, error: votesError } = await supabase
+    .from('votes')
+    .select('id, created_at, poll_id')
+    .gte('created_at', cutoffDate.toISOString())
+  
+  if (votesError || !recentVotes) return { data: [], error: votesError }
+  
+  // Get poll_tags for all voted polls
+  const pollIds = [...new Set(recentVotes.map(v => v.poll_id))]
+  
+  const { data: pollTags } = await supabase
+    .from('poll_tags')
+    .select('poll_id, tag_id, tags(id, name)')
+    .in('poll_id', pollIds)
+  
+  if (!pollTags) return { data: [], error: null }
+  
+  // Calculate tag scores
+  const tagScores = {}
+  const tagPollCounts = {}
+  const now = new Date()
+  
+  recentVotes.forEach(vote => {
+    const voteAge = (now - new Date(vote.created_at)) / (1000 * 60 * 60 * 24) // days
+    const timeDecay = Math.exp(-voteAge / 7) // decay over ~7 days
+    
+    // Find tags for this poll
+    const tagsForPoll = pollTags.filter(pt => pt.poll_id === vote.poll_id)
+    
+    tagsForPoll.forEach(pt => {
+      if (!pt.tags) return
+      const tagId = pt.tags.id
+      const tagName = pt.tags.name
+      
+      if (!tagScores[tagId]) {
+        tagScores[tagId] = { id: tagId, name: tagName, score: 0, totalVotes: 0 }
+        tagPollCounts[tagId] = new Set()
+      }
+      
+      tagScores[tagId].score += timeDecay
+      tagScores[tagId].totalVotes += 1
+      tagPollCounts[tagId].add(vote.poll_id)
+    })
+  })
+  
+  // Apply anti-spam guardrails
+  const tagResults = Object.values(tagScores)
+    .filter(tag => {
+      const pollCount = tagPollCounts[tag.id].size
+      // Must have >= 2 polls and >= 5 votes
+      return pollCount >= 2 && tag.totalVotes >= 5
+    })
+    .map(tag => {
+      const pollCount = tagPollCounts[tag.id].size
+      
+      // Cap single poll contribution to 30%
+      // Multiply by poll diversity (more polls = better)
+      const diversityBonus = Math.min(2, 1 + Math.log(pollCount) / 3)
+      
+      // Calculate max contribution from a single poll (30% cap)
+      const maxSinglePollContribution = tag.score * 0.3
+      
+      return {
+        ...tag,
+        pollCount,
+        finalScore: tag.score * diversityBonus
+      }
+    })
+    .sort((a, b) => b.finalScore - a.finalScore)
+    .slice(0, limit)
+  
+  return { data: tagResults, error: null }
+}
+
+// ===== Tag Suggestions =====
+
+export async function getTagSuggestions(question, category, limit = 5) {
+  const keywords = question
+    .toLowerCase()
+    .replace(/[^\u0E00-\u0E7Fa-z0-9\s]/g, '') // Keep Thai, alphanumeric, spaces
+    .split(/\s+/)
+    .filter(word => word.length > 2)
+  
+  if (keywords.length === 0) {
+    return { data: [], error: null }
+  }
+  
+  // Get popular tags from same category
+  const { data: categoryPolls } = await supabase
+    .from('polls')
+    .select('id')
+    .eq('category', category)
+    .order('created_at', { ascending: false })
+    .limit(50)
+  
+  const categoryPollIds = categoryPolls?.map(p => p.id) || []
+  
+  // Get tags used in these polls
+  let tagCounts = {}
+  
+  if (categoryPollIds.length > 0) {
+    const { data: pollTags } = await supabase
+      .from('poll_tags')
+      .select('tag_id, tags(id, name)')
+      .in('poll_id', categoryPollIds)
+    
+    pollTags?.forEach(pt => {
+      if (pt.tags) {
+        const tagId = pt.tags.id
+        if (!tagCounts[tagId]) {
+          tagCounts[tagId] = { id: tagId, name: pt.tags.name, count: 0, matchScore: 0 }
+        }
+        tagCounts[tagId].count += 1
+      }
+    })
+  }
+  
+  // Also search all tags matching keywords
+  const { data: matchingTags } = await supabase
+    .from('tags')
+    .select('id, name')
+    .or(keywords.map(k => `name.ilike.%${k}%`).join(','))
+    .limit(20)
+  
+  matchingTags?.forEach(tag => {
+    if (!tagCounts[tag.id]) {
+      tagCounts[tag.id] = { id: tag.id, name: tag.name, count: 0, matchScore: 0 }
+    }
+    // Calculate match score
+    let matchCount = 0
+    keywords.forEach(keyword => {
+      if (tag.name.toLowerCase().includes(keyword)) matchCount++
+    })
+    tagCounts[tag.id].matchScore = matchCount / keywords.length
+  })
+  
+  // Sort by combined score (category usage + keyword match)
+  const suggestions = Object.values(tagCounts)
+    .map(tag => ({
+      ...tag,
+      totalScore: tag.count * 0.5 + tag.matchScore * 10
+    }))
+    .sort((a, b) => b.totalScore - a.totalScore)
+    .slice(0, limit)
+  
+  return { data: suggestions, error: null }
+}
+
+// ===== Updated Live Battle Functions =====
+
+export async function createLiveBattleV2({ question, options, category, tags, durationMinutes, createdBy }) {
+  try {
+    // Use local time with explicit timezone
+    const now = new Date()
+    const endsAt = new Date(now.getTime() + durationMinutes * 60 * 1000)
+    
+    // Format as ISO string with timezone
+    const formatWithTimezone = (date) => {
+      const offset = -date.getTimezoneOffset()
+      const sign = offset >= 0 ? '+' : '-'
+      const hours = String(Math.floor(Math.abs(offset) / 60)).padStart(2, '0')
+      const minutes = String(Math.abs(offset) % 60).padStart(2, '0')
+      return date.toISOString().replace('Z', `${sign}${hours}:${minutes}`)
+    }
+    
+    const { data: poll, error: pollError } = await supabase
+      .from('polls')
+      .insert([{ 
+        question, 
+        category,
+        blind_mode: false,
+        poll_type: 'live_battle',
+        ends_at: endsAt.toISOString(),
+        created_by: createdBy, 
+        featured: false,
+        resolved: false,
+        is_live: true,
+        live_started_at: now.toISOString(),
+        live_duration_minutes: durationMinutes
+      }])
+      .select()
+      .single()
+    
+    if (pollError) throw pollError
+
+    const optionsData = options.map(opt => ({ poll_id: poll.id, text: opt, votes: 0 }))
+    const { error: optionsError } = await supabase.from('options').insert(optionsData)
+    if (optionsError) throw optionsError
+
+    if (tags && tags.length > 0) {
+      const tagLinks = tags.map(tagId => ({ poll_id: poll.id, tag_id: tagId }))
+      await supabase.from('poll_tags').insert(tagLinks)
+    }
+
+    return { data: poll, error: null }
+  } catch (error) {
+    return { data: null, error }
+  }
+}
+
+export async function getLiveBattlesV2() {
+  const now = new Date()
+  const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000)
+  
+  const { data, error } = await supabase
+    .from('polls')
+    .select('*, options(*), tags(*), users:created_by(username, avatar_url)')
+    .eq('poll_type', 'live_battle')
+    .eq('is_live', true)
+    .order('ends_at', { ascending: true })
+  
+  if (error || !data) return { data: [], error }
+  
+  // Custom sorting:
+  // 1. Active polls (closest to ending first)
+  // 2. Recently ended polls (within 5 minutes)
+  // 3. Expired polls
+  const sortedData = data.sort((a, b) => {
+    const aEnd = new Date(a.ends_at)
+    const bEnd = new Date(b.ends_at)
+    
+    const aActive = aEnd > now
+    const bActive = bEnd > now
+    const aRecentlyEnded = !aActive && aEnd > fiveMinutesAgo
+    const bRecentlyEnded = !bActive && bEnd > fiveMinutesAgo
+    
+    // Active polls first
+    if (aActive && !bActive) return -1
+    if (!aActive && bActive) return 1
+    
+    // Both active: closest to ending first
+    if (aActive && bActive) return aEnd - bEnd
+    
+    // Recently ended polls next
+    if (aRecentlyEnded && !bRecentlyEnded) return -1
+    if (!aRecentlyEnded && bRecentlyEnded) return 1
+    
+    // Both expired: most recent first
+    return bEnd - aEnd
+  })
+  
+  return { data: sortedData, error: null }
+}
+
 // ===== Creator Engagement Points =====
 
 export async function checkAndAwardCreatorPoints(pollId) {
@@ -1230,27 +1622,14 @@ export async function checkAndAwardCreatorPoints(pollId) {
 
     const { data: creator } = await supabase
       .from('users')
-      .select('reputation, seasonal_reputation, current_season')
+      .select('reputation')
       .eq('id', poll.created_by)
       .single()
 
     if (creator) {
-      const currentSeason = getThailandSeason()
-      let newSeasonalRep = creator.seasonal_reputation || 0
-      
-      if (creator.current_season === currentSeason) {
-        newSeasonalRep += pointsToAward
-      } else {
-        newSeasonalRep = pointsToAward
-      }
-      
       await supabase
         .from('users')
-        .update({ 
-          reputation: creator.reputation + pointsToAward,
-          seasonal_reputation: newSeasonalRep,
-          current_season: currentSeason
-        })
+        .update({ reputation: creator.reputation + pointsToAward })
         .eq('id', poll.created_by)
 
       await createNotification({
