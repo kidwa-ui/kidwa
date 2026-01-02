@@ -472,13 +472,32 @@ export async function getPendingPolls() {
   return { data, error }
 }
 
-// === v9 Reputation Formula ===
+// === v9 Reputation Formula (v1.1 with conviction-scaled penalty) ===
 const REPUTATION_CONFIG = {
-  penalty_multiplier: 1.15,
   conviction: { 20: 0.8, 50: 1.0, 100: 1.3 },
-  daily_rep_cap: 50,
-  daily_loss_cap: 100,
+  penalty: { 20: 0.9, 50: 1.15, 100: 1.35 }, // NEW: scaled penalty by conviction
+  daily_rep_cap: 75,   // relaxed from 50
+  daily_loss_cap: 150, // relaxed from 100
   experience_threshold: 100
+}
+
+// Red Flag Thresholds (from hybrid test simulation)
+const RED_FLAG_THRESHOLDS = {
+  vote: {
+    maxGain: 21,
+    maxLoss: 27,
+    avgChangeFloor: -8
+  },
+  daily: {
+    maxGainPerUser: 105,
+    maxLossPerUser: 135,
+    maxVotesPerUser: 20
+  },
+  system: {
+    zeroRepUserRatio: 0.15,
+    maxRepInSystem: 5000,
+    repStdDevMax: 600
+  }
 }
 
 function getConvictionMultiplier(confidence) {
@@ -500,7 +519,9 @@ function calculateReputationChange(stake, confidence, isCorrect, predictionCount
   if (isCorrect) {
     return Math.round(S * C * E)
   } else {
-    return -Math.round(S * C * REPUTATION_CONFIG.penalty_multiplier)
+    // v1.1: Use conviction-scaled penalty instead of flat multiplier
+    const P = REPUTATION_CONFIG.penalty[confidence] || 1.15
+    return -Math.round(S * C * P)
   }
 }
 
