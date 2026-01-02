@@ -132,7 +132,7 @@ function PostingGuidelinesModal({ onClose, darkMode }) {
       <div className={`modal info-modal ${darkMode ? 'dark' : ''}`} onClick={e => e.stopPropagation()}>
         <button className="modal-close" onClick={onClose}>✕</button>
         <div className="info-modal-header">
-          <h2>📝 คำแนะนำการโพสต์</h2>
+          <h2>คำแนะนำการโพสต์</h2>
           <p>วิธีสร้างโพลที่มีคุณภาพ</p>
         </div>
         <div className="info-modal-content">
@@ -163,7 +163,7 @@ function PostingGuidelinesModal({ onClose, darkMode }) {
           
           <div className="info-card">
             <h4>💡 เคล็ดลับสร้างโพลที่ดี</h4>
-            <p>โพลที่ดีควรมีคำตอบที่สามารถตรวจสอบได้ในอนาคต เช่น "ใครจะชนะเลือกตั้งผู้ว่า กทม. 2027" ดีกว่า "นักการเมืองคนไหนเก่งที่สุด" เพราะโพลแรกมีคำตอบที่ชัดเจน</p>
+            <p>โพลที่ดีต้องมีคำตอบที่แน่นอนในอนาคต เช่น "ใครจะชนะเลือกตั้งผู้ว่า กทม. ในปีนี้" ดีกว่า "นักการเมืองคนไหนเก่งที่สุด" เพราะโพลแรกมีคำตอบที่ชัดเจน</p>
           </div>
           
           <div className="info-card">
@@ -182,7 +182,7 @@ function MemberPrivilegesModal({ onClose, darkMode }) {
       <div className={`modal info-modal ${darkMode ? 'dark' : ''}`} onClick={e => e.stopPropagation()}>
         <button className="modal-close" onClick={onClose}>✕</button>
         <div className="info-modal-header">
-          <h2>⭐ สิทธิ์การใช้งานของสมาชิก</h2>
+          <h2>สิทธิ์การใช้งานของสมาชิก</h2>
           <p>เปรียบเทียบสิทธิ์ระหว่างสมาชิกทั่วไปและสมาชิกยืนยันตัวตน</p>
         </div>
         <div className="info-modal-content">
@@ -202,7 +202,7 @@ function MemberPrivilegesModal({ onClose, darkMode }) {
               </tr>
               <tr>
                 <td className="feature-name">สร้างโพลต่อวัน</td>
-                <td>1 โพล/วัน</td>
+                <td><span className="check-mark">✗</span></td>
                 <td><span className="check-mark">✓</span> 3 โพล/วัน</td>
               </tr>
               <tr>
@@ -211,7 +211,7 @@ function MemberPrivilegesModal({ onClose, darkMode }) {
                 <td><span className="check-mark">✓</span> แสดงข้างชื่อ</td>
               </tr>
               <tr>
-                <td className="feature-name">สร้าง Live Battle</td>
+                <td className="feature-name">สร้างโหมดถ่ายทอดสด</td>
                 <td><span className="check-mark">✓</span></td>
                 <td><span className="check-mark">✓</span></td>
               </tr>
@@ -227,7 +227,7 @@ function MemberPrivilegesModal({ onClose, darkMode }) {
               </tr>
               <tr>
                 <td className="feature-name">อัพโหลดรูปโปรไฟล์</td>
-                <td><span className="check-mark">✓</span></td>
+                <td><span className="check-mark">✗</span></td>
                 <td><span className="check-mark">✓</span></td>
               </tr>
               <tr>
@@ -240,7 +240,7 @@ function MemberPrivilegesModal({ onClose, darkMode }) {
           
           <div className="info-card">
             <h4>🔐 วิธียืนยันตัวตน</h4>
-            <p>ไปที่ "บัญชีของฉัน" แล้วกดปุ่ม "ยืนยันตัวตน" กรอกข้อมูลชื่อจริงและวันเกิด ยอมรับเงื่อนไข PDPA แล้วรอการอนุมัติ</p>
+            <p>ไปที่ "บัญชีของฉัน" แล้วกดปุ่ม "ยืนยันตัวตน" กรอกข้อมูลชื่อ-นามสกุลและวันเกิด ยอมรับเงื่อนไข PDPA แล้วรอการอนุมัติ</p>
           </div>
         </div>
       </div>
@@ -254,7 +254,7 @@ function PrivacyPolicyModal({ onClose, darkMode }) {
       <div className={`modal info-modal ${darkMode ? 'dark' : ''}`} onClick={e => e.stopPropagation()}>
         <button className="modal-close" onClick={onClose}>✕</button>
         <div className="info-modal-header">
-          <h2>🔒 นโยบายข้อมูลส่วนบุคคล</h2>
+          <h2>นโยบายข้อมูลส่วนบุคคล</h2>
           <p>ตาม พ.ร.บ. คุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562 (PDPA)</p>
         </div>
         <div className="info-modal-content">
@@ -262,7 +262,7 @@ function PrivacyPolicyModal({ onClose, darkMode }) {
             <h3>📋 ข้อมูลที่เราเก็บ</h3>
             <ul className="privacy-list">
               <li>ชื่อผู้ใช้ อีเมล และรหัสผ่าน (เข้ารหัส)</li>
-              <li>ข้อมูลการยืนยันตัวตน (ชื่อจริง วันเกิด - เฉพาะผู้ที่ยืนยัน)</li>
+              <li>ข้อมูลการยืนยันตัวตน (ชื่อนามสกุล วันเกิด - เฉพาะผู้ที่ยืนยัน)</li>
               <li>ประวัติการโหวตและการสร้างโพล</li>
               <li>ข้อมูลการใช้งาน (เวลาเข้าใช้, อุปกรณ์)</li>
             </ul>
@@ -302,8 +302,7 @@ function PrivacyPolicyModal({ onClose, darkMode }) {
           
           <div className="contact-info">
             <p><strong>📧 ติดต่อเรื่องข้อมูลส่วนบุคคล:</strong></p>
-            <p>อีเมล: privacy@kidwa.com</p>
-            <p>หรือติดต่อผ่านทางเมนู "ติดต่อเรา" ในแอป</p>
+            <p>อีเมล: privacy@i-kidwa.com</p>
           </div>
         </div>
       </div>
@@ -322,8 +321,8 @@ function PWAInstallModal({ onClose, darkMode, deferredPrompt, onInstall }) {
       { title: 'กด "Add"', desc: 'ตั้งชื่อแอป (หรือใช้ "คิดว่า.." ที่ตั้งไว้) แล้วกด Add' }
     ],
     android: [
-      { title: 'เปิด Chrome', desc: 'เปิดเว็บไซต์ คิดว่า.. ใน Chrome' },
-      { title: 'กดเมนู 3 จุด', desc: 'กดไอคอนจุดสามจุด (⋮) ที่มุมขวาบน' },
+      { title: 'เปิด Chrome/internet browser', desc: 'เปิดเว็บไซต์ คิดว่า.. ใน Chrome/internet browser' },
+      { title: 'กดเมนู 3 ขีด', desc: 'กดไอคอนสามขีด ที่มุมขวาบน' },
       { title: 'เลือก "Install app" หรือ "Add to Home screen"', desc: 'กดตัวเลือก "Install app" หรือ "เพิ่มไปยังหน้าจอโฮม"' },
       { title: 'กด "Install"', desc: 'ยืนยันการติดตั้งแล้วแอปจะปรากฏบนหน้าจอโฮม' }
     ],
@@ -340,7 +339,7 @@ function PWAInstallModal({ onClose, darkMode, deferredPrompt, onInstall }) {
       <div className={`modal info-modal ${darkMode ? 'dark' : ''}`} onClick={e => e.stopPropagation()}>
         <button className="modal-close" onClick={onClose}>✕</button>
         <div className="info-modal-header">
-          <h2>📱 ติดตั้งแอป คิดว่า..</h2>
+          <h2>ติดตั้งแอป คิดว่า..</h2>
           <p>ใช้งานได้สะดวกขึ้นโดยไม่ต้องเปิด browser</p>
         </div>
         <div className="info-modal-content pwa-guide">
@@ -349,19 +348,19 @@ function PWAInstallModal({ onClose, darkMode, deferredPrompt, onInstall }) {
               className={`pwa-tab ${activeDevice === 'iphone' ? 'active' : ''}`}
               onClick={() => setActiveDevice('iphone')}
             >
-              🍎 iPhone
+              iPhone
             </button>
             <button 
               className={`pwa-tab ${activeDevice === 'android' ? 'active' : ''}`}
               onClick={() => setActiveDevice('android')}
             >
-              🤖 Android
+              Android
             </button>
             <button 
               className={`pwa-tab ${activeDevice === 'desktop' ? 'active' : ''}`}
               onClick={() => setActiveDevice('desktop')}
             >
-              💻 Desktop
+              Desktop
             </button>
           </div>
           
@@ -389,7 +388,7 @@ function PWAInstallModal({ onClose, darkMode, deferredPrompt, onInstall }) {
           
           <div className="pwa-note">
             <span>💡</span>
-            <p>หลังติดตั้งแล้ว แอปจะทำงานเร็วขึ้น สามารถรับการแจ้งเตือน และใช้งานได้แม้ไม่มีอินเทอร์เน็ต (สำหรับบางฟีเจอร์)</p>
+            <p>หลังติดตั้งแล้ว แอปจะทำงานเร็วขึ้น (สำหรับบางฟีเจอร์)</p>
           </div>
         </div>
       </div>
@@ -696,7 +695,7 @@ function TimeCapsuleCard({ poll, onClick }) {
           <span className="capsule-text">{yearsRemaining}</span>
         </div>
         <div className="capsule-meta">
-          <span>👥 {totalVotes.toLocaleString()} คนทาย</span>
+          <span>👥 {totalVotes.toLocaleString()} คนโหวต</span>
           <span>📅 หมดเขต {new Date(poll.ends_at).toLocaleDateString('th-TH', { year: 'numeric', month: 'long' })}</span>
         </div>
       </div>
@@ -938,7 +937,6 @@ function CreateLiveBattleModal({ onClose, user, onSuccess, darkMode }) {
   ).slice(0, 5)
 
   const durationOptions = [
-    { value: 15, label: '15 นาที' },
     { value: 30, label: '30 นาที' },
     { value: 60, label: '1 ชั่วโมง' },
     { value: 180, label: '3 ชั่วโมง' },
@@ -970,7 +968,7 @@ function CreateLiveBattleModal({ onClose, user, onSuccess, darkMode }) {
           <form onSubmit={handleSubmit}>
             <div className="form-group">
               <label>❓ คำถาม</label>
-              <input type="text" className={`form-input ${errors.question ? 'error' : ''}`} placeholder="เช่น ใครจะชนะแมตช์นี้?" value={question} onChange={(e) => setQuestion(e.target.value)} maxLength={200} />
+              <input type="text" className={`form-input ${errors.question ? 'error' : ''}`} placeholder="เช่น นางงามประเทศไหนมงจะลงในคืนนี้?" value={question} onChange={(e) => setQuestion(e.target.value)} maxLength={200} />
               {errors.question && <span className="error-text">{errors.question}</span>}
               <span className="char-count">{question.length}/200</span>
               
@@ -1160,7 +1158,7 @@ function CreatePollModal({ onClose, user, onSuccess, darkMode }) {
     if (error) {
       alert('เกิดข้อผิดพลาด')
     } else { 
-      alert('🎉 สร้างโพลสำเร็จ!') 
+      alert('สร้างโพลสำเร็จ!') 
       onSuccess()
       onClose()
     }
@@ -1588,9 +1586,9 @@ function AuthModal({ onClose, onSuccess, darkMode }) {
                   <input type="password" className="form-input" placeholder="พิมพ์รหัสผ่านอีกครั้ง" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required />
                 </div>
                 
-                <p className="auth-bonus">🎁 สมัครใหม่ได้ 1,000 Point เริ่มต้น!</p>
+                <p className="auth-bonus">สมัครใหม่ได้ 1,000 Point</p>
                 <button type="submit" className="btn btn-primary btn-full" disabled={isLoading}>
-                  {isLoading ? '⏳ กำลังสมัคร...' : '✨ สมัครสมาชิก'}
+                  {isLoading ? 'กำลังสมัคร...' : 'สมัครสมาชิก'}
                 </button>
               </form>
             )}
@@ -1603,7 +1601,7 @@ function AuthModal({ onClose, onSuccess, darkMode }) {
                 </div>
                 <p className="auth-hint">เราจะส่งลิงก์สำหรับเข้าสู่ระบบไปยังอีเมลของคุณ ไม่ต้องจำรหัสผ่าน!</p>
                 <button type="submit" className="btn btn-primary btn-full" disabled={isLoading}>
-                  {isLoading ? '⏳ กำลังส่ง...' : '📨 ส่ง Magic Link'}
+                  {isLoading ? 'กำลังส่ง...' : 'ส่ง Magic Link'}
                 </button>
               </form>
             )}
@@ -1979,27 +1977,27 @@ export default function Home() {
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{getReputationLevel(user.reputation).badge} {user.reputation} pt</div>
                     </div>
                   </div>
-                  <button className="dropdown-item" onClick={() => { setShowNotifications(true); setShowMenu(false) }}>🔔 การแจ้งเตือน {unreadCount > 0 && <span className="mobile-notif-badge">{unreadCount}</span>}</button>
-                  <button className="dropdown-item" onClick={() => { setShowAccount(true); setShowMenu(false) }}>👤 บัญชีของฉัน</button>
-                  <button className="dropdown-item" onClick={() => { setShowCreatePoll(true); setShowMenu(false) }}>➕ สร้างโพล</button>
-                  {user.is_admin && <button className="dropdown-item" onClick={() => { setShowAdminPanel(true); setShowMenu(false) }}>🔧 Admin Panel</button>}
+                  <button className="dropdown-item" onClick={() => { setShowNotifications(true); setShowMenu(false) }}>การแจ้งเตือน {unreadCount > 0 && <span className="mobile-notif-badge">{unreadCount}</span>}</button>
+                  <button className="dropdown-item" onClick={() => { setShowAccount(true); setShowMenu(false) }}>บัญชีของฉัน</button>
+                  <button className="dropdown-item" onClick={() => { setShowCreatePoll(true); setShowMenu(false) }}>สร้างโพล</button>
+                  {user.is_admin && <button className="dropdown-item" onClick={() => { setShowAdminPanel(true); setShowMenu(false) }}>Admin Panel</button>}
                   <div className="dropdown-divider"></div>
                 </>
               )}
               
               {/* New Menu Items */}
-              <button className="dropdown-item" onClick={() => { setShowPostingGuidelines(true); setShowMenu(false) }}>📝 คำแนะนำการโพสต์</button>
-              <button className="dropdown-item" onClick={() => { setShowMemberPrivileges(true); setShowMenu(false) }}>⭐ สิทธิ์การใช้งานของสมาชิก</button>
-              <button className="dropdown-item" onClick={() => { setShowPrivacyPolicy(true); setShowMenu(false) }}>🔒 นโยบายข้อมูลส่วนบุคคล</button>
-              <button className="dropdown-item" onClick={() => { setShowPWAInstall(true); setShowMenu(false) }}>📱 Download App คิดว่า..</button>
+              <button className="dropdown-item" onClick={() => { setShowPostingGuidelines(true); setShowMenu(false) }}>คำแนะนำการโพสต์</button>
+              <button className="dropdown-item" onClick={() => { setShowMemberPrivileges(true); setShowMenu(false) }}>สิทธิ์การใช้งานของสมาชิก</button>
+              <button className="dropdown-item" onClick={() => { setShowPrivacyPolicy(true); setShowMenu(false) }}>นโยบายข้อมูลส่วนบุคคล</button>
+              <button className="dropdown-item" onClick={() => { setShowPWAInstall(true); setShowMenu(false) }}>Download App คิดว่า..</button>
               <div className="dropdown-divider"></div>
               
-              <button className="dropdown-item" onClick={() => { setDarkMode(!darkMode); setShowMenu(false) }}>{darkMode ? '☀️ โหมดสว่าง' : '🌙 โหมดมืด'}</button>
+              <button className="dropdown-item" onClick={() => { setDarkMode(!darkMode); setShowMenu(false) }}>{darkMode ? 'โหมดสว่าง' : 'โหมดมืด'}</button>
               
               {user && (
                 <>
                   <div className="dropdown-divider"></div>
-                  <button className="dropdown-item" onClick={handleLogout} style={{ color: 'var(--red)' }}>🚪 ออกจากระบบ</button>
+                  <button className="dropdown-item" onClick={handleLogout} style={{ color: 'var(--red)' }}>ออกจากระบบ</button>
                 </>
               )}
             </div>
