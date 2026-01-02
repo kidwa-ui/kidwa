@@ -187,45 +187,7 @@ export async function getPolls() {
   return { data, error }
 }
 
-// Get polls by category
-export async function getPollsByCategory(category) {
-  const { data, error } = await supabase
-    .from('polls')
-    .select('*, options(*), tags(*)')
-    .eq('category', category)
-    .order('ends_at', { ascending: true })
-    .limit(50)
-  return { data, error }
-}
 
-// Get polls by tag
-export async function getPollsByTag(tagName) {
-  const { data: tag } = await supabase
-    .from('tags')
-    .select('id')
-    .eq('name', tagName.toLowerCase())
-    .single()
-
-  if (!tag) return { data: [], error: null }
-
-  const { data: pollTags } = await supabase
-    .from('poll_tags')
-    .select('poll_id')
-    .eq('tag_id', tag.id)
-
-  if (!pollTags || pollTags.length === 0) return { data: [], error: null }
-
-  const pollIds = pollTags.map(pt => pt.poll_id)
-
-  const { data, error } = await supabase
-    .from('polls')
-    .select('*, options(*), tags(*)')
-    .in('id', pollIds)
-    .order('ends_at', { ascending: true })
-    .limit(50)
-
-  return { data, error }
-}
 
 export async function vote(userId, pollId, optionId, confidence = 50) {
   const { data: existingVote } = await supabase
@@ -470,82 +432,6 @@ export async function getTrendingTags(limit = 10, timeframeDays = 7) {
   return { data: trendingTags, error: null }
 }
 
-// Get tag suggestions based on question and category
-export async function getTagSuggestions(question, category, limit = 5) {
-  // Extract keywords from question
-  const keywords = question.toLowerCase()
-    .replace(/[?!.,;:'"]/g, '')
-    .split(/\s+/)
-    .filter(word => word.length > 2)
-  
-  if (keywords.length === 0) return { data: [], error: null }
-
-  // Get tags frequently used in this category
-  const { data: categoryPolls } = await supabase
-    .from('polls')
-    .select('id')
-    .eq('category', category)
-    .limit(100)
-
-  const pollIds = categoryPolls?.map(p => p.id) || []
-
-  // Get tags used in these polls
-  const { data: pollTags } = await supabase
-    .from('poll_tags')
-    .select('tag_id, tags(id, name)')
-    .in('poll_id', pollIds)
-
-  // Count tag frequency
-  const tagFrequency = {}
-  pollTags?.forEach(pt => {
-    if (pt.tags) {
-      const tagId = pt.tags.id
-      if (!tagFrequency[tagId]) {
-        tagFrequency[tagId] = { ...pt.tags, count: 0 }
-      }
-      tagFrequency[tagId].count++
-    }
-  })
-
-  // Also search for tags matching keywords
-  const { data: keywordTags } = await supabase
-    .from('tags')
-    .select('*')
-    .or(keywords.map(k => `name.ilike.%${k}%`).join(','))
-    .limit(10)
-
-  // Combine and score suggestions
-  const suggestions = {}
-  
-  // Add category-based tags with lower weight
-  Object.values(tagFrequency).forEach(tag => {
-    suggestions[tag.id] = {
-      id: tag.id,
-      name: tag.name,
-      score: tag.count * 0.5
-    }
-  })
-
-  // Add keyword-matching tags with higher weight
-  keywordTags?.forEach(tag => {
-    if (suggestions[tag.id]) {
-      suggestions[tag.id].score += 10
-    } else {
-      suggestions[tag.id] = {
-        id: tag.id,
-        name: tag.name,
-        score: 10
-      }
-    }
-  })
-
-  // Sort and return top suggestions
-  const sortedSuggestions = Object.values(suggestions)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, limit)
-
-  return { data: sortedSuggestions, error: null }
-}
 
 // ===== Poll Functions =====
 
@@ -1334,87 +1220,6 @@ export async function getPollsByTag(tagName, limit = 50) {
     .limit(limit)
   
   return { data, error }
-}
-
-// ===== Trending Tags =====
-
-export async function getTrendingTags(limit = 10, timeframeDays = 7) {
-  const cutoffDate = new Date()
-  cutoffDate.setDate(cutoffDate.getDate() - timeframeDays)
-  
-  // Get recent votes with poll and tag info
-  const { data: recentVotes, error: votesError } = await supabase
-    .from('votes')
-    .select('id, created_at, poll_id')
-    .gte('created_at', cutoffDate.toISOString())
-  
-  if (votesError || !recentVotes) return { data: [], error: votesError }
-  
-  // Get poll_tags for all voted polls
-  const pollIds = [...new Set(recentVotes.map(v => v.poll_id))]
-  
-  const { data: pollTags } = await supabase
-    .from('poll_tags')
-    .select('poll_id, tag_id, tags(id, name)')
-    .in('poll_id', pollIds)
-  
-  if (!pollTags) return { data: [], error: null }
-  
-  // Calculate tag scores
-  const tagScores = {}
-  const tagPollCounts = {}
-  const now = new Date()
-  
-  recentVotes.forEach(vote => {
-    const voteAge = (now - new Date(vote.created_at)) / (1000 * 60 * 60 * 24) // days
-    const timeDecay = Math.exp(-voteAge / 7) // decay over ~7 days
-    
-    // Find tags for this poll
-    const tagsForPoll = pollTags.filter(pt => pt.poll_id === vote.poll_id)
-    
-    tagsForPoll.forEach(pt => {
-      if (!pt.tags) return
-      const tagId = pt.tags.id
-      const tagName = pt.tags.name
-      
-      if (!tagScores[tagId]) {
-        tagScores[tagId] = { id: tagId, name: tagName, score: 0, totalVotes: 0 }
-        tagPollCounts[tagId] = new Set()
-      }
-      
-      tagScores[tagId].score += timeDecay
-      tagScores[tagId].totalVotes += 1
-      tagPollCounts[tagId].add(vote.poll_id)
-    })
-  })
-  
-  // Apply anti-spam guardrails
-  const tagResults = Object.values(tagScores)
-    .filter(tag => {
-      const pollCount = tagPollCounts[tag.id].size
-      // Must have >= 2 polls and >= 5 votes
-      return pollCount >= 2 && tag.totalVotes >= 5
-    })
-    .map(tag => {
-      const pollCount = tagPollCounts[tag.id].size
-      
-      // Cap single poll contribution to 30%
-      // Multiply by poll diversity (more polls = better)
-      const diversityBonus = Math.min(2, 1 + Math.log(pollCount) / 3)
-      
-      // Calculate max contribution from a single poll (30% cap)
-      const maxSinglePollContribution = tag.score * 0.3
-      
-      return {
-        ...tag,
-        pollCount,
-        finalScore: tag.score * diversityBonus
-      }
-    })
-    .sort((a, b) => b.finalScore - a.finalScore)
-    .slice(0, limit)
-  
-  return { data: tagResults, error: null }
 }
 
 // ===== Tag Suggestions =====
