@@ -935,9 +935,6 @@ function toThailandISOString(date) {
 
 export async function createLiveBattle({ question, options, category, tags, endsAt, createdBy }) {
   try {
-    const now = new Date()
-    const endsAt = new Date(`${endDate}T${endTime}`).toISOString()
-    
     const { data: poll, error: pollError } = await supabase
       .from('polls')
       .insert([{ 
@@ -945,13 +942,12 @@ export async function createLiveBattle({ question, options, category, tags, ends
         category,
         blind_mode: false,
         poll_type: 'live_battle',
-        ends_at: endsAt.toISOString(),
+        ends_at: endsAt,
         created_by: createdBy, 
         featured: false,
         resolved: false,
         is_live: true,
-        live_started_at: now.toISOString(),
-        live_duration_minutes: endsAt
+        live_started_at: new Date().toISOString()
       }])
       .select()
       .single()
