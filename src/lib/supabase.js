@@ -933,10 +933,10 @@ function toThailandISOString(date) {
   return localTime.toISOString().replace('Z', '+07:00')
 }
 
-export async function createLiveBattle({ question, options, category, tags, durationMinutes, createdBy }) {
+export async function createLiveBattle({ question, options, category, tags, endsAt, createdBy }) {
   try {
     const now = new Date()
-    const endsAt = new Date(now.getTime() + durationMinutes * 60 * 1000)
+    const endsAt = new Date(`${endDate}T${endTime}`).toISOString()
     
     const { data: poll, error: pollError } = await supabase
       .from('polls')
@@ -951,7 +951,7 @@ export async function createLiveBattle({ question, options, category, tags, dura
         resolved: false,
         is_live: true,
         live_started_at: now.toISOString(),
-        live_duration_minutes: durationMinutes
+        live_duration_minutes: endsAt
       }])
       .select()
       .single()
@@ -1319,11 +1319,11 @@ export async function getTagSuggestions(question, category, limit = 5) {
 
 // ===== Updated Live Battle Functions =====
 
-export async function createLiveBattleV2({ question, options, category, tags, durationMinutes, createdBy }) {
+export async function createLiveBattleV2({ question, options, category, tags, endsAt, createdBy }) {
   try {
     // Use local time with explicit timezone
     const now = new Date()
-    const endsAt = new Date(now.getTime() + durationMinutes * 60 * 1000)
+    const endsAt = new Date(now.getTime() + endsAt * 60 * 1000)
     
     // Format as ISO string with timezone
     const formatWithTimezone = (date) => {
@@ -1347,7 +1347,7 @@ export async function createLiveBattleV2({ question, options, category, tags, du
         resolved: false,
         is_live: true,
         live_started_at: now.toISOString(),
-        live_duration_minutes: durationMinutes
+        live_duration_minutes: endsAt
       }])
       .select()
       .single()
