@@ -886,15 +886,6 @@ function CreateLiveBattleModal({ onClose, user, onSuccess, darkMode }) {
   const [similarCheckDone, setSimilarCheckDone] = useState(false)
   const [isCheckingSimilar, setIsCheckingSimilar] = useState(false)
 
-  <div className="form-group">
-  <label>📅 วันที่สิ้นสุด</label>
-  <input type="date" className="form-input" value={endDate} onChange={e => setEndDate(e.target.value)} min={new Date().toISOString().split('T')[0]} />
-</div>
-<div className="form-group">
-  <label>⏰ เวลาสิ้นสุด</label>
-  <input type="time" className="form-input" value={endTime} onChange={e => setEndTime(e.target.value)} />
-</div>
-
   useEffect(() => { loadTags() }, [])
   const loadTags = async () => { const { data } = await getTags(); if (data) setAvailableTags(data) }
   const addOption = () => { if (options.length < 6) setOptions([...options, '']) }
@@ -973,12 +964,14 @@ function CreateLiveBattleModal({ onClose, user, onSuccess, darkMode }) {
   ).slice(0, 5)
 
   const durationOptions = [
-    { value: 15, label: '15 นาที' },
-    { value: 30, label: '30 นาที' },
-    { value: 60, label: '1 ชั่วโมง' },
-    { value: 180, label: '3 ชั่วโมง' },
-    { value: 720, label: '12 ชั่วโมง' },
-    { value: 1440, label: '24 ชั่วโมง' }
+  <div className="form-group">
+  <label>📅 วันที่สิ้นสุด</label>
+  <input type="date" className="form-input" value={endDate} onChange={e => setEndDate(e.target.value)} min={new Date().toISOString().split('T')[0]} />
+</div>
+<div className="form-group">
+  <label>⏰ เวลาสิ้นสุด</label>
+  <input type="time" className="form-input" value={endTime} onChange={e => setEndTime(e.target.value)} />
+</div>
   ]
 
   return (
