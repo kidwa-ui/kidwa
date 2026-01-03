@@ -878,3 +878,95 @@ select.form-input { appearance: none; background-image: url("data:image/svg+xml,
   .pwa-device-tabs { flex-wrap: wrap; }
   .pwa-tab { flex: none; width: calc(50% - 0.25rem); }
 }
+/* ===== Category More Dropdown (Polymarket Style) ===== */
+/* เพิ่มโค้ดนี้ที่ท้ายไฟล์ globals.css */
+
+.category-more-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.category-more-btn {
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+
+.category-more-btn:hover {
+  background: var(--primary-light);
+  color: var(--primary-dark);
+}
+
+.category-more-btn.active {
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  color: white;
+  border-color: var(--primary);
+}
+
+.category-more-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+  padding: 0.5rem;
+  min-width: 180px;
+  z-index: 100;
+  animation: dropdownFadeIn 0.2s ease;
+}
+
+@keyframes dropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.category-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.6rem 1rem;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 0.9rem;
+  color: var(--text);
+  transition: all 0.2s;
+}
+
+.category-dropdown-item:hover {
+  background: var(--bg);
+}
+
+.category-dropdown-item.active {
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  color: white;
+}
+
+/* Dark mode */
+.dark .category-more-dropdown {
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+}
+
+/* Mobile: ซ่อน More dropdown ใช้ scroll แทน */
+@media (max-width: 900px) {
+  .category-more-wrapper {
+    display: none;
+  }
+  
+  .categories-content {
+    flex-wrap: nowrap !important;
+    overflow-x: auto;
+    justify-content: flex-start !important;
+  }
+}
