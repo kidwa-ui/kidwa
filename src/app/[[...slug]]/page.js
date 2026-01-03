@@ -2163,25 +2163,3 @@ export default function Home() {
     </div>
   )
 }
- // ===== Click Outside / Scroll to Close Dropdown =====
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setShowMenu(false)
-      }
-    }
-    
-    const handleScroll = () => {
-      if (showMenu) setShowMenu(false)
-    }
-    
-    if (showMenu) {
-      document.addEventListener('mousedown', handleClickOutside)
-      document.addEventListener('scroll', handleScroll, true)
-    }
-    
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-      document.removeEventListener('scroll', handleScroll, true)
-    }
-  }, [showMenu])
