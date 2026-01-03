@@ -1565,7 +1565,36 @@ export default function Home() {
   const [showCreateLiveBattle, setShowCreateLiveBattle] = useState(false)
   const [showCreateTimeCapsule, setShowCreateTimeCapsule] = useState(false)
   const [showVerificationModal, setShowVerificationModal] = useState(false)
-  
+
+  // Info modals state
+  const [showPostingGuidelines, setShowPostingGuidelines] = useState(false)
+  const [showMemberPrivileges, setShowMemberPrivileges] = useState(false)
+  const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false)
+  const [showPWAInstall, setShowPWAInstall] = useState(false)
+
+  // ===== Click Outside / Scroll to Close Dropdown =====
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setShowMenu(false)
+      }
+    }
+    
+    const handleScroll = () => {
+      if (showMenu) setShowMenu(false)
+    }
+    
+    if (showMenu) {
+      document.addEventListener('mousedown', handleClickOutside)
+      document.addEventListener('scroll', handleScroll, true)
+    }
+    
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('scroll', handleScroll, true)
+    }
+  }, [showMenu])
+
   // More dropdown states
   const [showMoreDropdown, setShowMoreDropdown] = useState(false)
   const moreDropdownRef = useRef(null)
@@ -1833,6 +1862,12 @@ export default function Home() {
                 <div className="dropdown-divider"></div>
               </>
             )}
+              <button className="dropdown-item" onClick={() => { setShowPostingGuidelines(true); setShowMenu(false) }}>คำแนะนำการโพสต์</button>
+              <button className="dropdown-item" onClick={() => { setShowMemberPrivileges(true); setShowMenu(false) }}>สิทธิ์การใช้งานของสมาชิก</button>
+              <button className="dropdown-item" onClick={() => { setShowPrivacyPolicy(true); setShowMenu(false) }}>นโยบายข้อมูลส่วนบุคคล</button>
+              <button className="dropdown-item" onClick={() => { setShowPWAInstall(true); setShowMenu(false) }}>Download App คิดว่า..</button>
+              <div className="dropdown-divider"></div>
+
             <button className="dropdown-item" onClick={() => { setDarkMode(!darkMode); setShowMenu(false) }}>{darkMode ? 'โหมดสว่าง' : 'โหมดมืด'}</button>
             {user && (
               <>
