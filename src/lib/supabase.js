@@ -1123,9 +1123,21 @@ export async function checkPollLimit(userId) {
 export async function getUserPollLimit(userId) {
   const { data: user } = await supabase
     .from('users')
-    .select('is_verified')
+    .select('is_verified, is_admin')
     .eq('id', userId)
     .single()
+
+  // Admin ไม่มีข้อจำกัด
+  if (user?.is_admin) {
+    return {
+      canCreate: true,
+      used: 0,
+      limit: 999,
+      remaining: 999,
+      isVerified: true,
+      isAdmin: true
+    }
+  }
 
   const dailyLimit = user?.is_verified ? 3 : 1
 
@@ -1146,7 +1158,8 @@ export async function getUserPollLimit(userId) {
     used,
     limit: dailyLimit,
     remaining,
-    isVerified: user?.is_verified || false
+    isVerified: user?.is_verified || false,
+    isAdmin: false
   }
 }
 
@@ -1317,18 +1330,11 @@ export async function getTagSuggestions(question, category, limit = 5) {
 
 export async function createLiveBattleV2({ question, options, category, tags, endsAt, createdBy }) {
   try {
-    // Use local time with explicit timezone
     const now = new Date()
-    const endsAt = new Date(now.getTime() + endsAt * 60 * 1000)
+    const endDateTime = new Date(endsAt) // ใช้ endsAt ที่ส่งมาจาก frontend โดยตรง
     
-    // Format as ISO string with timezone
-    const formatWithTimezone = (date) => {
-      const offset = -date.getTimezoneOffset()
-      const sign = offset >= 0 ? '+' : '-'
-      const hours = String(Math.floor(Math.abs(offset) / 60)).padStart(2, '0')
-      const minutes = String(Math.abs(offset) % 60).padStart(2, '0')
-      return date.toISOString().replace('Z', `${sign}${hours}:${minutes}`)
-    }
+    // คำนวณ duration (นาที) สำหรับเก็บไว้อ้างอิง
+    const durationMinutes = Math.round((endDateTime.getTime() - now.getTime()) / (60 * 1000))
     
     const { data: poll, error: pollError } = await supabase
       .from('polls')
@@ -1337,13 +1343,13 @@ export async function createLiveBattleV2({ question, options, category, tags, en
         category,
         blind_mode: false,
         poll_type: 'live_battle',
-        ends_at: endsAt.toISOString(),
+        ends_at: endDateTime.toISOString(),
         created_by: createdBy, 
         featured: false,
         resolved: false,
         is_live: true,
         live_started_at: now.toISOString(),
-        live_duration_minutes: endsAt
+        live_duration_minutes: durationMinutes > 0 ? durationMinutes : null
       }])
       .select()
       .single()
@@ -1361,6 +1367,7 @@ export async function createLiveBattleV2({ question, options, category, tags, en
 
     return { data: poll, error: null }
   } catch (error) {
+    console.error('createLiveBattleV2 error:', error)
     return { data: null, error }
   }
 }
