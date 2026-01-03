@@ -874,7 +874,8 @@ function CreateLiveBattleModal({ onClose, user, onSuccess, darkMode }) {
   const [question, setQuestion] = useState('')
   const [options, setOptions] = useState(['', ''])
   const [category, setCategory] = useState('other')
-  const [duration, setDuration] = useState(30)
+  const [endDate, setEndDate] = useState('')
+  const [endTime, setEndTime] = useState('')
   const [selectedTags, setSelectedTags] = useState([])
   const [tagInput, setTagInput] = useState('')
   const [availableTags, setAvailableTags] = useState([])
@@ -884,6 +885,15 @@ function CreateLiveBattleModal({ onClose, user, onSuccess, darkMode }) {
   const [showSimilarWarning, setShowSimilarWarning] = useState(false)
   const [similarCheckDone, setSimilarCheckDone] = useState(false)
   const [isCheckingSimilar, setIsCheckingSimilar] = useState(false)
+
+  <div className="form-group">
+  <label>📅 วันที่สิ้นสุด</label>
+  <input type="date" className="form-input" value={endDate} onChange={e => setEndDate(e.target.value)} min={new Date().toISOString().split('T')[0]} />
+</div>
+<div className="form-group">
+  <label>⏰ เวลาสิ้นสุด</label>
+  <input type="time" className="form-input" value={endTime} onChange={e => setEndTime(e.target.value)} />
+</div>
 
   useEffect(() => { loadTags() }, [])
   const loadTags = async () => { const { data } = await getTags(); if (data) setAvailableTags(data) }
