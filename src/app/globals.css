@@ -970,3 +970,188 @@ select.form-input { appearance: none; background-image: url("data:image/svg+xml,
     justify-content: flex-start !important;
   }
 }
+/* ===== Category More Dropdown (Polymarket Style) ===== */
+/* เพิ่มโค้ดนี้ที่ท้ายไฟล์ globals.css */
+
+.category-more-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.category-more-btn {
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+
+.category-more-btn:hover {
+  background: var(--primary-light);
+  color: var(--primary-dark);
+}
+
+.category-more-btn.active {
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  color: white;
+  border-color: var(--primary);
+}
+
+.category-more-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+  padding: 0.5rem;
+  min-width: 180px;
+  z-index: 100;
+  animation: dropdownFadeIn 0.2s ease;
+}
+
+@keyframes dropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.category-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.6rem 1rem;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 0.9rem;
+  color: var(--text);
+  transition: all 0.2s;
+}
+
+.category-dropdown-item:hover {
+  background: var(--bg);
+}
+
+.category-dropdown-item.active {
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  color: white;
+}
+
+/* Dark mode */
+.dark .category-more-dropdown {
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+}
+
+/* Mobile: ซ่อน More dropdown ใช้ scroll แทน */
+@media (max-width: 900px) {
+  .category-more-wrapper {
+    display: none;
+  }
+  
+  .categories-content {
+    flex-wrap: nowrap !important;
+    overflow-x: auto;
+    justify-content: flex-start !important;
+  }
+}
+
+/* ===== Similar Poll Link Styles ===== */
+a.similar-poll-item {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  position: relative;
+}
+
+a.similar-poll-item:hover {
+  border-color: var(--primary);
+  transform: translateY(-2px);
+}
+
+a.similar-poll-item::after {
+  content: '↗';
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+a.similar-poll-item:hover::after {
+  opacity: 1;
+  color: var(--primary);
+}
+
+.similar-poll-link {
+  display: none;
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--primary);
+  font-weight: 500;
+}
+
+a.similar-poll-item:hover .similar-poll-link {
+  display: block;
+}
+
+/* ===== Poll Detail Page Styles ===== */
+.poll-detail-main {
+  max-width: 700px;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+}
+
+.poll-detail-card {
+  background: var(--bg-card);
+  border-radius: 20px;
+  padding: 2rem;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border);
+}
+
+.poll-page-loading,
+.poll-page-error {
+  min-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 2rem;
+  background: var(--bg);
+}
+
+.poll-page-error .error-icon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+}
+
+.poll-page-error h2 {
+  color: var(--text);
+  margin-bottom: 0.5rem;
+}
+
+.poll-page-error p {
+  color: var(--text-secondary);
+  margin-bottom: 1.5rem;
+}
+
+@media (max-width: 600px) {
+  .poll-detail-main {
+    padding: 1rem;
+  }
+  
+  .poll-detail-card {
+    padding: 1.25rem;
+  }
+}
