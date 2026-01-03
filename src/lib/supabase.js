@@ -1101,8 +1101,8 @@ export async function checkPollLimit(userId) {
     .eq('id', userId)
     .single()
 
-  const dailyLimit = user?.is_verified ? 3 : 1
-
+  const dailyLimit = (user?.is_verified || user?.is_admin) ? 3 : 1
+  
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
