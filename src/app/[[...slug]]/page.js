@@ -1343,7 +1343,7 @@ function CreateLiveBattleModal({ onClose, user, onSuccess, darkMode }) {
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label>❓ คำถาม</label>
-            <input type="text" className={`form-input ${errors.question ? 'error' : ''}`} placeholder="เช่น ใครจะชนะแมตช์นี้?" value={question} onChange={(e) => setQuestion(e.target.value)} maxLength={200} />
+            <input type="text" className={`form-input ${errors.question ? 'error' : ''}`} placeholder="เช่น ใครจะชนะ Miss Universe คืนนี้?" value={question} onChange={(e) => setQuestion(e.target.value)} maxLength={200} />
             {errors.question && <span className="error-text">{errors.question}</span>}
             <span className="char-count">{question.length}/200</span>
           </div>
