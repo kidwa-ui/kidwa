@@ -925,6 +925,17 @@ function CreateLiveBattleModal({ onClose, user, onSuccess, darkMode }) {
     const e = {}
     if (!question.trim()) e.question = 'กรุณาใส่คำถาม'
     if (options.filter(o => o.trim()).length < 2) e.options = 'ต้องมีตัวเลือกอย่างน้อย 2 ตัว'
+    if (!endDate) e.endDate = 'กรุณาเลือกวันที่'
+    if (!endTime) e.endTime = 'กรุณาเลือกเวลา'
+    
+    // ตรวจสอบว่าเวลาสิ้นสุดต้องอยู่ในอนาคต
+    if (endDate && endTime) {
+      const endsAtDateTime = new Date(`${endDate}T${endTime}`)
+      if (endsAtDateTime <= new Date()) {
+        e.endTime = 'เวลาสิ้นสุดต้องอยู่ในอนาคต'
+      }
+    }
+    
     setErrors(e)
     return Object.keys(e).length === 0 
   }
@@ -940,12 +951,16 @@ function CreateLiveBattleModal({ onClose, user, onSuccess, darkMode }) {
     }
     
     setIsSubmitting(true)
+    
+    // สร้าง endsAt จาก endDate และ endTime
+    const endsAtDateTime = new Date(`${endDate}T${endTime}`)
+    
     const { error } = await createLiveBattleV2({ 
       question: question.trim(), 
       options: options.filter(o => o.trim()), 
       category,
       tags: selectedTags.map(t => t.id),
-      durationMinutes: duration,
+      endsAt: endsAtDateTime.toISOString(),
       createdBy: user.id 
     })
     
@@ -962,17 +977,6 @@ function CreateLiveBattleModal({ onClose, user, onSuccess, darkMode }) {
   const filteredTags = availableTags.filter(tag => 
     tag.name.toLowerCase().includes(tagInput.toLowerCase()) && !selectedTags.find(t => t.id === tag.id)
   ).slice(0, 5)
-
-  const durationOptions = [
-  <div className="form-group">
-  <label>📅 วันที่สิ้นสุด</label>
-  <input type="date" className="form-input" value={endDate} onChange={e => setEndDate(e.target.value)} min={new Date().toISOString().split('T')[0]} />
-</div>
-<div className="form-group">
-  <label>⏰ เวลาสิ้นสุด</label>
-  <input type="time" className="form-input" value={endTime} onChange={e => setEndTime(e.target.value)} />
-</div>
-  ]
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -1033,14 +1037,26 @@ function CreateLiveBattleModal({ onClose, user, onSuccess, darkMode }) {
             </div>
 
             <div className="form-group">
-              <label>⏱️ ระยะเวลา</label>
-              <div className="duration-selector">
-                {durationOptions.map(opt => (
-                  <button key={opt.value} type="button" className={`duration-btn ${duration === opt.value ? 'active' : ''}`} onClick={() => setDuration(opt.value)}>
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
+              <label>📅 วันที่สิ้นสุด</label>
+              <input 
+                type="date" 
+                className={`form-input ${errors.endDate ? 'error' : ''}`}
+                value={endDate} 
+                onChange={(e) => setEndDate(e.target.value)} 
+                min={new Date().toISOString().split('T')[0]} 
+              />
+              {errors.endDate && <span className="error-text">{errors.endDate}</span>}
+            </div>
+
+            <div className="form-group">
+              <label>⏰ เวลาสิ้นสุด</label>
+              <input 
+                type="time" 
+                className={`form-input ${errors.endTime ? 'error' : ''}`}
+                value={endTime} 
+                onChange={(e) => setEndTime(e.target.value)} 
+              />
+              {errors.endTime && <span className="error-text">{errors.endTime}</span>}
             </div>
 
             <div className="form-group">
@@ -1697,10 +1713,12 @@ export default function Home() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const dropdownRef = useRef(null)
+  const moreCategoriesRef = useRef(null)
   
   const [darkMode, setDarkMode] = useState(false)
   const [activeCategory, setActiveCategory] = useState('home')
   const [activeTag, setActiveTag] = useState(null)
+  const [showMoreCategories, setShowMoreCategories] = useState(false)
   const [polls, setPolls] = useState([])
   const [userVotes, setUserVotes] = useState({})
   const [user, setUser] = useState(null)
@@ -1734,13 +1752,18 @@ export default function Home() {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setShowMenu(false)
       }
+      // ปิด More categories dropdown เมื่อ click outside
+      if (moreCategoriesRef.current && !moreCategoriesRef.current.contains(event.target)) {
+        setShowMoreCategories(false)
+      }
     }
     
     const handleScroll = () => {
       if (showMenu) setShowMenu(false)
+      if (showMoreCategories) setShowMoreCategories(false)
     }
     
-    if (showMenu) {
+    if (showMenu || showMoreCategories) {
       document.addEventListener('mousedown', handleClickOutside)
       document.addEventListener('scroll', handleScroll, true)
     }
@@ -1749,7 +1772,7 @@ export default function Home() {
       document.removeEventListener('mousedown', handleClickOutside)
       document.removeEventListener('scroll', handleScroll, true)
     }
-  }, [showMenu])
+  }, [showMenu, showMoreCategories])
 
   // ===== Read Category from URL on Mount =====
   useEffect(() => {
@@ -2090,7 +2113,7 @@ export default function Home() {
 
         <nav className="categories">
           <div className="categories-content">
-            {categories.map(cat => (
+            {categories.slice(0, 8).map(cat => (
               <button 
                 key={cat.id} 
                 className={`category-btn ${activeCategory === cat.id && !activeTag ? 'active' : ''}`} 
@@ -2099,6 +2122,34 @@ export default function Home() {
                 {cat.icon} {cat.name}
               </button>
             ))}
+            
+            {/* More Categories Dropdown */}
+            {categories.length > 8 && (
+              <div className="category-more-wrapper" ref={moreCategoriesRef}>
+                <button 
+                  className={`category-btn category-more-btn ${categories.slice(8).some(c => c.id === activeCategory) ? 'active' : ''}`}
+                  onClick={() => setShowMoreCategories(!showMoreCategories)}
+                >
+                  เพิ่มเติม ▾
+                </button>
+                {showMoreCategories && (
+                  <div className="category-more-dropdown">
+                    {categories.slice(8).map(cat => (
+                      <button 
+                        key={cat.id} 
+                        className={`category-dropdown-item ${activeCategory === cat.id ? 'active' : ''}`}
+                        onClick={() => { 
+                          handleCategoryChange(cat.id)
+                          setShowMoreCategories(false)
+                        }}
+                      >
+                        {cat.icon} {cat.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </nav>
       </div>
