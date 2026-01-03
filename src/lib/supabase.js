@@ -1179,7 +1179,7 @@ export async function findSimilarPolls(question, limit = 5) {
 
   const { data: polls, error } = await supabase
     .from('polls')
-    .select('id, question, ends_at, resolved, options(votes)')
+    .select('id, question, category, ends_at, resolved, options(votes)')
     .or(keywords.map(k => `question.ilike.%${k}%`).join(','))
     .eq('resolved', false)
     .gt('ends_at', new Date().toISOString())
@@ -1333,8 +1333,15 @@ export async function createLiveBattleV2({ question, options, category, tags, en
     const now = new Date()
     const endDateTime = new Date(endsAt) // ใช้ endsAt ที่ส่งมาจาก frontend โดยตรง
     
+    // Debug log
+    console.log('createLiveBattleV2 - Input endsAt:', endsAt)
+    console.log('createLiveBattleV2 - Parsed endDateTime:', endDateTime.toString())
+    console.log('createLiveBattleV2 - endDateTime ISO:', endDateTime.toISOString())
+    console.log('createLiveBattleV2 - now:', now.toString())
+    
     // คำนวณ duration (นาที) สำหรับเก็บไว้อ้างอิง
     const durationMinutes = Math.round((endDateTime.getTime() - now.getTime()) / (60 * 1000))
+    console.log('createLiveBattleV2 - durationMinutes:', durationMinutes)
     
     const { data: poll, error: pollError } = await supabase
       .from('polls')
