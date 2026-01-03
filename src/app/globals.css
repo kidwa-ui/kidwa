@@ -592,3 +592,16 @@ select.form-input { appearance: none; background-image: url("data:image/svg+xml,
   .notification-dropdown { width: 100vw; right: -1rem; border-radius: 0 0 16px 16px; }
   .profile-stats-grid { grid-template-columns: repeat(2, 1fr); }
 }
+.page-wrapper {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+.main-container {
+  background: var(--bg-card);
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
