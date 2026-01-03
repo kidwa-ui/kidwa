@@ -548,7 +548,7 @@ function TagSuggestionsSection({ question, category, selectedTags, onSelectTag }
 
 // ===== Similar Polls Warning =====
 
-function SimilarPollsWarning({ similarPolls, onContinue, onViewPoll }) {
+function SimilarPollsWarning({ similarPolls, onContinue }) {
   if (!similarPolls || similarPolls.length === 0) return null
 
   return (
@@ -561,13 +561,21 @@ function SimilarPollsWarning({ similarPolls, onContinue, onViewPoll }) {
       
       <div className="similar-polls-list">
         {similarPolls.map(poll => (
-          <div key={poll.id} className="similar-poll-item" onClick={() => onViewPoll(poll)}>
+          <a 
+            key={poll.id} 
+            href={`/${poll.category || 'other'}/${poll.id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="similar-poll-item"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="similar-poll-question">{poll.question}</div>
             <div className="similar-poll-meta">
               <span>👥 {poll.totalVotes.toLocaleString()} โหวต</span>
               <span className="similarity-badge">{Math.round(poll.similarity * 100)}% คล้ายกัน</span>
             </div>
-          </div>
+            <span className="similar-poll-link">🔗 เปิดดู</span>
+          </a>
         ))}
       </div>
 
@@ -921,6 +929,13 @@ function CreateLiveBattleModal({ onClose, user, onSuccess, darkMode }) {
     }
   }
 
+  // Helper: Parse date/time อย่างชัดเจนเป็น local time
+  const parseLocalDateTime = (dateStr, timeStr) => {
+    const [year, month, day] = dateStr.split('-').map(Number)
+    const [hours, minutes] = timeStr.split(':').map(Number)
+    return new Date(year, month - 1, day, hours, minutes, 0, 0)
+  }
+  
   const validate = () => { 
     const e = {}
     if (!question.trim()) e.question = 'กรุณาใส่คำถาม'
@@ -930,7 +945,7 @@ function CreateLiveBattleModal({ onClose, user, onSuccess, darkMode }) {
     
     // ตรวจสอบว่าเวลาสิ้นสุดต้องอยู่ในอนาคต
     if (endDate && endTime) {
-      const endsAtDateTime = new Date(`${endDate}T${endTime}`)
+      const endsAtDateTime = parseLocalDateTime(endDate, endTime)
       if (endsAtDateTime <= new Date()) {
         e.endTime = 'เวลาสิ้นสุดต้องอยู่ในอนาคต'
       }
@@ -952,8 +967,14 @@ function CreateLiveBattleModal({ onClose, user, onSuccess, darkMode }) {
     
     setIsSubmitting(true)
     
-    // สร้าง endsAt จาก endDate และ endTime
-    const endsAtDateTime = new Date(`${endDate}T${endTime}`)
+    // สร้าง endsAt จาก endDate และ endTime (parse เป็น local time อย่างชัดเจน)
+    const endsAtDateTime = parseLocalDateTime(endDate, endTime)
+    
+    // Debug log
+    console.log('CreateLiveBattle - endDate:', endDate)
+    console.log('CreateLiveBattle - endTime:', endTime)
+    console.log('CreateLiveBattle - endsAtDateTime:', endsAtDateTime.toString())
+    console.log('CreateLiveBattle - endsAtDateTime ISO:', endsAtDateTime.toISOString())
     
     const { error } = await createLiveBattleV2({ 
       question: question.trim(), 
@@ -992,9 +1013,6 @@ function CreateLiveBattleModal({ onClose, user, onSuccess, darkMode }) {
           <SimilarPollsWarning 
             similarPolls={similarPolls}
             onContinue={handleContinueAfterWarning}
-            onViewPoll={(poll) => {
-              onClose()
-            }}
           />
         )}
         
@@ -1258,9 +1276,6 @@ function CreatePollModal({ onClose, user, onSuccess, darkMode }) {
           <SimilarPollsWarning 
             similarPolls={similarPolls}
             onContinue={handleContinueAfterWarning}
-            onViewPoll={(poll) => {
-              onClose()
-            }}
           />
         )}
 
