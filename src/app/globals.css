@@ -196,7 +196,7 @@ html.dark, .dark { background: var(--bg); }
   .sidebar { display: none; }
   .header { padding: 1rem; }
   .header-content { flex-wrap: wrap; justify-content: space-between; }
-  .search-box { order: 3; flex: none; width: 100%; max-width: 100%; margin-top: 0.75rem; }
+  .search-box { order: 0; flex: 1; max-width: none; margin-top: 0; margin-right: 0.5rem; }
   .hide-mobile { display: none; }
   .poll-grid { grid-template-columns: 1fr; }
   .dropdown-menu { top: auto; }
