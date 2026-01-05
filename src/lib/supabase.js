@@ -619,10 +619,10 @@ export async function resolvePoll(pollId, correctOptionId) {
         let notifMessage
         if (isPrediction) {
           notifMessage = isCorrect 
-            ? `🎯 มุมมองนี้แม่น! "${pollData?.question?.substring(0, 40)}..." (+${repChange} Reputation)`
-            : `❌ มุมมองนี้คลาด "${pollData?.question?.substring(0, 40)}..." (${repChange} Reputation)`
+            ? `🎯 โหวตนี้ถูกต้อง "${pollData?.question?.substring(0, 40)}..." (+${repChange} Reputation)`
+            : `❌ โหวตนี้คลาด "${pollData?.question?.substring(0, 40)}..." (${repChange} Reputation)`
         } else {
-          notifMessage = `📊 โพลสิ้นสุด "${pollData?.question?.substring(0, 40)}..." ตัวเลือกยอดนิยมคือ "${correctOption?.text}"`
+          notifMessage = `📊 โพลสิ้นสุด "${pollData?.question?.substring(0, 40)}..." ตัวเลือกที่ถูกต้องคือ "${correctOption?.text}"`
         }
         
         await createNotification({
