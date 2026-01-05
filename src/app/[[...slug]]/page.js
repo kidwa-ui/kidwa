@@ -860,7 +860,7 @@ function AccountModal({ onClose, user, darkMode, onUpdateUser }) {
   const handleAvatarUpload = async (e) => {
     const file = e.target.files?.[0]
     if (!file) return
-    if (file.size > 2 * 1024 * 1024) { alert('ไฟล์ใหญ่เกินไป (สูงสุด 2MB)'); return }
+    if (file.size > 1 * 1024 * 1024) { alert('ไฟล์ใหญ่เกินไป (สูงสุด 1MB)'); return }
     if (!file.type.startsWith('image/')) { alert('กรุณาเลือกไฟล์รูปภาพ'); return }
     setIsUploading(true)
     const { data, error } = await uploadAvatar(user.id, file)
