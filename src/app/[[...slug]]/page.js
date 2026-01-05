@@ -261,6 +261,81 @@ function MemberPrivilegesModal({ onClose, darkMode }) {
     </div>
   )
 }
+// ===== Leaderboard Component with Tabs =====
+function LeaderboardSection({ darkMode, currentUser, onViewProfile }) {
+  const [activeTab, setActiveTab] = useState('all')
+  const [leaderboard, setLeaderboard] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    loadLeaderboard()
+  }, [activeTab])
+
+  const loadLeaderboard = async () => {
+    setIsLoading(true)
+    let data = []
+    
+    if (activeTab === 'week') {
+      const result = await getWeeklyLeaderboard(10)
+      data = result.data || []
+    } else if (activeTab === 'month') {
+      const result = await getMonthlyLeaderboard(10)
+      data = result.data || []
+    } else {
+      const result = await getLeaderboard(10)
+      data = result.data || []
+    }
+    
+    setLeaderboard(data)
+    setIsLoading(false)
+  }
+
+  const getRankEmoji = (index) => ['🥇', '🥈', '🥉', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'][index] || `#${index + 1}`
+
+  const getPointsDisplay = (item) => {
+    if (activeTab === 'week') return `${item.weeklyPoints >= 0 ? '+' : ''}${item.weeklyPoints} pt`
+    if (activeTab === 'month') return `${item.monthlyPoints >= 0 ? '+' : ''}${item.monthlyPoints} pt`
+    return `${item.reputation} pt`
+  }
+
+  return (
+    <div className="sidebar-card">
+      <h3 className="sidebar-title">🏆 Leaderboard</h3>
+      <div className="leaderboard-tabs">
+        <button className={`lb-tab ${activeTab === 'week' ? 'active' : ''}`} onClick={() => setActiveTab('week')}>สัปดาห์</button>
+        <button className={`lb-tab ${activeTab === 'month' ? 'active' : ''}`} onClick={() => setActiveTab('month')}>เดือน</button>
+        <button className={`lb-tab ${activeTab === 'all' ? 'active' : ''}`} onClick={() => setActiveTab('all')}>ตลอดกาล</button>
+      </div>
+      <div className="leaderboard-list">
+        {isLoading ? (
+          <div style={{ textAlign: 'center', padding: '1rem', color: 'var(--text-secondary)' }}>⏳</div>
+        ) : leaderboard.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '1rem', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+            {activeTab === 'week' ? 'ยังไม่มีข้อมูลสัปดาห์นี้' : activeTab === 'month' ? 'ยังไม่มีข้อมูลเดือนนี้' : 'ยังไม่มีข้อมูล'}
+          </div>
+        ) : (
+          leaderboard.map((item, i) => (
+            <div 
+              key={item.id} 
+              className="leaderboard-item"
+              onClick={() => onViewProfile && onViewProfile(item.id)}
+              style={{ cursor: 'pointer' }}
+            >
+              <span className="lb-rank">{getRankEmoji(i)}</span>
+              <span className="lb-name">
+                {item.username}
+                {item.is_verified && <span className="verified-badge"><svg viewBox="0 0 24 24" className="verified-check"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg></span>}
+              </span>
+              <span className={`lb-points ${activeTab !== 'all' ? (activeTab === 'week' ? (item.weeklyPoints >= 0 ? 'positive' : 'negative') : (item.monthlyPoints >= 0 ? 'positive' : 'negative')) : ''}`}>
+                {getPointsDisplay(item)}
+              </span>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  )
+}
 
 function PrivacyPolicyModal({ onClose, darkMode }) {
   return (
@@ -363,19 +438,19 @@ function PWAInstallModal({ onClose, darkMode, deferredPrompt, onInstall }) {
               className={`pwa-tab ${activeDevice === 'iphone' ? 'active' : ''}`}
               onClick={() => setActiveDevice('iphone')}
             >
-              🍎 iPhone
+              iPhone
             </button>
             <button 
               className={`pwa-tab ${activeDevice === 'android' ? 'active' : ''}`}
               onClick={() => setActiveDevice('android')}
             >
-              🤖 Android
+              Android
             </button>
             <button 
               className={`pwa-tab ${activeDevice === 'desktop' ? 'active' : ''}`}
               onClick={() => setActiveDevice('desktop')}
             >
-              💻 Desktop
+              Desktop
             </button>
           </div>
           
@@ -877,7 +952,90 @@ function AccountModal({ onClose, user, darkMode, onUpdateUser }) {
 
   const winRate = profile?.total_predictions > 0 ? Math.round((profile.correct_predictions / profile.total_predictions) * 100) : 0
   const level = profile ? getReputationLevel(profile.reputation) : reputationLevels[0]
+ // v2: Calculate category accuracy
+  const getCategoryAccuracy = () => {
+    if (!voteHistory || voteHistory.length === 0) return []
+    
+    const categoryStats = {}
+    voteHistory.forEach(vote => {
+      const category = vote.polls?.category || 'other'
+      if (!categoryStats[category]) {
+        categoryStats[category] = { total: 0, correct: 0 }
+      }
+      categoryStats[category].total++
+      if (vote.is_correct) categoryStats[category].correct++
+    })
+    
+    return Object.entries(categoryStats)
+      .map(([cat, stats]) => ({
+        category: cat,
+        accuracy: stats.total > 0 ? Math.round((stats.correct / stats.total) * 100) : 0,
+        total: stats.total,
+        correct: stats.correct
+      }))
+      .filter(c => c.total >= 3) // ต้องมีอย่างน้อย 3 votes
+      .sort((a, b) => b.accuracy - a.accuracy)
+  }
+  
+  // v2: Get voting time pattern
+  const getVotingTimePattern = () => {
+    if (!voteHistory || voteHistory.length === 0) return null
+    
+    const timeStats = { morning: 0, afternoon: 0, evening: 0, night: 0 }
+    const correctByTime = { morning: 0, afternoon: 0, evening: 0, night: 0 }
+    
+    voteHistory.forEach(vote => {
+      const hour = new Date(vote.created_at).getHours()
+      let period = 'night'
+      if (hour >= 6 && hour < 12) period = 'morning'
+      else if (hour >= 12 && hour < 17) period = 'afternoon'
+      else if (hour >= 17 && hour < 21) period = 'evening'
+      
+      timeStats[period]++
+      if (vote.is_correct) correctByTime[period]++
+    })
+    
+    // หาช่วงเวลาที่แม่นที่สุด
+    let bestPeriod = null
+    let bestAccuracy = 0
+    Object.entries(timeStats).forEach(([period, total]) => {
+      if (total >= 3) {
+        const accuracy = correctByTime[period] / total
+        if (accuracy > bestAccuracy) {
+          bestAccuracy = accuracy
+          bestPeriod = period
+        }
+      }
+    })
+    
+    const periodNames = { morning: 'ช่วงเช้า', afternoon: 'ช่วงบ่าย', evening: 'ช่วงเย็น', night: 'ช่วงกลางคืน' }
+    return bestPeriod ? { period: periodNames[bestPeriod], accuracy: Math.round(bestAccuracy * 100) } : null
+  }
+  
+  // v2: Get conviction style
+  const getConvictionStyle = () => {
+    if (!voteHistory || voteHistory.length === 0) return null
+    
+    const avgConfidence = voteHistory.reduce((sum, v) => sum + (v.confidence || 50), 0) / voteHistory.length
+    
+    if (avgConfidence <= 30) return { style: 'ระมัดระวัง', desc: 'มักใช้ความมั่นใจต่ำ' }
+    if (avgConfidence >= 80) return { style: 'กล้าได้กล้าเสีย', desc: 'มักใช้ความมั่นใจสูง' }
+    return { style: 'รอบคอบ', desc: 'ใช้ความมั่นใจระดับกลาง' }
+  }
+  
+  const categoryAccuracy = getCategoryAccuracy()
+  const timePattern = getVotingTimePattern()
+  const convictionStyle = getConvictionStyle()
+  
+  const categoryIcons = {
+    sports: '⚽', entertainment: '🎬', politics: '🏛️', tech: '💻', business: '💰', world: '🌍', auto: '🚗', food: '🍜', travel: '✈️', health: '💪', relationship: '❤️', education: '📚', pets: '🐱', housing: '🏡', other: '🎭'
 
+  }
+  const categoryNames = {
+    sports: 'กีฬา', entertainment: 'บันเทิง', politics: 'การเมือง', tech: 'เทคโนโลยี', business: 'ธุรกิจ', world: 'โลก', auto: 'ยานยนต์', food: 'อาหาร', travel: 'ท่องเที่ยว', health: 'สุขภาพ', relationship: 'ความสัมพันธ์', education: 'การศึกษา', pets: 'สัตว์เลี้ยง', housing: 'บ้าน', other: 'อื่นๆ'
+
+  }
+  
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className={`modal account-modal ${darkMode ? 'dark' : ''}`} onClick={e => e.stopPropagation()}>
@@ -1812,7 +1970,69 @@ export default function Home() {
     return { category: 'home', tag: null }
   }
   const initialState = getInitialState()
-  
+
+                {/* v2: Profile Insight */}
+              {activeTab === 'insight' && (
+                <div className="insight-content">
+                  <div className="insight-section">
+                    <h4 className="insight-title">🎯 คุณมักวิเคราะห์ได้ดีในเรื่อง</h4>
+                    {categoryAccuracy.length > 0 ? (
+                      <div className="category-accuracy-list">
+                        {categoryAccuracy.slice(0, 3).map((cat, i) => (
+                          <div key={cat.category} className="category-accuracy-item">
+                            <span className="category-icon">{categoryIcons[cat.category] || '📌'}</span>
+                            <span className="category-name">{categoryNames[cat.category] || cat.category}</span>
+                            <span className="category-percent">(แม่น {cat.accuracy}%)</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="insight-empty">ยังไม่มีข้อมูลเพียงพอ (ต้องมีอย่างน้อย 3 votes ต่อหมวด)</p>
+                    )}
+                  </div>
+                  
+                  <div className="insight-section">
+                    <h4 className="insight-title">⏰ ช่วงเวลาที่คุณมักตัดสินใจได้ดี</h4>
+                    {timePattern ? (
+                      <p className="insight-value">{timePattern.period} (แม่น {timePattern.accuracy}%)</p>
+                    ) : (
+                      <p className="insight-empty">ยังไม่มีข้อมูลเพียงพอ</p>
+                    )}
+                  </div>
+                  
+                  <div className="insight-section">
+                    <h4 className="insight-title">💭 สไตล์การแสดงมุมมอง</h4>
+                    {convictionStyle ? (
+                      <div className="style-badge">
+                        <span className="style-name">{convictionStyle.style}</span>
+                        <span className="style-desc">{convictionStyle.desc}</span>
+                      </div>
+                    ) : (
+                      <p className="insight-empty">ยังไม่มีข้อมูลเพียงพอ</p>
+                    )}
+                  </div>
+                  
+                  <div className="insight-note">
+                    <span className="note-icon">📌</span>
+                    <span className="note-text">
+                      Insight นี้มาจากพฤติกรรมการใช้งาน<br/>
+                      ไม่มีผลต่อ Reputation และไม่มีการเปิดเผยต่อผู้อื่น
+                    </span>
+                  </div>
+                </div>
+              )}
+              
+              {activeTab === 'history' && <div className="history-list">{voteHistory.length > 0 ? voteHistory.map(vote => <div key={vote.id} className={`history-item ${vote.is_correct === true ? 'correct' : vote.is_correct === false ? 'wrong' : ''}`}><div className="history-question">{vote.polls?.question || 'โพลถูกลบ'}</div><div className="history-answer"><span>เลือก: {vote.options?.text || '-'}</span>{vote.is_correct !== null && <span className={`history-result ${vote.is_correct ? 'correct' : 'wrong'}`}>{vote.is_correct ? '✅ ถูก' : '❌ ผิด'} ({vote.points_earned > 0 ? '+' : ''}{vote.points_earned})</span>}{vote.is_correct === null && vote.polls && <span className="history-pending">⏳ รอเฉลย</span>}</div></div>) : <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '2rem' }}>ยังไม่มีประวัติการโหวต</div>}</div>}
+              {activeTab === 'polls' && <div className="polls-list">{createdPolls.length > 0 ? createdPolls.map(poll => <div key={poll.id} className="created-poll-item"><div className="created-poll-question">{poll.resolved && '✅ '}{poll.question}</div><div className="created-poll-meta"><span>👥 {poll.options?.reduce((s, o) => s + o.votes, 0) || 0} โหวต</span><span>⏱️ {getDaysRemaining(poll.ends_at)}</span></div></div>) : <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '2rem' }}>ยังไม่ได้สร้างโพล</div>}</div>}
+              {activeTab === 'followers' && <div className="follow-list">{followers.length > 0 ? followers.map(f => <div key={f.id} className="follow-item"><div className="follow-avatar">{f.avatar_url ? <img src={f.avatar_url} alt={f.username} /> : f.username[0].toUpperCase()}</div><div className="follow-info"><span className="follow-name">{f.username}</span><span className="follow-rep">{getReputationLevel(f.reputation).badge} {f.reputation} pt</span></div></div>) : <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '2rem' }}>ยังไม่มีผู้ติดตาม</div>}</div>}
+              {activeTab === 'following' && <div className="follow-list">{following.length > 0 ? following.map(f => <div key={f.id} className="follow-item"><div className="follow-avatar">{f.avatar_url ? <img src={f.avatar_url} alt={f.username} /> : f.username[0].toUpperCase()}</div><div className="follow-info"><span className="follow-name">{f.username}</span><span className="follow-rep">{getReputationLevel(f.reputation).badge} {f.reputation} pt</span></div></div>) : <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '2rem' }}>ยังไม่ได้ติดตามใคร</div>}</div>}
+            </div>
+          </>
+        ) : <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>ไม่พบข้อมูล</div>}
+      </div>
+    </div>
+  )
+}
   // States
   const [darkMode, setDarkMode] = useState(false)
   const [activeCategory, setActiveCategory] = useState(initialState.category)
