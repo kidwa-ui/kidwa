@@ -2320,8 +2320,8 @@ export default function Home() {
           <div className="dropdown-menu">
             {!user && (
               <>
-                <button className="dropdown-item" onClick={() => { setAuthMode('login'); setShowAuthModal(true); setShowMenu(false) }}>เข้าสู่ระบบ</button>
-                <button className="dropdown-item" onClick={() => { setAuthMode('register'); setShowAuthModal(true); setShowMenu(false) }}>สมัครสมาชิก</button>
+                <button className="dropdown-item" onClick={() => { setShowAuthModal(true); setShowMenu(false) }}>เข้าสู่ระบบ</button>
+                <button className="dropdown-item" onClick={() => { setShowAuthModal(true); setShowMenu(false) }}>สมัครสมาชิก</button>
                 <div className="dropdown-divider"></div>
               </>
             )}
