@@ -87,14 +87,6 @@ html.dark, .dark { background: var(--bg); }
 .category-btn:hover { background: var(--primary-light); color: var(--primary-dark); }
 .category-btn.active { background: linear-gradient(135deg, var(--primary), var(--primary-dark)); color: white; }
 
-/* ===== More Dropdown (Polymarket Style) ===== */
-.more-dropdown-wrapper { position: relative; }
-.more-btn { position: relative; }
-.more-dropdown { position: absolute; top: 100%; left: 0; margin-top: 0.5rem; background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.15); padding: 0.5rem; min-width: 180px; z-index: 200; max-height: 400px; overflow-y: auto; }
-.more-dropdown-item { display: block; width: 100%; padding: 0.6rem 1rem; border: none; background: none; text-align: left; cursor: pointer; border-radius: 8px; font-family: inherit; font-size: 0.9rem; color: var(--text); transition: all 0.15s; white-space: nowrap; }
-.more-dropdown-item:hover { background: var(--primary-light); color: var(--primary-dark); }
-.more-dropdown-item.active { background: linear-gradient(135deg, var(--primary), var(--primary-dark)); color: white; }
-
 /* ===== Main Layout ===== */
 .main { max-width: 1400px; margin: 0 auto; padding: 2rem; display: grid; grid-template-columns: 280px 1fr; gap: 2rem; }
 .sidebar { position: sticky; top: 130px; height: fit-content; }
