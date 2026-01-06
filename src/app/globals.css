@@ -34,6 +34,7 @@ html.dark, .dark { background: var(--bg); }
 .dark body { background: var(--bg); }
 
 /* ===== Header ===== */
+.sticky-header-block { position: sticky;  top: 0; z-index: 100; background: var(--bg-card); box-shadow: var(--shadow); }
 .header { background: var(--bg-card); border-bottom: 1px solid var(--border); padding: 1rem 2rem; position: sticky; top: 0; z-index: 100; box-shadow: var(--shadow); }
 .header-content { max-width: 1400px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 .logo { font-size: 1.8rem; font-weight: 700; background: linear-gradient(135deg, var(--primary), var(--primary-dark)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; cursor: pointer; flex-shrink: 0; }
