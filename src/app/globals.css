@@ -79,7 +79,7 @@ html.dark, .dark { background: var(--bg); }
 .categories { background: var(--bg-card); border-bottom: 1px solid var(--border); padding: 0.5rem 1rem; overflow-x: auto; position: sticky; top: 73px; z-index: 99; }
 .categories::-webkit-scrollbar { height: 4px; }
 .categories::-webkit-scrollbar-thumb { background: var(--primary-light); border-radius: 2px; }
-.categories-content { max-width: 1400px; margin: 0 auto; display: flex; gap: 0.3rem; align-items: center; }
+.categories-content { max-width: 1400px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 0.3rem; justify-content: center; }
 .category-btn { padding: 0.5rem 0.9rem; border: none; background: transparent; color: var(--text-secondary); font-weight: 500; cursor: pointer; border-radius: 50px; transition: all 0.2s; white-space: nowrap; font-family: inherit; font-size: 0.85rem; }
 .category-btn:hover { background: var(--primary-light); color: var(--primary-dark); }
 .category-btn.active { background: linear-gradient(135deg, var(--primary), var(--primary-dark)); color: white; }
