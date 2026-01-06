@@ -1080,10 +1080,62 @@ function AccountModal({ onClose, user, darkMode, onUpdateUser }) {
               <button className={`account-tab ${activeTab === 'stats' ? 'active' : ''}`} onClick={() => setActiveTab('stats')}>📊 สถิติ</button>
               <button className={`account-tab ${activeTab === 'history' ? 'active' : ''}`} onClick={() => setActiveTab('history')}>📜 ประวัติ</button>
               <button className={`account-tab ${activeTab === 'polls' ? 'active' : ''}`} onClick={() => setActiveTab('polls')}>📝 โพล</button>
+              <button className={`account-tab ${activeTab === 'insight' ? 'active' : ''}`} onClick={() => setActiveTab('insight')}>🧠 Insight</button>
               <button className={`account-tab ${activeTab === 'followers' ? 'active' : ''}`} onClick={() => setActiveTab('followers')}>👥</button>
               <button className={`account-tab ${activeTab === 'following' ? 'active' : ''}`} onClick={() => setActiveTab('following')}>➡️</button>
             </div>
-            <div className="account-content">
+              <div className="account-content">
+                              {/* v2: Profile Insight */}
+              {activeTab === 'insight' && (
+                <div className="insight-content">
+                  <div className="insight-section">
+                    <h4 className="insight-title">🎯 คุณมักวิเคราะห์ได้ดีในเรื่อง</h4>
+                    {categoryAccuracy.length > 0 ? (
+                      <div className="category-accuracy-list">
+                        {categoryAccuracy.slice(0, 3).map((cat, i) => (
+                          <div key={cat.category} className="category-accuracy-item">
+                            <span className="category-icon">{categoryIcons[cat.category] || '📌'}</span>
+                            <span className="category-name">{categoryNames[cat.category] || cat.category}</span>
+                            <span className="category-percent">(แม่น {cat.accuracy}%)</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="insight-empty">ยังไม่มีข้อมูลเพียงพอ (ต้องมีอย่างน้อย 3 votes ต่อหมวด)</p>
+                    )}
+                  </div>
+                  
+                  <div className="insight-section">
+                    <h4 className="insight-title">⏰ ช่วงเวลาที่คุณมักตัดสินใจได้ดี</h4>
+                    {timePattern ? (
+                      <p className="insight-value">{timePattern.period} (แม่น {timePattern.accuracy}%)</p>
+                    ) : (
+                      <p className="insight-empty">ยังไม่มีข้อมูลเพียงพอ</p>
+                    )}
+                  </div>
+                  
+                  <div className="insight-section">
+                    <h4 className="insight-title">💭 สไตล์การแสดงมุมมอง</h4>
+                    {convictionStyle ? (
+                      <div className="style-badge">
+                        <span className="style-name">{convictionStyle.style}</span>
+                        <span className="style-desc">{convictionStyle.desc}</span>
+                      </div>
+                    ) : (
+                      <p className="insight-empty">ยังไม่มีข้อมูลเพียงพอ</p>
+                    )}
+                  </div>
+                  
+                  <div className="insight-note">
+                    <span className="note-icon">📌</span>
+                    <span className="note-text">
+                      Insight นี้มาจากพฤติกรรมการใช้งาน<br/>
+                      ไม่มีผลต่อ Reputation และไม่มีการเปิดเผยต่อผู้อื่น
+                    </span>
+                  </div>
+                </div>
+              )}
+            
               {activeTab === 'stats' && <div className="stats-detail"><div className="stats-row"><span>สมาชิกตั้งแต่</span><span>{new Date(profile.created_at).toLocaleDateString('th-TH')}</span></div><div className="stats-row"><span>Point เริ่มต้น</span><span>1,000</span></div><div className="stats-row"><span>ได้/เสีย รวม</span><span style={{ color: profile.reputation >= 1000 ? 'var(--green)' : 'var(--red)' }}>{profile.reputation >= 1000 ? '+' : ''}{profile.reputation - 1000}</span></div></div>}
               {activeTab === 'history' && <div className="history-list">{voteHistory.length > 0 ? voteHistory.map(vote => <div key={vote.id} className={`history-item ${vote.is_correct === true ? 'correct' : vote.is_correct === false ? 'wrong' : ''}`}><div className="history-question">{vote.polls?.question || 'โพลถูกลบ'}</div><div className="history-answer"><span>เลือก: {vote.options?.text || '-'}</span>{vote.is_correct !== null && <span className={`history-result ${vote.is_correct ? 'correct' : 'wrong'}`}>{vote.is_correct ? '✅ ถูก' : '❌ ผิด'} ({vote.points_earned > 0 ? '+' : ''}{vote.points_earned})</span>}{vote.is_correct === null && vote.polls && <span className="history-pending">⏳ รอเฉลย</span>}</div></div>) : <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '2rem' }}>ยังไม่มีประวัติการโหวต</div>}</div>}
               {activeTab === 'polls' && <div className="polls-list">{createdPolls.length > 0 ? createdPolls.map(poll => <div key={poll.id} className="created-poll-item"><div className="created-poll-question">{poll.resolved && '✅ '}{poll.question}</div><div className="created-poll-meta"><span>👥 {poll.options?.reduce((s, o) => s + o.votes, 0) || 0} โหวต</span><span>⏱️ {getDaysRemaining(poll.ends_at)}</span></div></div>) : <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '2rem' }}>ยังไม่ได้สร้างโพล</div>}</div>}
@@ -1971,68 +2023,7 @@ export default function Home() {
   }
   const initialState = getInitialState()
 
-                {/* v2: Profile Insight */}
-              {activeTab === 'insight' && (
-                <div className="insight-content">
-                  <div className="insight-section">
-                    <h4 className="insight-title">🎯 คุณมักวิเคราะห์ได้ดีในเรื่อง</h4>
-                    {categoryAccuracy.length > 0 ? (
-                      <div className="category-accuracy-list">
-                        {categoryAccuracy.slice(0, 3).map((cat, i) => (
-                          <div key={cat.category} className="category-accuracy-item">
-                            <span className="category-icon">{categoryIcons[cat.category] || '📌'}</span>
-                            <span className="category-name">{categoryNames[cat.category] || cat.category}</span>
-                            <span className="category-percent">(แม่น {cat.accuracy}%)</span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="insight-empty">ยังไม่มีข้อมูลเพียงพอ (ต้องมีอย่างน้อย 3 votes ต่อหมวด)</p>
-                    )}
-                  </div>
-                  
-                  <div className="insight-section">
-                    <h4 className="insight-title">⏰ ช่วงเวลาที่คุณมักตัดสินใจได้ดี</h4>
-                    {timePattern ? (
-                      <p className="insight-value">{timePattern.period} (แม่น {timePattern.accuracy}%)</p>
-                    ) : (
-                      <p className="insight-empty">ยังไม่มีข้อมูลเพียงพอ</p>
-                    )}
-                  </div>
-                  
-                  <div className="insight-section">
-                    <h4 className="insight-title">💭 สไตล์การแสดงมุมมอง</h4>
-                    {convictionStyle ? (
-                      <div className="style-badge">
-                        <span className="style-name">{convictionStyle.style}</span>
-                        <span className="style-desc">{convictionStyle.desc}</span>
-                      </div>
-                    ) : (
-                      <p className="insight-empty">ยังไม่มีข้อมูลเพียงพอ</p>
-                    )}
-                  </div>
-                  
-                  <div className="insight-note">
-                    <span className="note-icon">📌</span>
-                    <span className="note-text">
-                      Insight นี้มาจากพฤติกรรมการใช้งาน<br/>
-                      ไม่มีผลต่อ Reputation และไม่มีการเปิดเผยต่อผู้อื่น
-                    </span>
-                  </div>
-                </div>
-              )}
-              
-              {activeTab === 'history' && <div className="history-list">{voteHistory.length > 0 ? voteHistory.map(vote => <div key={vote.id} className={`history-item ${vote.is_correct === true ? 'correct' : vote.is_correct === false ? 'wrong' : ''}`}><div className="history-question">{vote.polls?.question || 'โพลถูกลบ'}</div><div className="history-answer"><span>เลือก: {vote.options?.text || '-'}</span>{vote.is_correct !== null && <span className={`history-result ${vote.is_correct ? 'correct' : 'wrong'}`}>{vote.is_correct ? '✅ ถูก' : '❌ ผิด'} ({vote.points_earned > 0 ? '+' : ''}{vote.points_earned})</span>}{vote.is_correct === null && vote.polls && <span className="history-pending">⏳ รอเฉลย</span>}</div></div>) : <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '2rem' }}>ยังไม่มีประวัติการโหวต</div>}</div>}
-              {activeTab === 'polls' && <div className="polls-list">{createdPolls.length > 0 ? createdPolls.map(poll => <div key={poll.id} className="created-poll-item"><div className="created-poll-question">{poll.resolved && '✅ '}{poll.question}</div><div className="created-poll-meta"><span>👥 {poll.options?.reduce((s, o) => s + o.votes, 0) || 0} โหวต</span><span>⏱️ {getDaysRemaining(poll.ends_at)}</span></div></div>) : <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '2rem' }}>ยังไม่ได้สร้างโพล</div>}</div>}
-              {activeTab === 'followers' && <div className="follow-list">{followers.length > 0 ? followers.map(f => <div key={f.id} className="follow-item"><div className="follow-avatar">{f.avatar_url ? <img src={f.avatar_url} alt={f.username} /> : f.username[0].toUpperCase()}</div><div className="follow-info"><span className="follow-name">{f.username}</span><span className="follow-rep">{getReputationLevel(f.reputation).badge} {f.reputation} pt</span></div></div>) : <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '2rem' }}>ยังไม่มีผู้ติดตาม</div>}</div>}
-              {activeTab === 'following' && <div className="follow-list">{following.length > 0 ? following.map(f => <div key={f.id} className="follow-item"><div className="follow-avatar">{f.avatar_url ? <img src={f.avatar_url} alt={f.username} /> : f.username[0].toUpperCase()}</div><div className="follow-info"><span className="follow-name">{f.username}</span><span className="follow-rep">{getReputationLevel(f.reputation).badge} {f.reputation} pt</span></div></div>) : <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '2rem' }}>ยังไม่ได้ติดตามใคร</div>}</div>}
-            </div>
-          </>
-        ) : <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>ไม่พบข้อมูล</div>}
-      </div>
-    </div>
-  )
-}
+
   // States
   const [darkMode, setDarkMode] = useState(false)
   const [activeCategory, setActiveCategory] = useState(initialState.category)
