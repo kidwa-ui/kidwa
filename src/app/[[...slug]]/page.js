@@ -46,13 +46,19 @@ const VISIBLE_CATEGORIES = 8
 
 // ===== Reputation Levels =====
 const reputationLevels = [
-  { min: 0, max: 500, name: 'นักศึกษา', badge: '🌱' },
-  { min: 501, max: 1500, name: 'ผู้เริ่มต้น', badge: '🎯' },
-  { min: 1501, max: 3000, name: 'นักวิเคราะห์', badge: '🔮' },
-  { min: 3001, max: 5000, name: 'ผู้เชี่ยวชาญ', badge: '⭐' },
-  { min: 5001, max: 10000, name: 'ปรมาจารย์', badge: '🏆' },
-  { min: 10001, max: Infinity, name: 'ตำนาน', badge: '👑' }
+  { min: 0, max: 500, name: 'นักศึกษา', badge: '🌱', key: 'newbie' },
+  { min: 501, max: 1500, name: 'ผู้เริ่มต้น', badge: '🎯', key: 'learner' },
+  { min: 1501, max: 3000, name: 'นักวิเคราะห์', badge: '🔮', key: 'thinker' },
+  { min: 3001, max: 5000, name: 'ผู้เชี่ยวชาญ', badge: '⭐', key: 'analyst' },
+  { min: 5001, max: 10000, name: 'ปรมาจารย์', badge: '🏆', key: 'expert' },
+  { min: 10001, max: Infinity, name: 'ตำนาน', badge: '👑', key: 'master' }
 ]
+
+// Get level key for KidwaBean
+const getLevelKey = (rep) => {
+  const level = reputationLevels.find(l => rep >= l.min && rep <= l.max)
+  return level?.key || 'newbie'
+}
 
 // ===== Confidence/Conviction Levels =====
 const confidenceLevels = [
@@ -486,6 +492,184 @@ function PWAInstallModal({ onClose, darkMode, deferredPrompt, onInstall }) {
   )
 }
 
+// ===== Leaderboard Modal (แยกจาก sidebar) =====
+function LeaderboardModal({ onClose, darkMode, currentUser, onViewProfile }) {
+  const [activeTab, setActiveTab] = useState('seasonal') // seasonal, monthly, weekly, alltime
+  const [leaderboard, setLeaderboard] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => { loadLeaderboard() }, [activeTab])
+
+  const loadLeaderboard = async () => {
+    setIsLoading(true)
+    let data = []
+    if (activeTab === 'weekly') {
+      const result = await getWeeklyLeaderboard(20)
+      data = result.data || []
+    } else if (activeTab === 'monthly') {
+      const result = await getMonthlyLeaderboard(20)
+      data = result.data || []
+    } else {
+      const result = await getLeaderboard(20)
+      data = result.data || []
+    }
+    setLeaderboard(data)
+    setIsLoading(false)
+  }
+
+  const getRankIcon = (index) => {
+    if (index === 0) return '🥇'
+    if (index === 1) return '🥈'
+    if (index === 2) return '🥉'
+    return `${index + 1}`
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className={`modal leaderboard-modal ${darkMode ? 'dark' : ''}`} onClick={e => e.stopPropagation()}>
+        <button className="modal-close" onClick={onClose}>✕</button>
+        <div className="leaderboard-modal-header">
+          <h2>🏆 อันดับ Leaderboard</h2>
+          <p>ผู้ใช้ที่มี Reputation สูงสุด</p>
+        </div>
+        
+        <div className="leaderboard-tabs-full">
+          <button className={`lb-tab ${activeTab === 'seasonal' ? 'active' : ''}`} onClick={() => setActiveTab('seasonal')}>
+            🌟 ประจำฤดูกาล
+          </button>
+          <button className={`lb-tab ${activeTab === 'monthly' ? 'active' : ''}`} onClick={() => setActiveTab('monthly')}>
+            📅 รายเดือน
+          </button>
+          <button className={`lb-tab ${activeTab === 'weekly' ? 'active' : ''}`} onClick={() => setActiveTab('weekly')}>
+            📆 รายสัปดาห์
+          </button>
+          <button className={`lb-tab ${activeTab === 'alltime' ? 'active' : ''}`} onClick={() => setActiveTab('alltime')}>
+            ♾️ ตลอดกาล
+          </button>
+        </div>
+        
+        <div className="leaderboard-period-info">
+          {activeTab === 'seasonal' && <span>🗓️ ตัดรอบทุก 3 เดือน</span>}
+          {activeTab === 'monthly' && <span>🗓️ ตัดรอบทุกสิ้นเดือน เวลา 23:59 น.</span>}
+          {activeTab === 'weekly' && <span>🗓️ ตัดรอบทุกวันอาทิตย์ เวลา 23:59 น.</span>}
+          {activeTab === 'alltime' && <span>🗓️ นับตั้งแต่เริ่มใช้งาน</span>}
+        </div>
+        
+        <div className="leaderboard-list-full">
+          {isLoading ? (
+            <div className="leaderboard-loading">⏳ กำลังโหลด...</div>
+          ) : leaderboard.length === 0 ? (
+            <div className="leaderboard-empty">ยังไม่มีข้อมูล</div>
+          ) : (
+            leaderboard.map((item, i) => (
+              <div 
+                key={item.id} 
+                className={`leaderboard-item-full ${currentUser?.id === item.id ? 'current-user' : ''}`}
+                onClick={() => { onViewProfile(item.id); onClose() }}
+              >
+                <div className="lb-rank">{getRankIcon(i)}</div>
+                <div className="lb-avatar">
+                  {item.avatar_url ? (
+                    <img src={item.avatar_url} alt={item.username} />
+                  ) : (
+                    item.username[0].toUpperCase()
+                  )}
+                </div>
+                <div className="lb-info">
+                  <span className="lb-username">
+                    {item.username}
+                    {item.is_verified && <span className="verified-badge"><svg viewBox="0 0 24 24" className="verified-check"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg></span>}
+                  </span>
+                  <span className="lb-stats">{item.correct_predictions || 0}/{item.total_predictions || 0} แม่น</span>
+                </div>
+                <div className="lb-points">
+                  <span className="lb-badge">{getReputationLevel(item.reputation).badge}</span>
+                  <span className="lb-rep">{item.reputation?.toLocaleString()} pt</span>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ===== Kidwa Bean Character =====
+function KidwaBean({ level = 'newbie', size = 80 }) {
+  // Level-based character colors and accessories
+  const characters = {
+    newbie: { body: '#a8e6cf', bodyDark: '#88d4ab', eyes: '#2d3436', accessory: 'seedling' },
+    learner: { body: '#74b9ff', bodyDark: '#0984e3', eyes: '#2d3436', accessory: 'target' },
+    thinker: { body: '#a29bfe', bodyDark: '#6c5ce7', eyes: '#6c5ce7', accessory: 'glasses' },
+    analyst: { body: '#fdcb6e', bodyDark: '#f39c12', eyes: '#2d3436', accessory: 'star' },
+    expert: { body: '#fd79a8', bodyDark: '#e84393', eyes: '#e84393', accessory: 'trophy' },
+    master: { body: '#ff6b9d', bodyDark: '#e91e63', eyes: '#e91e63', accessory: 'crown' }
+  }
+  
+  const char = characters[level] || characters.newbie
+  const scale = size / 100
+  
+  return (
+    <svg width={size} height={size * 1.3} viewBox="0 0 100 130" className="kidwa-bean">
+      {/* Body */}
+      <ellipse cx="50" cy="75" rx="35" ry="45" fill={char.body}/>
+      <ellipse cx="50" cy="75" rx="30" ry="40" fill={char.bodyDark}/>
+      {/* Face */}
+      <ellipse cx="50" cy="55" rx="25" ry="22" fill="#ffeaa7"/>
+      {/* Eyes */}
+      <ellipse cx="42" cy="52" rx="6" ry="7" fill="white"/>
+      <ellipse cx="58" cy="52" rx="6" ry="7" fill="white"/>
+      <circle cx="43" cy="53" r="3" fill={char.eyes}/>
+      <circle cx="59" cy="53" r="3" fill={char.eyes}/>
+      {/* Blush */}
+      <ellipse cx="35" cy="60" rx="5" ry="3" fill="#ffb6c1" opacity="0.6"/>
+      <ellipse cx="65" cy="60" rx="5" ry="3" fill="#ffb6c1" opacity="0.6"/>
+      {/* Smile */}
+      <path d="M 43 65 Q 50 72 57 65" stroke="#2d3436" strokeWidth="2" fill="none" strokeLinecap="round"/>
+      {/* Arms */}
+      <ellipse cx="20" cy="80" rx="8" ry="12" fill={char.body}/>
+      <ellipse cx="80" cy="80" rx="8" ry="12" fill={char.body}/>
+      {/* Legs */}
+      <ellipse cx="38" cy="115" rx="10" ry="12" fill={char.body}/>
+      <ellipse cx="62" cy="115" rx="10" ry="12" fill={char.body}/>
+      {/* Accessory based on level */}
+      {char.accessory === 'seedling' && (
+        <>
+          <path d="M 50 33 Q 45 20 50 15 Q 55 20 50 33" fill="#56ab2f"/>
+          <circle cx="50" cy="12" r="4" fill="#56ab2f"/>
+        </>
+      )}
+      {char.accessory === 'crown' && (
+        <>
+          <path d="M 30 32 L 35 15 L 42 28 L 50 8 L 58 28 L 65 15 L 70 32 Z" fill="#ffd700" stroke="#f39c12" strokeWidth="1"/>
+          <ellipse cx="50" cy="35" rx="22" ry="5" fill="#ffd700"/>
+        </>
+      )}
+      {char.accessory === 'star' && (
+        <text x="42" y="28" fontSize="20" fill="#ffd700">⭐</text>
+      )}
+      {char.accessory === 'trophy' && (
+        <text x="40" y="28" fontSize="18" fill="#ffd700">🏆</text>
+      )}
+      {char.accessory === 'glasses' && (
+        <>
+          <circle cx="42" cy="52" r="10" fill="none" stroke="#2d3436" strokeWidth="2"/>
+          <circle cx="58" cy="52" r="10" fill="none" stroke="#2d3436" strokeWidth="2"/>
+          <path d="M 52 52 L 48 52" stroke="#2d3436" strokeWidth="2"/>
+        </>
+      )}
+      {char.accessory === 'target' && (
+        <>
+          <ellipse cx="50" cy="28" rx="12" ry="10" fill="#e74c3c"/>
+          <circle cx="50" cy="28" r="5" fill="white"/>
+          <circle cx="50" cy="28" r="2" fill="#e74c3c"/>
+        </>
+      )}
+    </svg>
+  )
+}
+
 // ===== Poll Card Component =====
 function PollCard({ poll, onClick, userVotes }) {
   const totalVotes = poll.options?.reduce((sum, opt) => sum + opt.votes, 0) || 0
@@ -771,8 +955,8 @@ function ShareButtons({ poll }) {
 }
 
 // ===== Auth Modal =====
-function AuthModal({ onClose, onSuccess, darkMode }) {
-  const [mode, setMode] = useState('login')
+function AuthModal({ onClose, onSuccess, darkMode, initialMode = 'login' }) {
+  const [mode, setMode] = useState(initialMode)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -1306,7 +1490,7 @@ function CreatePollModal({ onClose, user, onSuccess, darkMode }) {
     if (!validate()) return
     if (similarPolls.length > 0 && !similarCheckDone) { setShowSimilarWarning(true); return }
     setIsSubmitting(true)
-    const { error } = await createPoll({ 
+    const { data: newPoll, error } = await createPoll({ 
       question: question.trim(), 
       options: options.filter(o => o.trim()), 
       category, 
@@ -1318,7 +1502,20 @@ function CreatePollModal({ onClose, user, onSuccess, darkMode }) {
     })
     setIsSubmitting(false)
     if (error) { alert('เกิดข้อผิดพลาด') } 
-    else { alert('🎉 สร้างโพลสำเร็จ!'); onSuccess(); onClose() }
+    else { 
+      // Show poll link
+      const pollUrl = `${window.location.origin}/${category}/${newPoll.id}`
+      const shareMessage = `🎉 สร้างโพลสำเร็จ!\n\n"${question.trim()}"\n\n🔗 ${pollUrl}\n\nกดตกลงเพื่อคัดลอก link`
+      if (confirm(shareMessage)) {
+        navigator.clipboard.writeText(pollUrl).then(() => {
+          alert('✅ คัดลอก link แล้ว!')
+        }).catch(() => {
+          prompt('คัดลอก link นี้:', pollUrl)
+        })
+      }
+      onSuccess()
+      onClose() 
+    }
   }
 
   const filteredTags = availableTags.filter(tag => 
@@ -2031,7 +2228,7 @@ export default function Home() {
   const [polls, setPolls] = useState([])
   const [userVotes, setUserVotes] = useState({})
   const [user, setUser] = useState(null)
-  const [showAuthModal, setShowAuthModal] = useState(false)
+  const [showAuthModal, setShowAuthModal] = useState(null) // null, 'login', or 'register'
   const [showMenu, setShowMenu] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedPoll, setSelectedPoll] = useState(null)
@@ -2055,6 +2252,7 @@ export default function Home() {
   const [showMemberPrivileges, setShowMemberPrivileges] = useState(false)
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false)
   const [showPWAInstall, setShowPWAInstall] = useState(false)
+  const [showLeaderboardModal, setShowLeaderboardModal] = useState(false)
 
   // ===== Click Outside / Scroll to Close Dropdown =====
   useEffect(() => {
@@ -2103,6 +2301,41 @@ export default function Home() {
     checkAuthSession()
     const d = localStorage.getItem('kidwa-darkmode')
     if (d) setDarkMode(JSON.parse(d))
+    
+    // Realtime subscription for vote count updates
+    const optionsChannel = supabase
+      .channel('options-realtime')
+      .on('postgres_changes', 
+        { event: 'UPDATE', schema: 'public', table: 'options' }, 
+        (payload) => {
+          console.log('REALTIME:', payload)
+          // Update polls state with new vote count
+          setPolls(prev => prev.map(poll => ({
+            ...poll,
+            options: poll.options?.map(opt => 
+              opt.id === payload.new.id 
+                ? { ...opt, votes: payload.new.votes }
+                : opt
+            )
+          })))
+          // Also update live battles
+          setLiveBattles(prev => prev.map(poll => ({
+            ...poll,
+            options: poll.options?.map(opt => 
+              opt.id === payload.new.id 
+                ? { ...opt, votes: payload.new.votes }
+                : opt
+            )
+          })))
+        }
+      )
+      .subscribe((status) => {
+        console.log('Realtime status:', status)
+      })
+    
+    return () => {
+      supabase.removeChannel(optionsChannel)
+    }
   }, [])
 
   // Auth session check
@@ -2230,7 +2463,7 @@ export default function Home() {
 
   // Vote handler
   const handleVote = async (pollId, optionId, confidence) => { 
-    if (!user) { setShowAuthModal(true); return }
+    if (!user) { setShowAuthModal('login'); return }
     const poll = polls.find(p => p.id === pollId) || liveBattles.find(p => p.id === pollId)
     if (poll && isExpired(poll.ends_at)) { alert('โพลนี้หมดเวลาแล้ว'); return }
     const { error } = await vote(user.id, pollId, optionId, confidence)
@@ -2275,10 +2508,15 @@ export default function Home() {
 
   return (
     <div className={darkMode ? 'dark' : ''}>
-      {/* Header */}
-      <header className="header">
-        <div className="header-content">
-          <div className="logo" onClick={() => handleCategoryChange('home')}>คิดว่า..</div>
+      {/* Sticky Header + Categories Block */}
+      <div className="sticky-header-block">
+        {/* Header */}
+        <header className="header">
+          <div className="header-content">
+            <div className="logo" onClick={() => handleCategoryChange('home')}>
+              <KidwaBean level={user ? getLevelKey(user.reputation) : 'newbie'} size={36} />
+              <span>คิดว่า..</span>
+            </div>
           <div className="search-box">
             <span className="search-icon">🔍</span>
             <input type="text" placeholder="ค้นหา.." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
@@ -2307,8 +2545,8 @@ export default function Home() {
               </>
             ) : (
               <>
-                <button className="btn btn-secondary hide-mobile" onClick={() => setShowAuthModal(true)}>เข้าสู่ระบบ</button>
-                <button className="btn btn-primary hide-mobile" onClick={() => setShowAuthModal(true)}>สมัครสมาชิก</button>
+                <button className="btn btn-secondary hide-mobile" onClick={() => setShowAuthModal('login')}>เข้าสู่ระบบ</button>
+                <button className="btn btn-primary hide-mobile" onClick={() => setShowAuthModal('register')}>สมัครสมาชิก</button>
               </>
             )}
             <button className="menu-btn" onClick={() => setShowMenu(!showMenu)}>☰</button>
@@ -2320,8 +2558,8 @@ export default function Home() {
           <div className="dropdown-menu">
             {!user && (
               <>
-                <button className="dropdown-item" onClick={() => { setShowAuthModal(true); setShowMenu(false) }}>เข้าสู่ระบบ</button>
-                <button className="dropdown-item" onClick={() => { setShowAuthModal(true); setShowMenu(false) }}>สมัครสมาชิก</button>
+                <button className="dropdown-item" onClick={() => { setShowAuthModal('login'); setShowMenu(false) }}>เข้าสู่ระบบ</button>
+                <button className="dropdown-item" onClick={() => { setShowAuthModal('register'); setShowMenu(false) }}>สมัครสมาชิก</button>
                 <div className="dropdown-divider"></div>
               </>
             )}
@@ -2346,10 +2584,11 @@ export default function Home() {
                 <div className="dropdown-divider"></div>
               </>
             )}
-              <button className="dropdown-item" onClick={() => { setShowPostingGuidelines(true); setShowMenu(false) }}>คำแนะนำการโพสต์</button>
-              <button className="dropdown-item" onClick={() => { setShowMemberPrivileges(true); setShowMenu(false) }}>สิทธิ์การใช้งานของสมาชิก</button>
-              <button className="dropdown-item" onClick={() => { setShowPrivacyPolicy(true); setShowMenu(false) }}>นโยบายข้อมูลส่วนบุคคล</button>
-              <button className="dropdown-item" onClick={() => { setShowPWAInstall(true); setShowMenu(false) }}>Download App คิดว่า..</button>
+              <button className="dropdown-item" onClick={() => { setShowPostingGuidelines(true); setShowMenu(false) }}>📝 คำแนะนำการโพสต์</button>
+              <button className="dropdown-item" onClick={() => { setShowMemberPrivileges(true); setShowMenu(false) }}>⭐ สิทธิ์การใช้งานของสมาชิก</button>
+              <button className="dropdown-item" onClick={() => { setShowPrivacyPolicy(true); setShowMenu(false) }}>🔒 นโยบายข้อมูลส่วนบุคคล</button>
+              <button className="dropdown-item" onClick={() => { setShowLeaderboardModal(true); setShowMenu(false) }}>🏆 อันดับ Leaderboard</button>
+              <button className="dropdown-item" onClick={() => { setShowPWAInstall(true); setShowMenu(false) }}>📱 Download App คิดว่า..</button>
               <div className="dropdown-divider"></div>
 
             <button className="dropdown-item" onClick={() => { setDarkMode(!darkMode); setShowMenu(false) }}>{darkMode ? 'โหมดสว่าง' : 'โหมดมืด'}</button>
@@ -2363,9 +2602,9 @@ export default function Home() {
         )}
       </header>
 
-      {/* Categories Navigation with More dropdown */}
+      {/* Categories Navigation - Mobile: slide, Desktop: with More */}
       <nav className="categories">
-        <div className="categories-content">
+        <div className="categories-content categories-desktop">
           {visibleCategories.map(cat => (
             <button 
               key={cat.id} 
@@ -2376,7 +2615,7 @@ export default function Home() {
             </button>
           ))}
           
-          {/* More dropdown */}
+          {/* More dropdown - Desktop only */}
           {hiddenCategories.length > 0 && (
             <div className="more-dropdown-container">
               <button 
@@ -2407,7 +2646,22 @@ export default function Home() {
             </div>
           )}
         </div>
+        
+        {/* Mobile: Horizontal scroll all categories */}
+        <div className="categories-content categories-mobile">
+          {categories.map(cat => (
+            <button 
+              key={cat.id} 
+              className={`category-btn ${activeCategory === cat.id && !activeTag ? 'active' : ''}`} 
+              onClick={() => handleCategoryChange(cat.id)}
+            >
+              {cat.icon} {cat.name}
+            </button>
+          ))}
+        </div>
       </nav>
+      </div>
+      {/* End Sticky Block */}
 
       {/* Main Content */}
       <main className="main">
@@ -2523,7 +2777,7 @@ export default function Home() {
       {/* ===== MODALS ===== */}
       
       {/* Auth Modal */}
-      {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} onSuccess={(userData) => { setUser(userData); localStorage.setItem('kidwa-user', JSON.stringify(userData)); setShowAuthModal(false) }} darkMode={darkMode} />}
+      {showAuthModal && <AuthModal onClose={() => setShowAuthModal(null)} onSuccess={(userData) => { setUser(userData); localStorage.setItem('kidwa-user', JSON.stringify(userData)); setShowAuthModal(null) }} darkMode={darkMode} initialMode={showAuthModal} />}
       
       {/* Poll Detail Modal */}
       {selectedPoll && (
@@ -2590,7 +2844,7 @@ export default function Home() {
             )}
             
             {!user && !isExpired(selectedPoll.ends_at) && (
-              <div onClick={() => { setSelectedPoll(null); setShowAuthModal(true) }} className="login-prompt">🔒 เข้าสู่ระบบเพื่อโหวต</div>
+              <div onClick={() => { setSelectedPoll(null); setShowAuthModal('login') }} className="login-prompt">🔒 เข้าสู่ระบบเพื่อโหวต</div>
             )}
             
             <ShareButtons poll={selectedPoll} />
@@ -2644,6 +2898,15 @@ export default function Home() {
           </div>
         </div>
       )}
+      
+      {/* Policy Modals */}
+      {showPostingGuidelines && <PostingGuidelinesModal onClose={() => setShowPostingGuidelines(false)} darkMode={darkMode} />}
+      {showMemberPrivileges && <MemberPrivilegesModal onClose={() => setShowMemberPrivileges(false)} darkMode={darkMode} />}
+      {showPrivacyPolicy && <PrivacyPolicyModal onClose={() => setShowPrivacyPolicy(false)} darkMode={darkMode} />}
+      {showPWAInstall && <PWAInstallModal onClose={() => setShowPWAInstall(false)} darkMode={darkMode} />}
+      
+      {/* Leaderboard Modal */}
+      {showLeaderboardModal && <LeaderboardModal onClose={() => setShowLeaderboardModal(false)} darkMode={darkMode} currentUser={user} onViewProfile={setViewProfileUserId} />}
     </div>
   )
 }
