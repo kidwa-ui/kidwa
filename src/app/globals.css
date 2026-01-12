@@ -751,3 +751,8 @@ select.form-input { appearance: none; background-image: url("data:image/svg+xml,
   .do-dont-grid { grid-template-columns: 1fr; }
   .pwa-device-tabs { flex-direction: column; }
 }
+
+/* ===== User Avatar Mobile in Menu ===== */
+.user-avatar-mobile { width: 44px; height: 44px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+.user-avatar-img-mobile { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; border: 2px solid var(--primary); }
+.user-avatar-mobile .kidwa-bean { width: 40px !important; height: auto !important; }
