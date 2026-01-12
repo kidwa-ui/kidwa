@@ -663,15 +663,18 @@ select.form-input { appearance: none; background-image: url("data:image/svg+xml,
 /* ===== Mobile Responsive Updates ===== */
 @media (max-width: 900px) {
   .categories-desktop { display: none; }
-  .categories-mobile { 
-    display: flex; 
-    flex-wrap: nowrap; 
+  .categories-content.categories-mobile { 
+    display: flex !important; 
+    flex-wrap: nowrap !important; 
     gap: 0.5rem; 
     overflow-x: auto; 
     padding-bottom: 0.5rem; 
     -webkit-overflow-scrolling: touch; 
     scroll-snap-type: x mandatory;
     direction: ltr;
+    justify-content: flex-start !important;
+    max-width: 100%;
+    margin: 0;
   }
   .categories-mobile::-webkit-scrollbar { display: none; }
   .categories-mobile .category-btn { flex-shrink: 0; scroll-snap-align: start; }
