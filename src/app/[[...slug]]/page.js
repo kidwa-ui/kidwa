@@ -152,7 +152,7 @@ function PostingGuidelinesModal({ onClose, darkMode }) {
       <div className={`modal info-modal ${darkMode ? 'dark' : ''}`} onClick={e => e.stopPropagation()}>
         <button className="modal-close" onClick={onClose}>✕</button>
         <div className="info-modal-header">
-          <h2>📝 คำแนะนำการโพสต์</h2>
+          <h2>คำแนะนำการโพสต์</h2>
           <p>วิธีสร้างโพลที่มีคุณภาพ</p>
         </div>
         <div className="info-modal-content">
@@ -182,13 +182,13 @@ function PostingGuidelinesModal({ onClose, darkMode }) {
           </div>
           
           <div className="info-card">
-            <h4>💡 เคล็ดลับสร้างโพลที่ดี</h4>
+            <h4>เคล็ดลับสร้างโพลที่ดี</h4>
             <p>โพลที่ดีควรมีคำตอบที่สามารถตรวจสอบได้ในอนาคต เช่น "ใครจะชนะเลือกตั้งผู้ว่า กทม. 2027" ดีกว่า "นักการเมืองคนไหนเก่งที่สุด" เพราะโพลแรกมีคำตอบที่ชัดเจน</p>
           </div>
           
           <div className="info-card">
             <h4>🔒 Blind Mode คืออะไร?</h4>
-            <p>โพลประเภท "ทำนายอนาคต" จะเปิด Blind Mode อัตโนมัติ หมายความว่าผู้ใช้จะไม่เห็นผลโหวตจนกว่าจะถึงเวลาเฉลย เพื่อป้องกันพฤติกรรมตามฝูง</p>
+            <p>โพลประเภท "คิดว่า.. ในอนาคต" จะเปิด Blind Mode อัตโนมัติ หมายความว่าผู้ใช้จะไม่เห็นผลโหวตจนกว่าจะถึงเวลาเฉลย เพื่อป้องกันพฤติกรรมตามฝูง</p>
           </div>
         </div>
       </div>
@@ -202,7 +202,7 @@ function MemberPrivilegesModal({ onClose, darkMode }) {
       <div className={`modal info-modal ${darkMode ? 'dark' : ''}`} onClick={e => e.stopPropagation()}>
         <button className="modal-close" onClick={onClose}>✕</button>
         <div className="info-modal-header">
-          <h2>⭐ สิทธิ์การใช้งานของสมาชิก</h2>
+          <h2>สิทธิ์การใช้งานของสมาชิก</h2>
           <p>เปรียบเทียบสิทธิ์ระหว่างสมาชิกทั่วไปและสมาชิกยืนยันตัวตน</p>
         </div>
         <div className="info-modal-content">
@@ -222,7 +222,7 @@ function MemberPrivilegesModal({ onClose, darkMode }) {
               </tr>
               <tr>
                 <td className="feature-name">สร้างโพลต่อวัน</td>
-                <td>1 โพล/วัน</td>
+                <td><span className="cross-mark">✗</span></td>
                 <td><span className="check-mark">✓</span> 3 โพล/วัน</td>
               </tr>
               <tr>
@@ -231,7 +231,7 @@ function MemberPrivilegesModal({ onClose, darkMode }) {
                 <td><span className="check-mark">✓</span> แสดงข้างชื่อ</td>
               </tr>
               <tr>
-                <td className="feature-name">สร้าง Live Battle</td>
+                <td className="feature-name">สร้างการถ่ายทอดสด</td>
                 <td><span className="check-mark">✓</span></td>
                 <td><span className="check-mark">✓</span></td>
               </tr>
@@ -247,7 +247,7 @@ function MemberPrivilegesModal({ onClose, darkMode }) {
               </tr>
               <tr>
                 <td className="feature-name">อัพโหลดรูปโปรไฟล์</td>
-                <td><span className="check-mark">✓</span></td>
+                <td><span className="cross-mark">✗</span></td>
                 <td><span className="check-mark">✓</span></td>
               </tr>
               <tr>
@@ -349,12 +349,12 @@ function PrivacyPolicyModal({ onClose, darkMode }) {
       <div className={`modal info-modal ${darkMode ? 'dark' : ''}`} onClick={e => e.stopPropagation()}>
         <button className="modal-close" onClick={onClose}>✕</button>
         <div className="info-modal-header">
-          <h2>🔒 นโยบายข้อมูลส่วนบุคคล</h2>
+          <h2>นโยบายข้อมูลส่วนบุคคล</h2>
           <p>ตาม พ.ร.บ. คุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562 (PDPA)</p>
         </div>
         <div className="info-modal-content">
           <div className="privacy-section">
-            <h3>📋 ข้อมูลที่เราเก็บ</h3>
+            <h3>ข้อมูลที่เราเก็บ</h3>
             <ul className="privacy-list">
               <li>ชื่อผู้ใช้ อีเมล และรหัสผ่าน (เข้ารหัส)</li>
               <li>ข้อมูลการยืนยันตัวตน (ชื่อจริง วันเกิด - เฉพาะผู้ที่ยืนยัน)</li>
@@ -364,7 +364,7 @@ function PrivacyPolicyModal({ onClose, darkMode }) {
           </div>
           
           <div className="privacy-section">
-            <h3>🎯 วัตถุประสงค์การใช้ข้อมูล</h3>
+            <h3>วัตถุประสงค์การใช้ข้อมูล</h3>
             <ul className="privacy-list">
               <li>ให้บริการแพลตฟอร์ม "คิดว่า.."</li>
               <li>คำนวณคะแนน Reputation และ Leaderboard</li>
@@ -375,7 +375,7 @@ function PrivacyPolicyModal({ onClose, darkMode }) {
           </div>
           
           <div className="privacy-section">
-            <h3>🛡️ การคุ้มครองข้อมูล</h3>
+            <h3>การคุ้มครองข้อมูล</h3>
             <ul className="privacy-list">
               <li>ข้อมูลถูกเก็บในระบบที่มีการเข้ารหัส</li>
               <li>ไม่ขายหรือแบ่งปันข้อมูลส่วนตัวให้บุคคลที่สาม</li>
@@ -385,7 +385,7 @@ function PrivacyPolicyModal({ onClose, darkMode }) {
           </div>
           
           <div className="privacy-section">
-            <h3>⚖️ สิทธิ์ของคุณ</h3>
+            <h3>สิทธิ์ของคุณ</h3>
             <ul className="privacy-list">
               <li>เข้าถึงและขอสำเนาข้อมูลของตนเอง</li>
               <li>แก้ไขข้อมูลให้ถูกต้อง</li>
@@ -484,7 +484,7 @@ function PWAInstallModal({ onClose, darkMode, deferredPrompt, onInstall }) {
           
           <div className="pwa-note">
             <span>💡</span>
-            <p>หลังติดตั้งแล้ว แอปจะทำงานเร็วขึ้น สามารถรับการแจ้งเตือน และใช้งานได้แม้ไม่มีอินเทอร์เน็ต (สำหรับบางฟีเจอร์)</p>
+            <p>ขอขอบพระคุณที่ให้ความสนใจในคิดว่า..</p>
           </div>
         </div>
       </div>
@@ -858,8 +858,8 @@ function ConfidenceSelector({ selectedConfidence, onSelect, disabled, user, stak
         <div className="conviction-warning">
           <span className="warning-icon">⚠️</span>
           <span className="warning-text">
-            <strong>การโหวตของคุณมีผลกระทบสูงต่อชื่อเสียง</strong><br/>
-            ถ้าโหวตนี้คลาดเคลื่อน อาจจะเสีย Reputation มากขึ้น
+            <strong>ความคิดของคุณมีผลกระทบสูงต่อชื่อเสียง</strong><br/>
+            ถ้าสิ่งที่คุณคิดว่า.. นี้คลาดเคลื่อน อาจจะเสีย Reputation มากขึ้น
           </span>
         </div>
       )}
@@ -1013,7 +1013,7 @@ function AuthModal({ onClose, onSuccess, darkMode, initialMode = 'login' }) {
       <div className={`modal auth-modal ${darkMode ? 'dark' : ''}`} onClick={e => e.stopPropagation()}>
         <button className="modal-close" onClick={onClose}>✕</button>
         <div className="auth-header">
-          <h2 className="auth-title">🎯 คิดว่า..</h2>
+          <h2 className="auth-title">คิดว่า..</h2>
           <p className="auth-subtitle">
             {mode === 'login' && 'เข้าสู่ระบบ'}
             {mode === 'register' && 'สมัครสมาชิก'}
@@ -1027,19 +1027,19 @@ function AuthModal({ onClose, onSuccess, darkMode, initialMode = 'login' }) {
           <>
             {mode === 'login' && (
               <form onSubmit={handleLogin}>
-                <div className="form-group"><label>📧 อีเมล</label><input type="email" className="form-input" placeholder="example@email.com" value={email} onChange={e => setEmail(e.target.value)} required /></div>
-                <div className="form-group"><label>🔒 รหัสผ่าน</label><input type="password" className="form-input" placeholder="รหัสผ่าน" value={password} onChange={e => setPassword(e.target.value)} required /></div>
+                <div className="form-group"><label>อีเมล</label><input type="email" className="form-input" placeholder="example@email.com" value={email} onChange={e => setEmail(e.target.value)} required /></div>
+                <div className="form-group"><label>รหัสผ่าน</label><input type="password" className="form-input" placeholder="รหัสผ่าน" value={password} onChange={e => setPassword(e.target.value)} required /></div>
                 <button type="button" className="auth-link" onClick={() => setMode('forgot')}>ลืมรหัสผ่าน?</button>
-                <button type="submit" className="btn btn-primary btn-full" disabled={isLoading}>{isLoading ? '⏳ กำลังเข้าสู่ระบบ...' : '🚀 เข้าสู่ระบบ'}</button>
+                <button type="submit" className="btn btn-primary btn-full" disabled={isLoading}>{isLoading ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ'}</button>
               </form>
             )}
             {mode === 'register' && (
               <form onSubmit={handleRegister}>
-                <div className="form-group"><label>👤 ชื่อผู้ใช้</label><input type="text" className="form-input" placeholder="ชื่อที่แสดงในเว็บ" value={username} onChange={e => setUsername(e.target.value)} required minLength={3} maxLength={20} /></div>
-                <div className="form-group"><label>📧 อีเมล</label><input type="email" className="form-input" placeholder="example@email.com" value={email} onChange={e => setEmail(e.target.value)} required /></div>
-                <div className="form-group"><label>🔒 รหัสผ่าน</label><input type="password" className="form-input" placeholder="อย่างน้อย 8 ตัวอักษร" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} /></div>
-                <div className="form-group"><label>🔒 ยืนยันรหัสผ่าน</label><input type="password" className="form-input" placeholder="พิมพ์รหัสผ่านอีกครั้ง" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required /></div>
-                <p className="auth-bonus">🎁 สมัครใหม่ได้ 1,000 Point เริ่มต้น!</p>
+                <div className="form-group"><label>ชื่อผู้ใช้</label><input type="text" className="form-input" placeholder="ชื่อที่แสดงในเว็บ" value={username} onChange={e => setUsername(e.target.value)} required minLength={3} maxLength={20} /></div>
+                <div className="form-group"><label>อีเมล</label><input type="email" className="form-input" placeholder="example@email.com" value={email} onChange={e => setEmail(e.target.value)} required /></div>
+                <div className="form-group"><label>รหัสผ่าน</label><input type="password" className="form-input" placeholder="อย่างน้อย 8 ตัวอักษร" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} /></div>
+                <div className="form-group"><label>ยืนยันรหัสผ่าน</label><input type="password" className="form-input" placeholder="พิมพ์รหัสผ่านอีกครั้ง" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required /></div>
+                <p className="auth-bonus">🎁 สมัครใหม่ได้ 1,000 Point!</p>
                 <button type="submit" className="btn btn-primary btn-full" disabled={isLoading}>{isLoading ? '⏳ กำลังสมัคร...' : '✨ สมัครสมาชิก'}</button>
               </form>
             )}
@@ -1261,19 +1261,19 @@ function AccountModal({ onClose, user, darkMode, onUpdateUser }) {
             </div>
             {badges.length > 0 && <div className="account-badges"><h3 className="account-section-title">🏅 Badges</h3><div className="badges-grid">{badges.map(badge => <div key={badge.id} className="badge-item" title={badge.description}><span className="badge-icon">{badge.icon}</span><span className="badge-name">{badge.name}</span></div>)}</div></div>}
             <div className="account-tabs">
-              <button className={`account-tab ${activeTab === 'stats' ? 'active' : ''}`} onClick={() => setActiveTab('stats')}>📊 สถิติ</button>
-              <button className={`account-tab ${activeTab === 'history' ? 'active' : ''}`} onClick={() => setActiveTab('history')}>📜 ประวัติ</button>
-              <button className={`account-tab ${activeTab === 'polls' ? 'active' : ''}`} onClick={() => setActiveTab('polls')}>📝 โพล</button>
-              <button className={`account-tab ${activeTab === 'insight' ? 'active' : ''}`} onClick={() => setActiveTab('insight')}>🧠 Insight</button>
-              <button className={`account-tab ${activeTab === 'followers' ? 'active' : ''}`} onClick={() => setActiveTab('followers')}>👥</button>
-              <button className={`account-tab ${activeTab === 'following' ? 'active' : ''}`} onClick={() => setActiveTab('following')}>➡️</button>
+              <button className={`account-tab ${activeTab === 'stats' ? 'active' : ''}`} onClick={() => setActiveTab('stats')}>สถิติ</button>
+              <button className={`account-tab ${activeTab === 'history' ? 'active' : ''}`} onClick={() => setActiveTab('history')}>ประวัติ</button>
+              <button className={`account-tab ${activeTab === 'polls' ? 'active' : ''}`} onClick={() => setActiveTab('polls')}>โพล</button>
+              <button className={`account-tab ${activeTab === 'insight' ? 'active' : ''}`} onClick={() => setActiveTab('insight')}>Insight</button>
+              <button className={`account-tab ${activeTab === 'followers' ? 'active' : ''}`} onClick={() => setActiveTab('followers')}>ผู้ติดตาม</button>
+              <button className={`account-tab ${activeTab === 'following' ? 'active' : ''}`} onClick={() => setActiveTab('following')}>กำลังติดตาม</button>
             </div>
               <div className="account-content">
                               {/* v2: Profile Insight */}
               {activeTab === 'insight' && (
                 <div className="insight-content">
                   <div className="insight-section">
-                    <h4 className="insight-title">🎯 คุณมักวิเคราะห์ได้ดีในเรื่อง</h4>
+                    <h4 className="insight-title">🎯 คุณมักคิดได้ดีในเรื่อง</h4>
                     {categoryAccuracy.length > 0 ? (
                       <div className="category-accuracy-list">
                         {categoryAccuracy.slice(0, 3).map((cat, i) => (
@@ -1290,7 +1290,7 @@ function AccountModal({ onClose, user, darkMode, onUpdateUser }) {
                   </div>
                   
                   <div className="insight-section">
-                    <h4 className="insight-title">⏰ ช่วงเวลาที่คุณมักตัดสินใจได้ดี</h4>
+                    <h4 className="insight-title">⏰ ช่วงเวลาที่คุณมักคิดได้ดี</h4>
                     {timePattern ? (
                       <p className="insight-value">{timePattern.period} (แม่น {timePattern.accuracy}%)</p>
                     ) : (
@@ -1743,7 +1743,7 @@ function CreateLiveBattleModal({ onClose, user, onSuccess, darkMode }) {
     <div className="modal-overlay" onClick={onClose}>
       <div className={`modal create-poll-modal ${darkMode ? 'dark' : ''}`} onClick={e => e.stopPropagation()}>
         <button className="modal-close" onClick={onClose}>✕</button>
-        <h2 className="modal-title">⚡ สร้าง Live Battle</h2>
+        <h2 className="modal-title">⚡ สร้างถ่ายทอดสด</h2>
         <p style={{ textAlign: 'center', color: 'var(--text-secondary)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
           โพลแบบ Real-time • เห็นผลโหวตทันที
         </p>
@@ -1803,7 +1803,7 @@ function CreateLiveBattleModal({ onClose, user, onSuccess, darkMode }) {
           <div className="modal-actions">
             <button type="button" className="btn btn-secondary" onClick={onClose}>ยกเลิก</button>
             <button type="submit" className="btn btn-live" disabled={isSubmitting}>
-              {isSubmitting ? '⏳ กำลังสร้าง...' : '⚡ เริ่ม Live Battle'}
+              {isSubmitting ? '⏳ กำลังสร้าง...' : '⚡ เริ่มถ่ายทอดสด'}
             </button>
           </div>
         </form>
@@ -1881,7 +1881,7 @@ function CreateTimeCapsuleModal({ onClose, user, onSuccess, darkMode }) {
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label>❓ คำถามทำนายอนาคต</label>
-            <input type="text" className={`form-input ${errors.question ? 'error' : ''}`} placeholder="เช่น AI จะแทนที่งานมนุษย์ 50% ภายในปี 2030 ไหม?" value={question} onChange={(e) => setQuestion(e.target.value)} maxLength={200} />
+            <input type="text" className={`form-input ${errors.question ? 'error' : ''}`} placeholder="เช่น ปี 2030 ราคาน้ำมันดีเซลจะเท่ากับ 20 บาทไหม?" value={question} onChange={(e) => setQuestion(e.target.value)} maxLength={200} />
             {errors.question && <span className="error-text">{errors.question}</span>}
             <span className="char-count">{question.length}/200</span>
           </div>
@@ -2095,7 +2095,7 @@ function UserProfileModal({ userId, currentUser, onClose, darkMode }) {
               <div className="profile-stat"><span className="stat-value">{winRate}%</span><span className="stat-label">Win Rate</span></div>
               <div className="profile-stat"><span className="stat-value">{profile.max_streak || 0}</span><span className="stat-label">Best Streak</span></div>
             </div>
-            <div className="profile-meta"><span>🗓️ สมาชิกตั้งแต่ {new Date(profile.created_at).toLocaleDateString('th-TH')}</span></div>
+            <div className="profile-meta"><span>สมาชิกตั้งแต่ {new Date(profile.created_at).toLocaleDateString('th-TH')}</span></div>
           </>
         ) : <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>ไม่พบข้อมูล</div>}
       </div>
@@ -2121,7 +2121,7 @@ function TrendingTagsSection({ onTagClick, darkMode }) {
 
   return (
     <div className="sidebar-card">
-      <h3 className="sidebar-title">🔥 แท็กที่ได้รับความสนใจ</h3>
+      <h3 className="sidebar-title">🔥 แท็กที่กำลังนิยม</h3>
       {isLoading ? (
         <div style={{ textAlign: 'center', padding: '1rem', color: 'var(--text-secondary)' }}>⏳</div>
       ) : tags.length === 0 ? (
@@ -2480,13 +2480,13 @@ export default function Home() {
       setUserVotes(prev => ({ ...prev, [pollId]: { optionId, confidence } }))
       await loadPolls()
       const totalVotes = (poll?.options?.reduce((sum, opt) => sum + (opt.votes || 0), 0) || 0) + 1
-      alert(`✅ บันทึกโหวตของคุณแล้ว\nตอนนี้มีผู้ร่วมโหวต ${totalVotes.toLocaleString()} คน`)
+      alert(`✅ บันทึกความคิดของคุณแล้ว\nตอนนี้มีผู้ร่วมคิด ${totalVotes.toLocaleString()} คน`)
       await checkAndAwardCreatorPoints(pollId)
     }
   }
 
   const confirmVote = () => { 
-    if (!selectedOption) { alert('กรุณาเลือกตัวเลือกก่อน'); return }
+    if (!selectedOption) { alert('กรุณาเลือก คิดว่า.. ก่อน'); return }
     handleVote(selectedPoll.id, selectedOption, selectedConfidence)
   }
 
@@ -2571,14 +2571,20 @@ export default function Home() {
               <>
                 <button className="dropdown-item" onClick={() => { setShowAuthModal('login'); setShowMenu(false) }}>เข้าสู่ระบบ</button>
                 <button className="dropdown-item" onClick={() => { setShowAuthModal('register'); setShowMenu(false) }}>สมัครสมาชิก</button>
-                <button className="dropdown-item" onClick={() => { setDarkMode(!darkMode); setShowMenu(false) }}>{darkMode ? '☀️ โหมดสว่าง' : '🌙 โหมดมืด'}</button>
+                <button className="dropdown-item" onClick={() => { setDarkMode(!darkMode); setShowMenu(false) }}>{darkMode ? 'โหมดสว่าง' : 'โหมดมืด'}</button>
                 <div className="dropdown-divider"></div>
               </>
             )}
             {user && (
               <>
                 <div className="dropdown-item user-info-mobile">
-                  <div className="user-avatar">{user.username[0].toUpperCase()}</div>
+                  <div className="user-avatar-mobile">
+                    {user.avatar_url ? (
+                      <img src={user.avatar_url} alt={user.username} className="user-avatar-img-mobile" />
+                    ) : (
+                      <KidwaBean level={getLevelKey(user.reputation)} size={40} />
+                    )}
+                  </div>
                   <div>
                     <span style={{ color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                       {user.username}
@@ -2588,20 +2594,20 @@ export default function Home() {
                   </div>
                 </div>
                 <button className="dropdown-item" onClick={() => { setShowNotifications(true); setShowMenu(false) }}>
-                  🔔 การแจ้งเตือน {unreadCount > 0 && <span className="mobile-notif-badge">{unreadCount}</span>}
+                  การแจ้งเตือน {unreadCount > 0 && <span className="mobile-notif-badge">{unreadCount}</span>}
                 </button>
-                <button className="dropdown-item" onClick={() => { setShowAccount(true); setShowMenu(false) }}>👤 บัญชีของฉัน</button>
-                <button className="dropdown-item" onClick={() => { setShowCreatePoll(true); setShowMenu(false) }}>➕ สร้างโพล</button>
+                <button className="dropdown-item" onClick={() => { setShowAccount(true); setShowMenu(false) }}>บัญชีของฉัน</button>
+                <button className="dropdown-item" onClick={() => { setShowCreatePoll(true); setShowMenu(false) }}>สร้างโพล</button>
                 {user.is_admin && <button className="dropdown-item" onClick={() => { setShowAdminPanel(true); setShowMenu(false) }}>🔧 Admin Panel</button>}
-                <button className="dropdown-item" onClick={() => { setDarkMode(!darkMode); setShowMenu(false) }}>{darkMode ? '☀️ โหมดสว่าง' : '🌙 โหมดมืด'}</button>
+                <button className="dropdown-item" onClick={() => { setDarkMode(!darkMode); setShowMenu(false) }}>{darkMode ? 'โหมดสว่าง' : 'โหมดมืด'}</button>
                 <div className="dropdown-divider"></div>
               </>
             )}
-              <button className="dropdown-item" onClick={() => { setShowLeaderboardModal(true); setShowMenu(false) }}>🏆 อันดับ Leaderboard</button>
-              <button className="dropdown-item" onClick={() => { setShowPostingGuidelines(true); setShowMenu(false) }}>📝 คำแนะนำการโพสต์</button>
-              <button className="dropdown-item" onClick={() => { setShowMemberPrivileges(true); setShowMenu(false) }}>⭐ สิทธิ์การใช้งานของสมาชิก</button>
-              <button className="dropdown-item" onClick={() => { setShowPrivacyPolicy(true); setShowMenu(false) }}>🔒 นโยบายข้อมูลส่วนบุคคล</button>
-              <button className="dropdown-item" onClick={() => { setShowPWAInstall(true); setShowMenu(false) }}>📱 Download App คิดว่า..</button>
+              <button className="dropdown-item" onClick={() => { setShowLeaderboardModal(true); setShowMenu(false) }}>Leaderboard</button>
+              <button className="dropdown-item" onClick={() => { setShowPostingGuidelines(true); setShowMenu(false) }}>คำแนะนำการโพสต์</button>
+              <button className="dropdown-item" onClick={() => { setShowMemberPrivileges(true); setShowMenu(false) }}>สิทธิ์การใช้งานของสมาชิก</button>
+              <button className="dropdown-item" onClick={() => { setShowPrivacyPolicy(true); setShowMenu(false) }}>นโยบายข้อมูลส่วนบุคคล</button>
+              <button className="dropdown-item" onClick={() => { setShowPWAInstall(true); setShowMenu(false) }}>Download App คิดว่า..</button>
             {user && (
               <>
                 <div className="dropdown-divider"></div>
@@ -2694,9 +2700,9 @@ export default function Home() {
           {activeCategory === 'live' ? (
             <section>
               <div className="section-header">
-                <h2 className="section-title">⚡ Live Battle</h2>
+                <h2 className="section-title">⚡ ถ่ายทอดสด</h2>
                 {user && (user.is_verified || user.is_admin) && (
-                  <button className="btn btn-live-create" onClick={() => setShowCreateLiveBattle(true)}>⚡ สร้าง Live Battle</button>
+                  <button className="btn btn-live-create" onClick={() => setShowCreateLiveBattle(true)}>⚡ สร้างถ่ายทอดสด</button>
                 )}
               </div>
               {liveBattles.length > 0 ? (
@@ -2842,7 +2848,7 @@ export default function Home() {
               <>
                 <ConfidenceSelector selectedConfidence={selectedConfidence} onSelect={setSelectedConfidence} disabled={!selectedOption} user={user} stake={selectedConfidence} />
                 <button className="btn btn-primary vote-cta" style={{ width: '100%', marginTop: '1rem', padding: '1rem' }} onClick={confirmVote} disabled={!selectedOption}>
-                  {selectedOption ? <>🎯 แสดงมุมมองนี้</> : <>👆 เลือกตัวเลือกก่อน</>}
+                  {selectedOption ? <>🎯 คิดว่าแบบนี้</> : <>👆 เลือกตัวเลือกก่อน</>}
                 </button>
               </>
             )}
