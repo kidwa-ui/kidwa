@@ -477,7 +477,7 @@ export async function getTimeCapsules(limit = 20) {
 export async function getLeaderboard(limit = 10) {
   const { data, error } = await supabase
     .from('users')
-    .select('id, username, reputation, email_verified, is_verified')
+    .select('id, username, reputation, email_verified, is_verified, avatar_url, correct_predictions, total_predictions')
     .order('reputation', { ascending: false })
     .limit(limit)
   return { data, error }
@@ -488,7 +488,7 @@ export async function getWeeklyLeaderboard(limit = 10) {
   
   const { data: votes, error } = await supabase
     .from('votes')
-    .select('user_id, points_earned, users!inner(id, username, reputation, email_verified, is_verified)')
+    .select('user_id, points_earned, users!inner(id, username, reputation, email_verified, is_verified, avatar_url, correct_predictions, total_predictions)')
     .gte('created_at', weekStart)
     .not('points_earned', 'is', null)
 
@@ -500,7 +500,9 @@ export async function getWeeklyLeaderboard(limit = 10) {
     if (!userPoints[userId]) {
       userPoints[userId] = {
         id: userId, username: vote.users.username, reputation: vote.users.reputation,
-        email_verified: vote.users.email_verified, is_verified: vote.users.is_verified, weeklyPoints: 0
+        email_verified: vote.users.email_verified, is_verified: vote.users.is_verified,
+        avatar_url: vote.users.avatar_url, correct_predictions: vote.users.correct_predictions,
+        total_predictions: vote.users.total_predictions, weeklyPoints: 0
       }
     }
     userPoints[userId].weeklyPoints += vote.points_earned || 0
@@ -515,7 +517,7 @@ export async function getMonthlyLeaderboard(limit = 10) {
   
   const { data: votes, error } = await supabase
     .from('votes')
-    .select('user_id, points_earned, users!inner(id, username, reputation, email_verified, is_verified)')
+    .select('user_id, points_earned, users!inner(id, username, reputation, email_verified, is_verified, avatar_url, correct_predictions, total_predictions)')
     .gte('created_at', monthStart)
     .not('points_earned', 'is', null)
 
@@ -527,7 +529,9 @@ export async function getMonthlyLeaderboard(limit = 10) {
     if (!userPoints[userId]) {
       userPoints[userId] = {
         id: userId, username: vote.users.username, reputation: vote.users.reputation,
-        email_verified: vote.users.email_verified, is_verified: vote.users.is_verified, monthlyPoints: 0
+        email_verified: vote.users.email_verified, is_verified: vote.users.is_verified,
+        avatar_url: vote.users.avatar_url, correct_predictions: vote.users.correct_predictions,
+        total_predictions: vote.users.total_predictions, monthlyPoints: 0
       }
     }
     userPoints[userId].monthlyPoints += vote.points_earned || 0
