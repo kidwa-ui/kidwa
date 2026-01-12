@@ -188,7 +188,7 @@ function PostingGuidelinesModal({ onClose, darkMode }) {
           
           <div className="info-card">
             <h4>🔒 Blind Mode คืออะไร?</h4>
-            <p>โพลประเภท "ทำนายอนาคต" จะเปิด Blind Mode อัตโนมัติ หมายความว่าผู้ใช้จะไม่เห็นผลโหวตจนกว่าจะถึงเวลาเฉลย เพื่อป้องกันพฤติกรรมตามฝูง</p>
+            <p>โพลประเภท "คิดว่าอนาคต.." จะเปิด Blind Mode อัตโนมัติ หมายความว่าผู้ใช้จะไม่เห็นผลโหวตจนกว่าจะถึงเวลาเฉลย เพื่อป้องกันพฤติกรรมตามฝูง</p>
           </div>
         </div>
       </div>
@@ -1261,19 +1261,19 @@ function AccountModal({ onClose, user, darkMode, onUpdateUser }) {
             </div>
             {badges.length > 0 && <div className="account-badges"><h3 className="account-section-title">🏅 Badges</h3><div className="badges-grid">{badges.map(badge => <div key={badge.id} className="badge-item" title={badge.description}><span className="badge-icon">{badge.icon}</span><span className="badge-name">{badge.name}</span></div>)}</div></div>}
             <div className="account-tabs">
-              <button className={`account-tab ${activeTab === 'stats' ? 'active' : ''}`} onClick={() => setActiveTab('stats')}>📊 สถิติ</button>
-              <button className={`account-tab ${activeTab === 'history' ? 'active' : ''}`} onClick={() => setActiveTab('history')}>📜 ประวัติ</button>
-              <button className={`account-tab ${activeTab === 'polls' ? 'active' : ''}`} onClick={() => setActiveTab('polls')}>📝 โพล</button>
-              <button className={`account-tab ${activeTab === 'insight' ? 'active' : ''}`} onClick={() => setActiveTab('insight')}>🧠 Insight</button>
-              <button className={`account-tab ${activeTab === 'followers' ? 'active' : ''}`} onClick={() => setActiveTab('followers')}>👥</button>
-              <button className={`account-tab ${activeTab === 'following' ? 'active' : ''}`} onClick={() => setActiveTab('following')}>➡️</button>
+              <button className={`account-tab ${activeTab === 'stats' ? 'active' : ''}`} onClick={() => setActiveTab('stats')}>สถิติ</button>
+              <button className={`account-tab ${activeTab === 'history' ? 'active' : ''}`} onClick={() => setActiveTab('history')}>ประวัติ</button>
+              <button className={`account-tab ${activeTab === 'polls' ? 'active' : ''}`} onClick={() => setActiveTab('polls')}>โพล</button>
+              <button className={`account-tab ${activeTab === 'insight' ? 'active' : ''}`} onClick={() => setActiveTab('insight')}>Insight</button>
+              <button className={`account-tab ${activeTab === 'followers' ? 'active' : ''}`} onClick={() => setActiveTab('followers')}>ผู้ติดตาม</button>
+              <button className={`account-tab ${activeTab === 'following' ? 'active' : ''}`} onClick={() => setActiveTab('following')}>ดำลังติดตาม</button>
             </div>
               <div className="account-content">
                               {/* v2: Profile Insight */}
               {activeTab === 'insight' && (
                 <div className="insight-content">
                   <div className="insight-section">
-                    <h4 className="insight-title">🎯 คุณมักวิเคราะห์ได้ดีในเรื่อง</h4>
+                    <h4 className="insight-title">🎯 คุณมักคิดได้ดีในเรื่อง</h4>
                     {categoryAccuracy.length > 0 ? (
                       <div className="category-accuracy-list">
                         {categoryAccuracy.slice(0, 3).map((cat, i) => (
@@ -1290,7 +1290,7 @@ function AccountModal({ onClose, user, darkMode, onUpdateUser }) {
                   </div>
                   
                   <div className="insight-section">
-                    <h4 className="insight-title">⏰ ช่วงเวลาที่คุณมักตัดสินใจได้ดี</h4>
+                    <h4 className="insight-title">⏰ ช่วงเวลาที่คุณมักคิดได้ดี</h4>
                     {timePattern ? (
                       <p className="insight-value">{timePattern.period} (แม่น {timePattern.accuracy}%)</p>
                     ) : (
@@ -2281,6 +2281,7 @@ export default function Home() {
   const [showMoreDropdown, setShowMoreDropdown] = useState(false)
   const moreDropdownRef = useRef(null)
   const moreButtonRef = useRef(null)
+  const dropdownRef = useRef(null)
   
   // Get visible and hidden categories
   const visibleCategories = categories.slice(0, VISIBLE_CATEGORIES)
@@ -2522,6 +2523,7 @@ export default function Home() {
             <input type="text" placeholder="ค้นหา.." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
           </div>
           <div className="header-actions">
+            <button className="menu-btn show-mobile-only" onClick={() => setShowMenu(!showMenu)}>☰</button>
             {user ? (
               <>
                 <button className="btn btn-create hide-mobile" onClick={() => { setShowCreatePoll(true); setShowMenu(false) }}>➕ สร้างโพล</button>
@@ -2542,24 +2544,26 @@ export default function Home() {
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{getReputationLevel(user.reputation).badge} {user.reputation} pt</div>
                   </div>
                 </div>
+                <button className="menu-btn hide-mobile" onClick={() => setShowMenu(!showMenu)}>☰</button>
               </>
             ) : (
               <>
                 <button className="btn btn-secondary hide-mobile" onClick={() => setShowAuthModal('login')}>เข้าสู่ระบบ</button>
                 <button className="btn btn-primary hide-mobile" onClick={() => setShowAuthModal('register')}>สมัครสมาชิก</button>
+                <button className="menu-btn hide-mobile" onClick={() => setShowMenu(!showMenu)}>☰</button>
               </>
             )}
-            <button className="menu-btn" onClick={() => setShowMenu(!showMenu)}>☰</button>
           </div>
         </div>
         
         {/* Mobile dropdown menu */}
         {showMenu && (
-          <div className="dropdown-menu">
+          <div className="dropdown-menu" ref={dropdownRef}>
             {!user && (
               <>
                 <button className="dropdown-item" onClick={() => { setShowAuthModal('login'); setShowMenu(false) }}>เข้าสู่ระบบ</button>
                 <button className="dropdown-item" onClick={() => { setShowAuthModal('register'); setShowMenu(false) }}>สมัครสมาชิก</button>
+                <button className="dropdown-item" onClick={() => { setDarkMode(!darkMode); setShowMenu(false) }}>{darkMode ? 'โหมดสว่าง' : 'โหมดมืด'}</button>
                 <div className="dropdown-divider"></div>
               </>
             )}
@@ -2576,22 +2580,20 @@ export default function Home() {
                   </div>
                 </div>
                 <button className="dropdown-item" onClick={() => { setShowNotifications(true); setShowMenu(false) }}>
-                  การแจ้งเตือน {unreadCount > 0 && <span className="mobile-notif-badge">{unreadCount}</span>}
+                  🔔 การแจ้งเตือน {unreadCount > 0 && <span className="mobile-notif-badge">{unreadCount}</span>}
                 </button>
                 <button className="dropdown-item" onClick={() => { setShowAccount(true); setShowMenu(false) }}>บัญชีของฉัน</button>
                 <button className="dropdown-item" onClick={() => { setShowCreatePoll(true); setShowMenu(false) }}>สร้างโพล</button>
                 {user.is_admin && <button className="dropdown-item" onClick={() => { setShowAdminPanel(true); setShowMenu(false) }}>🔧 Admin Panel</button>}
+                <button className="dropdown-item" onClick={() => { setDarkMode(!darkMode); setShowMenu(false) }}>{darkMode ? 'โหมดสว่าง' : 'โหมดมืด'}</button>
                 <div className="dropdown-divider"></div>
               </>
             )}
-              <button className="dropdown-item" onClick={() => { setShowPostingGuidelines(true); setShowMenu(false) }}>📝 คำแนะนำการโพสต์</button>
-              <button className="dropdown-item" onClick={() => { setShowMemberPrivileges(true); setShowMenu(false) }}>⭐ สิทธิ์การใช้งานของสมาชิก</button>
-              <button className="dropdown-item" onClick={() => { setShowPrivacyPolicy(true); setShowMenu(false) }}>🔒 นโยบายข้อมูลส่วนบุคคล</button>
-              <button className="dropdown-item" onClick={() => { setShowLeaderboardModal(true); setShowMenu(false) }}>🏆 อันดับ Leaderboard</button>
-              <button className="dropdown-item" onClick={() => { setShowPWAInstall(true); setShowMenu(false) }}>📱 Download App คิดว่า..</button>
-              <div className="dropdown-divider"></div>
-
-            <button className="dropdown-item" onClick={() => { setDarkMode(!darkMode); setShowMenu(false) }}>{darkMode ? 'โหมดสว่าง' : 'โหมดมืด'}</button>
+              <button className="dropdown-item" onClick={() => { setShowLeaderboardModal(true); setShowMenu(false) }}>Leaderboard</button>
+              <button className="dropdown-item" onClick={() => { setShowPostingGuidelines(true); setShowMenu(false) }}>คำแนะนำการโพสต์</button>
+              <button className="dropdown-item" onClick={() => { setShowMemberPrivileges(true); setShowMenu(false) }}>สิทธิ์การใช้งานของสมาชิก</button>
+              <button className="dropdown-item" onClick={() => { setShowPrivacyPolicy(true); setShowMenu(false) }}>นโยบายข้อมูลส่วนบุคคล</button>
+              <button className="dropdown-item" onClick={() => { setShowPWAInstall(true); setShowMenu(false) }}>Download คิดว่า..</button>
             {user && (
               <>
                 <div className="dropdown-divider"></div>
