@@ -2947,6 +2947,21 @@ export default function Home() {
               <div onClick={() => { setSelectedPoll(null); setShowAuthModal('login') }} className="login-prompt">🔒 เข้าสู่ระบบเพื่อโหวต</div>
             )}
             
+            {/* Tags */}
+            {selectedPoll.tags && selectedPoll.tags.length > 0 && (
+              <div className="poll-detail-tags">
+                {selectedPoll.tags.map(tag => (
+                  <button 
+                    key={tag.id} 
+                    className="poll-detail-tag"
+                    onClick={() => { setSelectedPoll(null); setActiveTag(tag.name); router.push(`/?tag=${encodeURIComponent(tag.name)}`, { scroll: false }) }}
+                  >
+                    #{tag.name}
+                  </button>
+                ))}
+              </div>
+            )}
+            
             <ShareButtons poll={selectedPoll} />
           </div>
         </div>
