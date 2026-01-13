@@ -649,6 +649,36 @@ export async function getMonthlyLeaderboard(limit = 10) {
 
 // ===== ADMIN FUNCTIONS =====
 
+// Log admin actions for audit trail
+export async function logAdminAction(adminId, actionType, targetType, targetId, details = {}) {
+  try {
+    const { error } = await supabase
+      .from('audit_logs')
+      .insert([{
+        admin_id: adminId,
+        action_type: actionType,
+        target_type: targetType,
+        target_id: targetId,
+        details: details
+      }])
+    if (error) console.error('Failed to log admin action:', error)
+    return { error }
+  } catch (e) {
+    console.error('Audit log error:', e)
+    return { error: e }
+  }
+}
+
+// Get admin audit logs
+export async function getAdminAuditLogs(limit = 50) {
+  const { data, error } = await supabase
+    .from('audit_logs')
+    .select('*, users:admin_id(username)')
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  return { data, error }
+}
+
 export async function getAllPollsAdmin() {
   const { data, error } = await supabase.from('polls').select('*, options(*), tags(*)').order('created_at', { ascending: false })
   return { data, error }
@@ -768,7 +798,7 @@ function calculateReputationChange(stake, confidence, isCorrect, predictionCount
   return -Math.round(S * C * REPUTATION_CONFIG.penalty_multiplier)
 }
 
-export async function resolvePoll(pollId, correctOptionId) {
+export async function resolvePoll(pollId, correctOptionId, adminId = null) {
   try {
     const { data: pollData } = await supabase.from('polls').select('question, poll_type').eq('id', pollId).single()
     const isPrediction = pollData?.poll_type === 'prediction'
@@ -778,6 +808,14 @@ export async function resolvePoll(pollId, correctOptionId) {
       .update({ resolved: true, correct_option_id: correctOptionId, resolved_at: new Date().toISOString() })
       .eq('id', pollId)
     if (pollError) throw pollError
+
+    // Log admin action
+    if (adminId) {
+      await logAdminAction(adminId, 'resolve_poll', 'poll', pollId, {
+        correct_option_id: correctOptionId,
+        question: pollData?.question?.substring(0, 100)
+      })
+    }
 
     const { data: correctOption } = await supabase.from('options').select('text').eq('id', correctOptionId).single()
     const { data: votes } = await supabase.from('votes').select('id, user_id, option_id, confidence').eq('poll_id', pollId)
@@ -839,13 +877,24 @@ export async function resolvePoll(pollId, correctOptionId) {
   }
 }
 
-export async function deletePoll(pollId) {
+export async function deletePoll(pollId, adminId = null) {
   try {
+    // Get poll info before deletion for logging
+    const { data: pollData } = await supabase.from('polls').select('question').eq('id', pollId).single()
+    
     await supabase.from('votes').delete().eq('poll_id', pollId)
     await supabase.from('poll_tags').delete().eq('poll_id', pollId)
     await supabase.from('options').delete().eq('poll_id', pollId)
     await supabase.from('notifications').delete().eq('poll_id', pollId)
     const { error } = await supabase.from('polls').delete().eq('id', pollId)
+    
+    // Log admin action
+    if (adminId) {
+      await logAdminAction(adminId, 'delete_poll', 'poll', pollId, {
+        question: pollData?.question?.substring(0, 100)
+      })
+    }
+    
     return { error }
   } catch (error) {
     return { error }
@@ -857,13 +906,30 @@ export async function getAllUsers() {
   return { data, error }
 }
 
-export async function toggleBanUser(userId, isBanned) {
+export async function toggleBanUser(userId, isBanned, adminId = null) {
+  const { data: userData } = await supabase.from('users').select('username').eq('id', userId).single()
   const { error } = await supabase.from('users').update({ is_banned: isBanned }).eq('id', userId)
+  
+  // Log admin action
+  if (adminId) {
+    await logAdminAction(adminId, isBanned ? 'ban_user' : 'unban_user', 'user', userId, {
+      username: userData?.username
+    })
+  }
+  
   return { error }
 }
 
-export async function toggleFeatured(pollId, featured) {
+export async function toggleFeatured(pollId, featured, adminId = null) {
   const { error } = await supabase.from('polls').update({ featured }).eq('id', pollId)
+  
+  // Log admin action
+  if (adminId) {
+    await logAdminAction(adminId, 'toggle_featured', 'poll', pollId, {
+      featured: featured
+    })
+  }
+  
   return { error }
 }
 
