@@ -809,3 +809,47 @@ select.form-input { appearance: none; background-image: url("data:image/svg+xml,
   color: white;
   border-color: var(--primary);
 }
+
+/* ===== Audit Logs ===== */
+.audit-logs-section {
+  max-height: 400px;
+  overflow-y: auto;
+}
+.audit-log-item {
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.audit-log-item:last-child { border-bottom: none; }
+.audit-log-action {
+  font-weight: 600;
+  color: var(--text);
+}
+.audit-log-details {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+.audit-log-target {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ===== Logo Text ===== */
+.logo-text {
+  font-size: 1.8rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+@media (max-width: 768px) {
+  .logo-text { font-size: 1.4rem; }
+}
