@@ -783,3 +783,29 @@ select.form-input { appearance: none; background-image: url("data:image/svg+xml,
 }
 .verify-prompt-btn span:first-child { font-size: 1.1rem; }
 .verify-arrow { margin-left: auto; }
+
+/* ===== Poll Detail Tags ===== */
+.poll-detail-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1rem 0;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+.poll-detail-tag {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.85rem;
+  color: var(--primary);
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+.poll-detail-tag:hover {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
