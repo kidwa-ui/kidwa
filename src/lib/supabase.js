@@ -190,20 +190,30 @@ export async function getPolls() {
 }
 
 export async function vote(userId, pollId, optionId, confidence = 50) {
+  // Server-side validation: Check poll validity
+  const { data: poll } = await supabase
+    .from('polls')
+    .select('ends_at, resolved, blind_mode')
+    .eq('id', pollId)
+    .single()
+  
+  if (!poll) return { data: null, error: { message: 'ไม่พบโพลนี้' } }
+  if (new Date() > new Date(poll.ends_at)) return { data: null, error: { message: 'โพลนี้หมดเวลาแล้ว' } }
+  if (poll.resolved) return { data: null, error: { message: 'โพลนี้ถูกเฉลยแล้ว' } }
+
   const { data: existingVote } = await supabase
     .from('votes').select('*').eq('user_id', userId).eq('poll_id', pollId).single()
 
   if (existingVote) {
-    await supabase.from('options').update({ votes: supabase.rpc('decrement') }).eq('id', existingVote.option_id)
+    // Update existing vote - DB trigger handles count adjustment
     const { data, error } = await supabase
-      .from('votes').update({ option_id: optionId, confidence }).eq('id', existingVote.id).select().single()
-    await supabase.from('options').update({ votes: supabase.rpc('increment') }).eq('id', optionId)
-    return { data, error }
+      .from('votes').update({ option_id: optionId, confidence, updated_at: new Date().toISOString() }).eq('id', existingVote.id).select().single()
+    return { data, error, isUpdate: true, oldOptionId: existingVote.option_id }
   } else {
+    // Insert new vote - DB trigger handles count increment
     const { data, error } = await supabase
       .from('votes').insert([{ user_id: userId, poll_id: pollId, option_id: optionId, confidence }]).select().single()
-    await supabase.from('options').update({ votes: supabase.rpc('increment') }).eq('id', optionId)
-    return { data, error }
+    return { data, error, isUpdate: false }
   }
 }
 
@@ -242,31 +252,37 @@ export async function createTag(name) {
   return { data, error }
 }
 
-export async function getTrendingTags(limit = 10) {
-  // Get tags with poll counts from recent polls
-  const { data, error } = await supabase
+export async function getTrendingTags(limit = 10, daysWindow = 7) {
+  // Calculate time window start (Bangkok time aware)
+  const windowStart = new Date()
+  windowStart.setDate(windowStart.getDate() - daysWindow)
+  
+  // Get recent poll_tags within time window
+  const { data: recentPollTags, error } = await supabase
     .from('poll_tags')
-    .select('tag_id, tags(id, name)')
-    .order('created_at', { ascending: false })
-    .limit(100)
+    .select('poll_id, tag_id, tags(id, name), polls!inner(id, created_at, options(votes))')
+    .gte('polls.created_at', windowStart.toISOString())
   
   if (error) return { data: [], error }
   
-  // Count occurrences
-  const tagCounts = {}
-  data?.forEach(pt => {
-    if (pt.tags) {
+  // Aggregate vote counts per tag
+  const tagVotes = {}
+  recentPollTags?.forEach(pt => {
+    if (pt.tags && pt.polls) {
       const tagId = pt.tags.id
-      if (!tagCounts[tagId]) {
-        tagCounts[tagId] = { id: tagId, name: pt.tags.name, poll_count: 0 }
+      const pollVotes = pt.polls.options?.reduce((sum, opt) => sum + (opt.votes || 0), 0) || 0
+      
+      if (!tagVotes[tagId]) {
+        tagVotes[tagId] = { id: tagId, name: pt.tags.name, vote_count: 0, poll_count: 0 }
       }
-      tagCounts[tagId].poll_count++
+      tagVotes[tagId].vote_count += pollVotes
+      tagVotes[tagId].poll_count++
     }
   })
   
-  // Sort by count and return top N
-  const sorted = Object.values(tagCounts)
-    .sort((a, b) => b.poll_count - a.poll_count)
+  // Sort by vote count (engagement) and return top N
+  const sorted = Object.values(tagVotes)
+    .sort((a, b) => b.vote_count - a.vote_count)
     .slice(0, limit)
   
   return { data: sorted, error: null }
@@ -478,6 +494,7 @@ export async function getLeaderboard(limit = 10) {
   const { data, error } = await supabase
     .from('users')
     .select('id, username, reputation, email_verified, is_verified, avatar_url, correct_predictions, total_predictions')
+    .eq('is_admin', false)  // Exclude admins from public leaderboard
     .order('reputation', { ascending: false })
     .limit(limit)
   return { data, error }
@@ -488,7 +505,7 @@ export async function getWeeklyLeaderboard(limit = 10) {
   
   const { data: votes, error } = await supabase
     .from('votes')
-    .select('user_id, points_earned, users!inner(id, username, reputation, email_verified, is_verified, avatar_url, correct_predictions, total_predictions)')
+    .select('user_id, points_earned, users!inner(id, username, reputation, email_verified, is_verified, avatar_url, correct_predictions, total_predictions, is_admin)')
     .gte('created_at', weekStart)
     .not('points_earned', 'is', null)
 
@@ -496,6 +513,9 @@ export async function getWeeklyLeaderboard(limit = 10) {
 
   const userPoints = {}
   votes?.forEach(vote => {
+    // Exclude admins from leaderboard
+    if (vote.users.is_admin) return
+    
     const userId = vote.user_id
     if (!userPoints[userId]) {
       userPoints[userId] = {
@@ -517,7 +537,7 @@ export async function getMonthlyLeaderboard(limit = 10) {
   
   const { data: votes, error } = await supabase
     .from('votes')
-    .select('user_id, points_earned, users!inner(id, username, reputation, email_verified, is_verified, avatar_url, correct_predictions, total_predictions)')
+    .select('user_id, points_earned, users!inner(id, username, reputation, email_verified, is_verified, avatar_url, correct_predictions, total_predictions, is_admin)')
     .gte('created_at', monthStart)
     .not('points_earned', 'is', null)
 
@@ -525,6 +545,9 @@ export async function getMonthlyLeaderboard(limit = 10) {
 
   const userPoints = {}
   votes?.forEach(vote => {
+    // Exclude admins from leaderboard
+    if (vote.users.is_admin) return
+    
     const userId = vote.user_id
     if (!userPoints[userId]) {
       userPoints[userId] = {
@@ -551,6 +574,89 @@ export async function getAllPollsAdmin() {
 export async function getPendingPolls() {
   const { data, error } = await supabase.from('polls').select('*, options(*), tags(*)').eq('resolved', false).order('ends_at', { ascending: true })
   return { data, error }
+}
+
+// Admin-only: View detailed vote data for moderation/debugging
+export async function getVoteDetails(pollId, adminUserId) {
+  // Verify caller is admin
+  const { data: admin } = await supabase
+    .from('users')
+    .select('is_admin')
+    .eq('id', adminUserId)
+    .single()
+  
+  if (!admin?.is_admin) {
+    return { data: null, error: { message: 'Unauthorized: Admin access required' } }
+  }
+  
+  // Fetch detailed vote data
+  const { data, error } = await supabase
+    .from('votes')
+    .select(`
+      id, confidence, created_at, updated_at, is_correct, points_earned,
+      users:user_id (id, username, is_verified, reputation),
+      options:option_id (id, text)
+    `)
+    .eq('poll_id', pollId)
+    .order('created_at', { ascending: false })
+  
+  return { data, error }
+}
+
+// Admin-only: Get vote statistics summary for a poll
+export async function getVoteStatistics(pollId, adminUserId) {
+  // Verify caller is admin
+  const { data: admin } = await supabase
+    .from('users')
+    .select('is_admin')
+    .eq('id', adminUserId)
+    .single()
+  
+  if (!admin?.is_admin) {
+    return { data: null, error: { message: 'Unauthorized: Admin access required' } }
+  }
+  
+  const { data: votes, error } = await supabase
+    .from('votes')
+    .select('option_id, confidence, created_at')
+    .eq('poll_id', pollId)
+  
+  if (error) return { data: null, error }
+  
+  // Calculate statistics
+  const stats = {
+    totalVotes: votes?.length || 0,
+    avgConfidence: 0,
+    confidenceDistribution: { low: 0, medium: 0, high: 0 },
+    voteTimeline: [],
+    optionBreakdown: {}
+  }
+  
+  if (votes && votes.length > 0) {
+    let totalConf = 0
+    votes.forEach(v => {
+      totalConf += v.confidence
+      if (v.confidence <= 33) stats.confidenceDistribution.low++
+      else if (v.confidence <= 66) stats.confidenceDistribution.medium++
+      else stats.confidenceDistribution.high++
+      
+      if (!stats.optionBreakdown[v.option_id]) {
+        stats.optionBreakdown[v.option_id] = { count: 0, avgConfidence: 0, totalConf: 0 }
+      }
+      stats.optionBreakdown[v.option_id].count++
+      stats.optionBreakdown[v.option_id].totalConf += v.confidence
+    })
+    stats.avgConfidence = Math.round(totalConf / votes.length)
+    
+    // Calculate avg confidence per option
+    Object.keys(stats.optionBreakdown).forEach(optId => {
+      const opt = stats.optionBreakdown[optId]
+      opt.avgConfidence = Math.round(opt.totalConf / opt.count)
+      delete opt.totalConf
+    })
+  }
+  
+  return { data: stats, error: null }
 }
 
 // Reputation formula constants
