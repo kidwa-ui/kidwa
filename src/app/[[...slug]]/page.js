@@ -16,7 +16,8 @@ import {
   signUpWithEmail, signInWithEmail, signInWithMagicLink, signOut, getSession, getUserFromSession, 
   resetPassword, updatePassword, onAuthStateChange, signInWithGoogle,
   submitVerification, skipVerification, checkNeedsVerification, getUserPollLimit, findSimilarPolls, checkAndAwardCreatorPoints,
-  getTrendingTags, getPollsByTag
+  getTrendingTags, getPollsByTag,
+  getVoteDetails, getVoteStatistics
 } from '@/lib/supabase'
 
 // ===== Categories =====
@@ -2379,6 +2380,7 @@ export default function Home() {
     if (d) setDarkMode(JSON.parse(d))
     
     // Realtime subscription for vote count updates
+    // Note: Blind mode polls are filtered out to maintain integrity
     const optionsChannel = supabase
       .channel('options-realtime')
       .on('postgres_changes', 
@@ -2386,15 +2388,20 @@ export default function Home() {
         (payload) => {
           console.log('REALTIME:', payload)
           // Update polls state with new vote count
-          setPolls(prev => prev.map(poll => ({
-            ...poll,
-            options: poll.options?.map(opt => 
-              opt.id === payload.new.id 
-                ? { ...opt, votes: payload.new.votes }
-                : opt
-            )
-          })))
-          // Also update live battles
+          // Skip blind mode polls that aren't resolved
+          setPolls(prev => prev.map(poll => {
+            // Blind mode integrity: Don't update vote counts until resolved
+            if (poll.blind_mode && !poll.resolved) return poll
+            return {
+              ...poll,
+              options: poll.options?.map(opt => 
+                opt.id === payload.new.id 
+                  ? { ...opt, votes: payload.new.votes }
+                  : opt
+              )
+            }
+          }))
+          // Live battles are never blind mode, always update
           setLiveBattles(prev => prev.map(poll => ({
             ...poll,
             options: poll.options?.map(opt => 
@@ -2550,13 +2557,16 @@ export default function Home() {
     const poll = polls.find(p => p.id === pollId) || liveBattles.find(p => p.id === pollId)
     if (poll && isExpired(poll.ends_at)) { alert('โพลนี้หมดเวลาแล้ว'); return }
     const { error } = await vote(user.id, pollId, optionId, confidence)
-    if (!error) { 
-      setUserVotes(prev => ({ ...prev, [pollId]: { optionId, confidence } }))
-      await loadPolls()
-      const totalVotes = (poll?.options?.reduce((sum, opt) => sum + (opt.votes || 0), 0) || 0) + 1
-      alert(`✅ บันทึกโหวตของคุณแล้ว\nตอนนี้มีผู้ร่วมโหวต ${totalVotes.toLocaleString()} คน`)
-      await checkAndAwardCreatorPoints(pollId)
+    if (error) {
+      // Show server-side validation error
+      alert(`❌ ${error.message || 'เกิดข้อผิดพลาด'}`)
+      return
     }
+    setUserVotes(prev => ({ ...prev, [pollId]: { optionId, confidence } }))
+    await loadPolls()
+    const totalVotes = (poll?.options?.reduce((sum, opt) => sum + (opt.votes || 0), 0) || 0) + 1
+    alert(`✅ บันทึกโหวตของคุณแล้ว\nตอนนี้มีผู้ร่วมโหวต ${totalVotes.toLocaleString()} คน`)
+    await checkAndAwardCreatorPoints(pollId)
   }
 
   const confirmVote = () => { 
