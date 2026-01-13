@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { useRouter, useParams } from 'next/navigation'
+import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import { 
   supabase, getPolls, createUser, getUserByUsername, vote, getLeaderboard, getUserVotes, 
   createPoll, getTags, createTag, getAllPollsAdmin, getPendingPolls, resolvePoll, 
@@ -17,7 +17,7 @@ import {
   resetPassword, updatePassword, onAuthStateChange, signInWithGoogle,
   submitVerification, skipVerification, checkNeedsVerification, getUserPollLimit, findSimilarPolls, checkAndAwardCreatorPoints,
   getTrendingTags, getPollsByTag,
-  getVoteDetails, getVoteStatistics
+  getVoteDetails, getVoteStatistics, logAdminAction, getAdminAuditLogs
 } from '@/lib/supabase'
 
 // ===== Categories =====
@@ -1341,11 +1341,12 @@ function AccountModal({ onClose, user, darkMode, onUpdateUser, onOpenVerificatio
 }
 
 // ===== Admin Panel =====
-function AdminPanel({ onClose, darkMode, onRefresh }) {
+function AdminPanel({ onClose, darkMode, onRefresh, user }) {
   const [activeTab, setActiveTab] = useState('pending')
   const [polls, setPolls] = useState([])
   const [users, setUsers] = useState([])
   const [stats, setStats] = useState({})
+  const [auditLogs, setAuditLogs] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [selectedPollForResolve, setSelectedPollForResolve] = useState(null)
 
@@ -1356,27 +1357,44 @@ function AdminPanel({ onClose, darkMode, onRefresh }) {
     if (activeTab === 'pending') { const { data } = await getPendingPolls(); setPolls(data || []) }
     else if (activeTab === 'all') { const { data } = await getAllPollsAdmin(); setPolls(data || []) }
     else if (activeTab === 'users') { const { data } = await getAllUsers(); setUsers(data || []) }
+    else if (activeTab === 'logs') { const { data } = await getAdminAuditLogs(50); setAuditLogs(data || []) }
     const statsData = await getAdminStats(); setStats(statsData)
     setIsLoading(false)
   }
 
   const handleResolvePoll = async (pollId, correctOptionId) => { 
     if (!confirm('ยืนยันการเฉลยโพลนี้?')) return
-    const { error } = await resolvePoll(pollId, correctOptionId)
+    const { error } = await resolvePoll(pollId, correctOptionId, user?.id)
     if (!error) { alert('✅ เฉลยโพลสำเร็จ!'); loadData(); onRefresh(); setSelectedPollForResolve(null) }
   }
   
   const handleDeletePoll = async (pollId) => { 
     if (!confirm('ยืนยันการลบโพลนี้?')) return
-    const { error } = await deletePoll(pollId)
+    const { error } = await deletePoll(pollId, user?.id)
     if (!error) { alert('🗑️ ลบโพลสำเร็จ!'); loadData(); onRefresh() }
   }
   
-  const handleToggleFeatured = async (pollId, featured) => { await toggleFeatured(pollId, featured); loadData(); onRefresh() }
-  const handleToggleBan = async (userId, isBanned) => { await toggleBanUser(userId, isBanned); loadData() }
+  const handleToggleFeatured = async (pollId, featured) => { await toggleFeatured(pollId, featured, user?.id); loadData(); onRefresh() }
+  const handleToggleBan = async (userId, isBanned) => { await toggleBanUser(userId, isBanned, user?.id); loadData() }
 
   const expiredPolls = polls.filter(p => !p.resolved && isExpired(p.ends_at))
   const upcomingPolls = polls.filter(p => !p.resolved && !isExpired(p.ends_at))
+
+  const formatLogTime = (dateStr) => {
+    const d = new Date(dateStr)
+    return d.toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })
+  }
+
+  const getActionLabel = (action) => {
+    const labels = {
+      'resolve_poll': '✅ เฉลยโพล',
+      'delete_poll': '🗑️ ลบโพล',
+      'toggle_featured': '⭐ เปลี่ยน Featured',
+      'ban_user': '🚫 แบน User',
+      'unban_user': '✅ ปลดแบน User'
+    }
+    return labels[action] || action
+  }
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -1391,8 +1409,9 @@ function AdminPanel({ onClose, darkMode, onRefresh }) {
         </div>
         <div className="admin-tabs">
           <button className={`admin-tab ${activeTab === 'pending' ? 'active' : ''}`} onClick={() => setActiveTab('pending')}>📋 รอเฉลย {stats.expiredUnresolved > 0 && <span className="badge">{stats.expiredUnresolved}</span>}</button>
-          <button className={`admin-tab ${activeTab === 'all' ? 'active' : ''}`} onClick={() => setActiveTab('all')}>📊 โพลทั้งหมด</button>
+          <button className={`admin-tab ${activeTab === 'all' ? 'active' : ''}`} onClick={() => setActiveTab('all')}>📊 โพล</button>
           <button className={`admin-tab ${activeTab === 'users' ? 'active' : ''}`} onClick={() => setActiveTab('users')}>👥 Users</button>
+          <button className={`admin-tab ${activeTab === 'logs' ? 'active' : ''}`} onClick={() => setActiveTab('logs')}>📜 Logs</button>
         </div>
         <div className="admin-content">
           {isLoading ? <div style={{ textAlign: 'center', padding: '2rem' }}>⏳ กำลังโหลด...</div> : activeTab === 'pending' ? (
@@ -1403,8 +1422,22 @@ function AdminPanel({ onClose, darkMode, onRefresh }) {
             </>
           ) : activeTab === 'all' ? (
             <div className="admin-section">{polls.map(poll => (<div key={poll.id} className="admin-poll-item"><div className="admin-poll-info"><span className="admin-poll-question">{poll.featured && '⭐ '}{poll.resolved && '✅ '}{poll.question}</span><span className="admin-poll-meta">{categories.find(c => c.id === poll.category)?.icon} • 👥 {poll.options?.reduce((s, o) => s + o.votes, 0)}</span></div><div className="admin-poll-actions"><button className={`btn btn-sm ${poll.featured ? 'btn-warning' : 'btn-secondary'}`} onClick={() => handleToggleFeatured(poll.id, !poll.featured)}>{poll.featured ? '⭐' : '☆'}</button>{!poll.resolved && isExpired(poll.ends_at) && <button className="btn btn-sm btn-success" onClick={() => setSelectedPollForResolve(poll)}>✅</button>}<button className="btn btn-sm btn-danger" onClick={() => handleDeletePoll(poll.id)}>🗑️</button></div></div>))}</div>
-          ) : (
+          ) : activeTab === 'users' ? (
             <div className="admin-section">{users.map((u, i) => (<div key={u.id} className="admin-user-item"><div className="admin-user-info"><span className="admin-user-rank">{i + 1}</span><span className="admin-user-name">{u.is_banned && '🚫 '}{u.is_admin && '👑 '}{u.username}</span><span className="admin-user-rep">{getReputationLevel(u.reputation).badge} {u.reputation} pt</span></div><div className="admin-user-actions">{!u.is_admin && <button className={`btn btn-sm ${u.is_banned ? 'btn-success' : 'btn-danger'}`} onClick={() => handleToggleBan(u.id, !u.is_banned)}>{u.is_banned ? '✅ ปลดแบน' : '🚫 แบน'}</button>}</div></div>))}</div>
+          ) : (
+            <div className="admin-section audit-logs-section">
+              {auditLogs.length > 0 ? auditLogs.map(log => (
+                <div key={log.id} className="audit-log-item">
+                  <div className="audit-log-action">{getActionLabel(log.action_type)}</div>
+                  <div className="audit-log-details">
+                    <span className="audit-log-admin">👤 {log.users?.username || 'Unknown'}</span>
+                    <span className="audit-log-time">🕐 {formatLogTime(log.created_at)}</span>
+                  </div>
+                  {log.details?.question && <div className="audit-log-target">📌 {log.details.question}</div>}
+                  {log.details?.username && <div className="audit-log-target">👤 {log.details.username}</div>}
+                </div>
+              )) : <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>ยังไม่มี Audit Logs</div>}
+            </div>
           )}
         </div>
         {selectedPollForResolve && (
@@ -2213,7 +2246,7 @@ function TrendingTagsSection({ onTagClick, darkMode }) {
             >
               <span className="tag-rank">#{i + 1}</span>
               <span className="tag-name">#{tag.name}</span>
-              <span className="tag-count">{tag.poll_count} โพล</span>
+              <span className="tag-count">{tag.vote_count || tag.poll_count} โหวต</span>
             </div>
           ))}
         </div>
@@ -2282,12 +2315,18 @@ function NotificationDropdown({ user, onClose }) {
 export default function Home() {
   const router = useRouter()
   const params = useParams()
+  const searchParams = useSearchParams()
   
   // Parse slug from URL: /sports → ['sports'], /tag/foo → ['tag', 'foo']
   const slug = params?.slug || []
   
-  // Determine initial category and tag from URL
+  // Determine initial category and tag from URL (supports both /tag/xxx and /?tag=xxx)
   const getInitialState = () => {
+    // Check query string first: /?tag=xxx
+    const queryTag = searchParams?.get('tag')
+    if (queryTag) return { category: 'home', tag: decodeURIComponent(queryTag) }
+    
+    // Then check path: /tag/xxx
     if (slug.length === 0) return { category: 'home', tag: null }
     if (slug[0] === 'tag' && slug[1]) return { category: 'home', tag: decodeURIComponent(slug[1]) }
     if (categories.find(c => c.id === slug[0])) return { category: slug[0], tag: null }
@@ -2363,12 +2402,12 @@ export default function Home() {
   const visibleCategories = categories.slice(0, VISIBLE_CATEGORIES)
   const hiddenCategories = categories.slice(VISIBLE_CATEGORIES)
 
-  // Sync state with URL when slug changes
+  // Sync state with URL when slug or search params changes
   useEffect(() => {
     const newState = getInitialState()
     setActiveCategory(newState.category)
     setActiveTag(newState.tag)
-  }, [slug.join('/')])
+  }, [slug.join('/'), searchParams?.get('tag')])
 
   // Initial load
   useEffect(() => { 
@@ -2540,7 +2579,7 @@ export default function Home() {
   const handleTagClick = (tagName) => {
     setActiveTag(tagName)
     setActiveCategory('home')
-    router.push(`/tag/${encodeURIComponent(tagName)}`, { scroll: false })
+    router.push(`/?tag=${encodeURIComponent(tagName)}`, { scroll: false })
   }
 
   // Auth & Logout
@@ -2607,8 +2646,7 @@ export default function Home() {
         <header className="header">
           <div className="header-content">
             <div className="logo" onClick={() => handleCategoryChange('home')}>
-              <KidwaBean level={user ? getLevelKey(user.reputation) : 'newbie'} size={36} />
-              <span>คิดว่า..</span>
+              <span className="logo-text">คิดว่า..</span>
             </div>
           <div className="search-box">
             <span className="search-icon">🔍</span>
@@ -2627,7 +2665,11 @@ export default function Home() {
                   {showNotifications && <NotificationDropdown user={user} onClose={() => { setShowNotifications(false); loadUnreadCount() }} />}
                 </div>
                 <div className="user-badge hide-mobile" onClick={() => { setShowAccount(true); setShowMenu(false) }}>
-                  {user.avatar_url ? <img src={user.avatar_url} alt={user.username} className="user-avatar-img" /> : <div className="user-avatar">{user.username[0].toUpperCase()}</div>}
+                  {user.avatar_url ? (
+                    <img src={user.avatar_url} alt={user.username} className="user-avatar-img" />
+                  ) : (
+                    <KidwaBean level={getLevelKey(user.reputation)} size={36} />
+                  )}
                   <div>
                     <span style={{ color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                       {user.username}
@@ -2971,7 +3013,7 @@ export default function Home() {
       {showCreatePoll && <CreatePollModal onClose={() => setShowCreatePoll(false)} user={user} onSuccess={loadPolls} darkMode={darkMode} />}
       
       {/* Admin Panel */}
-      {showAdminPanel && <AdminPanel onClose={() => setShowAdminPanel(false)} darkMode={darkMode} onRefresh={loadPolls} />}
+      {showAdminPanel && <AdminPanel onClose={() => setShowAdminPanel(false)} darkMode={darkMode} onRefresh={loadPolls} user={user} />}
       
       {/* Account Modal */}
       {showAccount && <AccountModal onClose={() => setShowAccount(false)} user={user} darkMode={darkMode} onUpdateUser={setUser} onOpenVerification={() => setShowVerificationModal(true)} />}
