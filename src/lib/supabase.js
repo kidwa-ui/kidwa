@@ -181,12 +181,34 @@ export async function searchUsers(query, limit = 10) {
 // ===== POLL FUNCTIONS =====
 
 export async function getPolls() {
-  const { data, error } = await supabase
+  const { data: polls, error } = await supabase
     .from('polls')
-    .select('*, options(*), tags(*)')
+    .select('*, options(*)')
     .order('created_at', { ascending: false })
     .limit(50)
-  return { data, error }
+  
+  if (error || !polls) return { data: polls, error }
+  
+  // Fetch tags for all polls via poll_tags junction table
+  const pollIds = polls.map(p => p.id)
+  const { data: pollTags } = await supabase
+    .from('poll_tags')
+    .select('poll_id, tags(id, name)')
+    .in('poll_id', pollIds)
+  
+  // Map tags to polls
+  const pollTagsMap = {}
+  pollTags?.forEach(pt => {
+    if (!pollTagsMap[pt.poll_id]) pollTagsMap[pt.poll_id] = []
+    if (pt.tags) pollTagsMap[pt.poll_id].push(pt.tags)
+  })
+  
+  const pollsWithTags = polls.map(poll => ({
+    ...poll,
+    tags: pollTagsMap[poll.id] || []
+  }))
+  
+  return { data: pollsWithTags, error: null }
 }
 
 export async function vote(userId, pollId, optionId, confidence = 50) {
@@ -292,18 +314,37 @@ export async function getPollsByTag(tagName, limit = 20) {
   const { data: tag } = await supabase.from('tags').select('id').eq('name', tagName.toLowerCase()).single()
   if (!tag) return { data: [], error: null }
   
-  const { data: pollTags } = await supabase.from('poll_tags').select('poll_id').eq('tag_id', tag.id)
-  if (!pollTags || pollTags.length === 0) return { data: [], error: null }
+  const { data: pollTagsData } = await supabase.from('poll_tags').select('poll_id').eq('tag_id', tag.id)
+  if (!pollTagsData || pollTagsData.length === 0) return { data: [], error: null }
   
-  const pollIds = pollTags.map(pt => pt.poll_id)
-  const { data, error } = await supabase
+  const pollIds = pollTagsData.map(pt => pt.poll_id)
+  const { data: polls, error } = await supabase
     .from('polls')
-    .select('*, options(*), tags(*)')
+    .select('*, options(*)')
     .in('id', pollIds)
     .order('created_at', { ascending: false })
     .limit(limit)
   
-  return { data, error }
+  if (error || !polls) return { data: polls, error }
+  
+  // Fetch tags for these polls
+  const { data: allPollTags } = await supabase
+    .from('poll_tags')
+    .select('poll_id, tags(id, name)')
+    .in('poll_id', pollIds)
+  
+  const pollTagsMap = {}
+  allPollTags?.forEach(pt => {
+    if (!pollTagsMap[pt.poll_id]) pollTagsMap[pt.poll_id] = []
+    if (pt.tags) pollTagsMap[pt.poll_id].push(pt.tags)
+  })
+  
+  const pollsWithTags = polls.map(poll => ({
+    ...poll,
+    tags: pollTagsMap[poll.id] || []
+  }))
+  
+  return { data: pollsWithTags, error: null }
 }
 
 // ===== CREATE POLL (VERIFIED USERS ONLY - 3/day) =====
@@ -434,14 +475,35 @@ export async function createLiveBattleV2({ question, options, category, tags, en
 
 export async function getLiveBattles() {
   const now = new Date().toISOString()
-  const { data, error } = await supabase
+  const { data: polls, error } = await supabase
     .from('polls')
-    .select('*, options(*), tags(*), users:created_by(username, avatar_url)')
+    .select('*, options(*), users:created_by(username, avatar_url)')
     .eq('poll_type', 'live_battle')
     .eq('is_live', true)
     .gt('ends_at', now)
     .order('created_at', { ascending: false })
-  return { data, error }
+  
+  if (error || !polls || polls.length === 0) return { data: polls || [], error }
+  
+  // Fetch tags for live battles
+  const pollIds = polls.map(p => p.id)
+  const { data: pollTags } = await supabase
+    .from('poll_tags')
+    .select('poll_id, tags(id, name)')
+    .in('poll_id', pollIds)
+  
+  const pollTagsMap = {}
+  pollTags?.forEach(pt => {
+    if (!pollTagsMap[pt.poll_id]) pollTagsMap[pt.poll_id] = []
+    if (pt.tags) pollTagsMap[pt.poll_id].push(pt.tags)
+  })
+  
+  const pollsWithTags = polls.map(poll => ({
+    ...poll,
+    tags: pollTagsMap[poll.id] || []
+  }))
+  
+  return { data: pollsWithTags, error: null }
 }
 
 export async function endLiveBattle(pollId) {
@@ -479,13 +541,34 @@ export async function createTimeCapsule({ question, options, tags, endsAt, creat
 }
 
 export async function getTimeCapsules(limit = 20) {
-  const { data, error } = await supabase
+  const { data: polls, error } = await supabase
     .from('polls')
-    .select('*, options(*), tags(*)')
+    .select('*, options(*)')
     .eq('poll_type', 'time_capsule')
     .order('ends_at', { ascending: true })
     .limit(limit)
-  return { data, error }
+  
+  if (error || !polls || polls.length === 0) return { data: polls || [], error }
+  
+  // Fetch tags for time capsules
+  const pollIds = polls.map(p => p.id)
+  const { data: pollTags } = await supabase
+    .from('poll_tags')
+    .select('poll_id, tags(id, name)')
+    .in('poll_id', pollIds)
+  
+  const pollTagsMap = {}
+  pollTags?.forEach(pt => {
+    if (!pollTagsMap[pt.poll_id]) pollTagsMap[pt.poll_id] = []
+    if (pt.tags) pollTagsMap[pt.poll_id].push(pt.tags)
+  })
+  
+  const pollsWithTags = polls.map(poll => ({
+    ...poll,
+    tags: pollTagsMap[poll.id] || []
+  }))
+  
+  return { data: pollsWithTags, error: null }
 }
 
 // ===== LEADERBOARD =====
