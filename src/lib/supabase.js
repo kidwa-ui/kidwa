@@ -378,19 +378,20 @@ export async function createPoll({ question, options, category, tags, blindMode,
 
 // Poll limit: Verified users only, 3 polls/day
 export async function getUserPollLimit(userId) {
-  const { data: user } = await supabase.from('users').select('is_verified, is_admin').eq('id', userId).single()
+  const { data: user } = await supabase.from('users').select('full_name, birth_date, is_admin').eq('id', userId).single()
   
   // Admin has unlimited
   if (user?.is_admin) {
-    return { canCreate: true, used: 0, limit: 999, remaining: 999, isVerified: true }
+    return { canCreate: true, used: 0, limit: 999, remaining: 999, hasCompletedProfile: true }
   }
   
-  // Not verified = cannot create
-  if (!user?.is_verified) {
-    return { canCreate: false, used: 0, limit: 0, remaining: 0, isVerified: false }
+  // Must complete profile (fullName + birthDate) to create polls
+  const hasCompletedProfile = !!(user?.full_name && user?.birth_date)
+  if (!hasCompletedProfile) {
+    return { canCreate: false, used: 0, limit: 0, remaining: 0, hasCompletedProfile: false }
   }
   
-  // Verified users get 3 polls/day
+  // Users with completed profile get 3 polls/day
   const dailyLimit = 3
   const todayStart = getBangkokTodayStart()
   
@@ -403,7 +404,7 @@ export async function getUserPollLimit(userId) {
   const used = count || 0
   const remaining = Math.max(0, dailyLimit - used)
   
-  return { canCreate: remaining > 0, used, limit: dailyLimit, remaining, isVerified: true }
+  return { canCreate: remaining > 0, used, limit: dailyLimit, remaining, hasCompletedProfile: true }
 }
 
 export async function findSimilarPolls(question, limit = 5) {
@@ -1054,9 +1055,11 @@ export async function uploadAvatar(userId, file) {
   return { data: { url: publicUrl }, error: null }
 }
 
-// ===== VERIFICATION =====
+// ===== DEMOGRAPHICS (Profile Completion) =====
+// Note: This no longer grants Verified badge immediately.
+// Verified badge is granted via checkAndGrantVerified() based on participation.
 
-export async function submitVerification(userId, { fullName, birthDate, pdpaConsent, marketingConsent }) {
+export async function submitDemographics(userId, { fullName, birthDate, gender, pdpaConsent, marketingConsent }) {
   const today = new Date()
   const birth = new Date(birthDate)
   let age = today.getFullYear() - birth.getFullYear()
@@ -1068,13 +1071,117 @@ export async function submitVerification(userId, { fullName, birthDate, pdpaCons
   const { data, error } = await supabase
     .from('users')
     .update({
-      full_name: fullName, birth_date: birthDate, pdpa_consent: pdpaConsent,
+      full_name: fullName, 
+      birth_date: birthDate, 
+      gender: gender || null,
+      pdpa_consent: pdpaConsent,
       pdpa_consent_at: pdpaConsent ? new Date().toISOString() : null,
-      marketing_consent: marketingConsent, is_verified: true, verified_at: new Date().toISOString()
+      marketing_consent: marketingConsent,
+      // Note: is_verified is NOT set here anymore
+      // Verified badge is earned through participation (14 days + 20 votes)
     })
     .eq('id', userId).select().single()
 
   return { data, error }
+}
+
+// Legacy alias for backward compatibility
+export const submitVerification = submitDemographics
+
+// ===== VERIFIED STATUS (Trust Badge) =====
+// Verified badge ✓ is earned through consistent participation:
+// - Account age >= 14 days
+// - Vote count >= 20 polls
+// - Email verified
+
+export async function getUserVoteCount(userId) {
+  const { count, error } = await supabase
+    .from('votes')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId)
+  
+  return { count: count || 0, error }
+}
+
+export async function getVerifiedProgress(userId) {
+  const { data: user, error } = await supabase
+    .from('users')
+    .select('created_at, email_verified, is_verified')
+    .eq('id', userId)
+    .single()
+  
+  if (error || !user) return { data: null, error }
+  
+  const { count: voteCount } = await getUserVoteCount(userId)
+  const daysSinceSignup = Math.floor((Date.now() - new Date(user.created_at).getTime()) / (1000 * 60 * 60 * 24))
+  
+  return {
+    data: {
+      isVerified: user.is_verified || false,
+      daysSinceSignup,
+      daysRequired: 14,
+      voteCount,
+      votesRequired: 20,
+      emailVerified: user.email_verified || false,
+      // Progress percentages
+      daysProgress: Math.min(100, Math.round((daysSinceSignup / 14) * 100)),
+      votesProgress: Math.min(100, Math.round((voteCount / 20) * 100)),
+      // Ready to verify?
+      meetsRequirements: daysSinceSignup >= 14 && voteCount >= 20 && user.email_verified
+    },
+    error: null
+  }
+}
+
+export async function checkAndGrantVerified(userId) {
+  const { data: user, error } = await supabase
+    .from('users')
+    .select('created_at, email_verified, is_verified')
+    .eq('id', userId)
+    .single()
+  
+  if (error || !user) return { granted: false, error }
+  
+  // Already verified
+  if (user.is_verified) return { granted: false, alreadyVerified: true }
+  
+  // Check conditions
+  const daysSinceSignup = Math.floor((Date.now() - new Date(user.created_at).getTime()) / (1000 * 60 * 60 * 24))
+  const { count: voteCount } = await getUserVoteCount(userId)
+  
+  // Requirements: 14 days + 20 votes + email verified
+  if (daysSinceSignup >= 14 && voteCount >= 20 && user.email_verified) {
+    // Grant verified status!
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({ 
+        is_verified: true, 
+        verified_at: new Date().toISOString() 
+      })
+      .eq('id', userId)
+    
+    if (updateError) return { granted: false, error: updateError }
+    
+    // Send notification
+    await createNotification({
+      userId,
+      type: 'verified_granted',
+      message: '🎉 คุณได้รับสถานะ Verified แล้ว! ขอบคุณที่ร่วมคิดว่า..และแลกเปลี่ยนความคิดเห็นอย่างต่อเนื่อง'
+    })
+    
+    return { granted: true }
+  }
+  
+  return { 
+    granted: false, 
+    progress: {
+      daysSinceSignup,
+      daysRequired: 14,
+      voteCount,
+      votesRequired: 20,
+      emailVerified: user.email_verified
+    }
+  }
 }
 
 export async function skipVerification(userId) {
