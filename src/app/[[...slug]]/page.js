@@ -129,7 +129,7 @@ const getYearsRemaining = (endDate) => {
   return `เปิดใน ${diffDays} วัน`
 }
 
-// สำหรับ Live Battle - real-time countdown
+// สำหรับ ถ่ายทอดสด - real-time countdown
 const getLiveTimeRemaining = (endDate) => {
   const end = new Date(endDate)
   const now = new Date()
@@ -189,7 +189,7 @@ function PostingGuidelinesModal({ onClose, darkMode }) {
           
           <div className="info-card">
             <h4>🔒 Blind Mode คืออะไร?</h4>
-            <p>โพลประเภท "ทำนายอนาคต" จะเปิด Blind Mode อัตโนมัติ หมายความว่าผู้ใช้จะไม่เห็นผลโหวตจนกว่าจะถึงเวลาเฉลย เพื่อป้องกันพฤติกรรมตามฝูง</p>
+            <p>โพลประเภท "คิดว่าในอนาคต.." จะเปิด Blind Mode อัตโนมัติ หมายความว่าผู้ใช้จะไม่เห็นผลโหวตจนกว่าจะถึงเวลาเฉลย เพื่อป้องกันพฤติกรรมตามฝูง</p>
           </div>
         </div>
       </div>
@@ -223,7 +223,7 @@ function MemberPrivilegesModal({ onClose, darkMode }) {
               </tr>
               <tr>
                 <td className="feature-name">สร้างโพลต่อวัน</td>
-                <td>1 โพล/วัน</td>
+                <td><span className="cross-mark">✗</span></td>
                 <td><span className="check-mark">✓</span> 3 โพล/วัน</td>
               </tr>
               <tr>
@@ -232,8 +232,8 @@ function MemberPrivilegesModal({ onClose, darkMode }) {
                 <td><span className="check-mark">✓</span> แสดงข้างชื่อ</td>
               </tr>
               <tr>
-                <td className="feature-name">สร้าง Live Battle</td>
-                <td><span className="check-mark">✓</span></td>
+                <td className="feature-name">สร้าง ถ่ายทอดสด</td>
+                <td><span className="cross-mark">✗</span></td>
                 <td><span className="check-mark">✓</span></td>
               </tr>
               <tr>
@@ -307,7 +307,7 @@ function LeaderboardSection({ darkMode, currentUser, onViewProfile }) {
 
   return (
     <div className="sidebar-card">
-      <h3 className="sidebar-title">🏆 Leaderboard</h3>
+      <h3 className="sidebar-title">Leaderboard</h3>
       <div className="leaderboard-tabs">
         <button className={`lb-tab ${activeTab === 'week' ? 'active' : ''}`} onClick={() => setActiveTab('week')}>สัปดาห์</button>
         <button className={`lb-tab ${activeTab === 'month' ? 'active' : ''}`} onClick={() => setActiveTab('month')}>เดือน</button>
@@ -350,12 +350,12 @@ function PrivacyPolicyModal({ onClose, darkMode }) {
       <div className={`modal info-modal ${darkMode ? 'dark' : ''}`} onClick={e => e.stopPropagation()}>
         <button className="modal-close" onClick={onClose}>✕</button>
         <div className="info-modal-header">
-          <h2>🔒 นโยบายข้อมูลส่วนบุคคล</h2>
+          <h2>นโยบายข้อมูลส่วนบุคคล</h2>
           <p>ตาม พ.ร.บ. คุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562 (PDPA)</p>
         </div>
         <div className="info-modal-content">
           <div className="privacy-section">
-            <h3>📋 ข้อมูลที่เราเก็บ</h3>
+            <h3>ข้อมูลที่เราเก็บ</h3>
             <ul className="privacy-list">
               <li>ชื่อผู้ใช้ อีเมล และรหัสผ่าน (เข้ารหัส)</li>
               <li>ข้อมูลการยืนยันตัวตน (ชื่อจริง วันเกิด - เฉพาะผู้ที่ยืนยัน)</li>
@@ -365,7 +365,7 @@ function PrivacyPolicyModal({ onClose, darkMode }) {
           </div>
           
           <div className="privacy-section">
-            <h3>🎯 วัตถุประสงค์การใช้ข้อมูล</h3>
+            <h3>วัตถุประสงค์การใช้ข้อมูล</h3>
             <ul className="privacy-list">
               <li>ให้บริการแพลตฟอร์ม "คิดว่า.."</li>
               <li>คำนวณคะแนน Reputation และ Leaderboard</li>
@@ -376,7 +376,7 @@ function PrivacyPolicyModal({ onClose, darkMode }) {
           </div>
           
           <div className="privacy-section">
-            <h3>🛡️ การคุ้มครองข้อมูล</h3>
+            <h3>การคุ้มครองข้อมูล</h3>
             <ul className="privacy-list">
               <li>ข้อมูลถูกเก็บในระบบที่มีการเข้ารหัส</li>
               <li>ไม่ขายหรือแบ่งปันข้อมูลส่วนตัวให้บุคคลที่สาม</li>
@@ -397,7 +397,7 @@ function PrivacyPolicyModal({ onClose, darkMode }) {
           </div>
           
           <div className="contact-info">
-            <p><strong>📧 ติดต่อเรื่องข้อมูลส่วนบุคคล:</strong></p>
+            <p><strong>ติดต่อเรื่องข้อมูลส่วนบุคคล:</strong></p>
             <p>อีเมล: privacy@kidwa.com</p>
             <p>หรือติดต่อผ่านทางเมนู "ติดต่อเรา" ในแอป</p>
           </div>
@@ -479,13 +479,13 @@ function PWAInstallModal({ onClose, darkMode, deferredPrompt, onInstall }) {
               style={{ width: '100%', marginTop: '1rem' }}
               onClick={onInstall}
             >
-              📲 ติดตั้งตอนนี้
+              ติดตั้งตอนนี้
             </button>
           )}
           
           <div className="pwa-note">
             <span>💡</span>
-            <p>หลังติดตั้งแล้ว แอปจะทำงานเร็วขึ้น สามารถรับการแจ้งเตือน และใช้งานได้แม้ไม่มีอินเทอร์เน็ต (สำหรับบางฟีเจอร์)</p>
+            <p>ขอขอบคุณที่ให้ความสนใจในคิดว่า..</p>
           </div>
         </div>
       </div>
@@ -714,7 +714,7 @@ function PollCard({ poll, onClick, userVotes }) {
   )
 }
 
-// ===== Live Battle Card =====
+// ===== ถ่ายทอดสด Card =====
 function LiveBattleCard({ poll, onClick, userVotes }) {
   const [timeLeft, setTimeLeft] = useState(getLiveTimeRemaining(poll.ends_at))
   const [liveVotes, setLiveVotes] = useState(poll.options || [])
@@ -1028,33 +1028,33 @@ function AuthModal({ onClose, onSuccess, darkMode, initialMode = 'login' }) {
           <>
             {mode === 'login' && (
               <form onSubmit={handleLogin}>
-                <div className="form-group"><label>📧 อีเมล</label><input type="email" className="form-input" placeholder="example@email.com" value={email} onChange={e => setEmail(e.target.value)} required /></div>
-                <div className="form-group"><label>🔒 รหัสผ่าน</label><input type="password" className="form-input" placeholder="รหัสผ่าน" value={password} onChange={e => setPassword(e.target.value)} required /></div>
+                <div className="form-group"><label>อีเมล</label><input type="email" className="form-input" placeholder="example@email.com" value={email} onChange={e => setEmail(e.target.value)} required /></div>
+                <div className="form-group"><label>รหัสผ่าน</label><input type="password" className="form-input" placeholder="รหัสผ่าน" value={password} onChange={e => setPassword(e.target.value)} required /></div>
                 <button type="button" className="auth-link" onClick={() => setMode('forgot')}>ลืมรหัสผ่าน?</button>
-                <button type="submit" className="btn btn-primary btn-full" disabled={isLoading}>{isLoading ? '⏳ กำลังเข้าสู่ระบบ...' : '🚀 เข้าสู่ระบบ'}</button>
+                <button type="submit" className="btn btn-primary btn-full" disabled={isLoading}>{isLoading ? '⏳ กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ'}</button>
               </form>
             )}
             {mode === 'register' && (
               <form onSubmit={handleRegister}>
-                <div className="form-group"><label>👤 ชื่อผู้ใช้</label><input type="text" className="form-input" placeholder="ชื่อที่แสดงในเว็บ" value={username} onChange={e => setUsername(e.target.value)} required minLength={3} maxLength={20} /></div>
-                <div className="form-group"><label>📧 อีเมล</label><input type="email" className="form-input" placeholder="example@email.com" value={email} onChange={e => setEmail(e.target.value)} required /></div>
-                <div className="form-group"><label>🔒 รหัสผ่าน</label><input type="password" className="form-input" placeholder="อย่างน้อย 8 ตัวอักษร" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} /></div>
-                <div className="form-group"><label>🔒 ยืนยันรหัสผ่าน</label><input type="password" className="form-input" placeholder="พิมพ์รหัสผ่านอีกครั้ง" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required /></div>
-                <p className="auth-bonus">🎁 สมัครใหม่ได้ 1,000 Point เริ่มต้น!</p>
-                <button type="submit" className="btn btn-primary btn-full" disabled={isLoading}>{isLoading ? '⏳ กำลังสมัคร...' : '✨ สมัครสมาชิก'}</button>
+                <div className="form-group"><label>ชื่อผู้ใช้</label><input type="text" className="form-input" placeholder="ชื่อที่แสดงในเว็บ" value={username} onChange={e => setUsername(e.target.value)} required minLength={3} maxLength={20} /></div>
+                <div className="form-group"><label>อีเมล</label><input type="email" className="form-input" placeholder="example@email.com" value={email} onChange={e => setEmail(e.target.value)} required /></div>
+                <div className="form-group"><label>รหัสผ่าน</label><input type="password" className="form-input" placeholder="อย่างน้อย 8 ตัวอักษร" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} /></div>
+                <div className="form-group"><label>ยืนยันรหัสผ่าน</label><input type="password" className="form-input" placeholder="พิมพ์รหัสผ่านอีกครั้ง" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required /></div>
+                <p className="auth-bonus">สมัครใหม่ได้ 1,000 Point เริ่มต้น!</p>
+                <button type="submit" className="btn btn-primary btn-full" disabled={isLoading}>{isLoading ? '⏳ กำลังสมัคร...' : 'สมัครสมาชิก'}</button>
               </form>
             )}
             {mode === 'magic' && (
               <form onSubmit={handleMagicLink}>
-                <div className="form-group"><label>📧 อีเมล</label><input type="email" className="form-input" placeholder="example@email.com" value={email} onChange={e => setEmail(e.target.value)} required /></div>
+                <div className="form-group"><label>อีเมล</label><input type="email" className="form-input" placeholder="example@email.com" value={email} onChange={e => setEmail(e.target.value)} required /></div>
                 <p className="auth-hint">เราจะส่งลิงก์สำหรับเข้าสู่ระบบไปยังอีเมลของคุณ</p>
-                <button type="submit" className="btn btn-primary btn-full" disabled={isLoading}>{isLoading ? '⏳ กำลังส่ง...' : '📨 ส่ง Magic Link'}</button>
+                <button type="submit" className="btn btn-primary btn-full" disabled={isLoading}>{isLoading ? '⏳ กำลังส่ง...' : 'ส่ง Magic Link'}</button>
               </form>
             )}
             {mode === 'forgot' && (
               <form onSubmit={handleForgotPassword}>
-                <div className="form-group"><label>📧 อีเมล</label><input type="email" className="form-input" placeholder="example@email.com" value={email} onChange={e => setEmail(e.target.value)} required /></div>
-                <button type="submit" className="btn btn-primary btn-full" disabled={isLoading}>{isLoading ? '⏳ กำลังส่ง...' : '🔑 รีเซ็ตรหัสผ่าน'}</button>
+                <div className="form-group"><label>อีเมล</label><input type="email" className="form-input" placeholder="example@email.com" value={email} onChange={e => setEmail(e.target.value)} required /></div>
+                <button type="submit" className="btn btn-primary btn-full" disabled={isLoading}>{isLoading ? '⏳ กำลังส่ง...' : 'รีเซ็ตรหัสผ่าน'}</button>
               </form>
             )}
             <div className="auth-divider"><span>หรือ</span></div>
@@ -1268,19 +1268,19 @@ function AccountModal({ onClose, user, darkMode, onUpdateUser, onOpenVerificatio
             </div>
             {badges.length > 0 && <div className="account-badges"><h3 className="account-section-title">🏅 Badges</h3><div className="badges-grid">{badges.map(badge => <div key={badge.id} className="badge-item" title={badge.description}><span className="badge-icon">{badge.icon}</span><span className="badge-name">{badge.name}</span></div>)}</div></div>}
             <div className="account-tabs">
-              <button className={`account-tab ${activeTab === 'stats' ? 'active' : ''}`} onClick={() => setActiveTab('stats')}>📊 สถิติ</button>
-              <button className={`account-tab ${activeTab === 'history' ? 'active' : ''}`} onClick={() => setActiveTab('history')}>📜 ประวัติ</button>
-              <button className={`account-tab ${activeTab === 'polls' ? 'active' : ''}`} onClick={() => setActiveTab('polls')}>📝 โพล</button>
-              <button className={`account-tab ${activeTab === 'insight' ? 'active' : ''}`} onClick={() => setActiveTab('insight')}>🧠 Insight</button>
-              <button className={`account-tab ${activeTab === 'followers' ? 'active' : ''}`} onClick={() => setActiveTab('followers')}>👥</button>
-              <button className={`account-tab ${activeTab === 'following' ? 'active' : ''}`} onClick={() => setActiveTab('following')}>➡️</button>
+              <button className={`account-tab ${activeTab === 'stats' ? 'active' : ''}`} onClick={() => setActiveTab('stats')}>สถิติ</button>
+              <button className={`account-tab ${activeTab === 'history' ? 'active' : ''}`} onClick={() => setActiveTab('history')}>ประวัติ</button>
+              <button className={`account-tab ${activeTab === 'polls' ? 'active' : ''}`} onClick={() => setActiveTab('polls')}>โพล</button>
+              <button className={`account-tab ${activeTab === 'insight' ? 'active' : ''}`} onClick={() => setActiveTab('insight')}>Insight</button>
+              <button className={`account-tab ${activeTab === 'followers' ? 'active' : ''}`} onClick={() => setActiveTab('followers')}>ผู้ติดตาม</button>
+              <button className={`account-tab ${activeTab === 'following' ? 'active' : ''}`} onClick={() => setActiveTab('following')}>กำลังติดตาม</button>
             </div>
               <div className="account-content">
                               {/* v2: Profile Insight */}
               {activeTab === 'insight' && (
                 <div className="insight-content">
                   <div className="insight-section">
-                    <h4 className="insight-title">🎯 คุณมักวิเคราะห์ได้ดีในเรื่อง</h4>
+                    <h4 className="insight-title">คุณมักคิดได้ดีในเรื่อง</h4>
                     {categoryAccuracy.length > 0 ? (
                       <div className="category-accuracy-list">
                         {categoryAccuracy.slice(0, 3).map((cat, i) => (
@@ -1297,7 +1297,7 @@ function AccountModal({ onClose, user, darkMode, onUpdateUser, onOpenVerificatio
                   </div>
                   
                   <div className="insight-section">
-                    <h4 className="insight-title">⏰ ช่วงเวลาที่คุณมักตัดสินใจได้ดี</h4>
+                    <h4 className="insight-title">ช่วงเวลาที่คุณมักคิดได้ดี</h4>
                     {timePattern ? (
                       <p className="insight-value">{timePattern.period} (แม่น {timePattern.accuracy}%)</p>
                     ) : (
@@ -1635,7 +1635,7 @@ function CreatePollModal({ onClose, user, onSuccess, darkMode }) {
               <label>🎯 ประเภทโพล</label>
               <div className="poll-mode-selector">
                 <button type="button" className={`poll-mode-btn ${pollMode === 'prediction' ? 'active' : ''}`} onClick={() => setPollMode('prediction')}>
-                  <span className="mode-icon">🔮</span><span className="mode-title">ทำนายอนาคต</span><span className="mode-desc">มีคำตอบถูก-ผิด • Blind Mode</span>
+                  <span className="mode-icon">🔮</span><span className="mode-title">คิดว่าในอนาคต..</span><span className="mode-desc">มีคำตอบถูก-ผิด • Blind Mode</span>
                 </button>
                 <button type="button" className={`poll-mode-btn ${pollMode === 'opinion' ? 'active' : ''}`} onClick={() => setPollMode('opinion')}>
                   <span className="mode-icon">💭</span><span className="mode-title">คุณคิดว่า..</span><span className="mode-desc">ความชอบ/ความคิดเห็น</span>
@@ -1705,7 +1705,7 @@ function CreatePollModal({ onClose, user, onSuccess, darkMode }) {
   )
 }
 
-// ===== Create Live Battle Modal (Date+Time Picker with +7h fix) =====
+// ===== Create ถ่ายทอดสด Modal (Date+Time Picker with +7h fix) =====
 function CreateLiveBattleModal({ onClose, user, onSuccess, darkMode }) {
   const [question, setQuestion] = useState('')
   const [options, setOptions] = useState(['', ''])
@@ -1768,7 +1768,7 @@ function CreateLiveBattleModal({ onClose, user, onSuccess, darkMode }) {
     
     setIsSubmitting(false)
     if (error) alert('เกิดข้อผิดพลาด: ' + error.message)
-    else { alert('⚡ สร้าง Live Battle สำเร็จ!'); onSuccess(); onClose() }
+    else { alert('⚡ สร้าง ถ่ายทอดสด สำเร็จ!'); onSuccess(); onClose() }
   }
 
   const filteredTags = availableTags.filter(tag => 
@@ -1783,7 +1783,7 @@ function CreateLiveBattleModal({ onClose, user, onSuccess, darkMode }) {
     <div className="modal-overlay" onClick={onClose}>
       <div className={`modal create-poll-modal ${darkMode ? 'dark' : ''}`} onClick={e => e.stopPropagation()}>
         <button className="modal-close" onClick={onClose}>✕</button>
-        <h2 className="modal-title">⚡ สร้าง Live Battle</h2>
+        <h2 className="modal-title">⚡ สร้าง ถ่ายทอดสด</h2>
         <p style={{ textAlign: 'center', color: 'var(--text-secondary)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
           โพลแบบ Real-time • เห็นผลโหวตทันที
         </p>
@@ -1843,7 +1843,7 @@ function CreateLiveBattleModal({ onClose, user, onSuccess, darkMode }) {
           <div className="modal-actions">
             <button type="button" className="btn btn-secondary" onClick={onClose}>ยกเลิก</button>
             <button type="submit" className="btn btn-live" disabled={isSubmitting}>
-              {isSubmitting ? '⏳ กำลังสร้าง...' : '⚡ เริ่ม Live Battle'}
+              {isSubmitting ? '⏳ กำลังสร้าง...' : '⚡ เริ่ม ถ่ายทอดสด'}
             </button>
           </div>
         </form>
@@ -1916,11 +1916,11 @@ function CreateTimeCapsuleModal({ onClose, user, onSuccess, darkMode }) {
         <button className="modal-close" onClick={onClose}>✕</button>
         <h2 className="modal-title">💊 สร้าง Time Capsule</h2>
         <p style={{ textAlign: 'center', color: 'var(--text-secondary)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
-          ทำนายอนาคตระยะยาว 1-10 ปี • Blind Mode อัตโนมัติ
+          คิดว่าในอนาคตระยะยาว 1-10 ปี • Blind Mode อัตโนมัติ
         </p>
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label>❓ คำถามทำนายอนาคต</label>
+            <label>❓ คำถามคิดว่าในอนาคต..</label>
             <input type="text" className={`form-input ${errors.question ? 'error' : ''}`} placeholder="เช่น AI จะแทนที่งานมนุษย์ 50% ภายในปี 2030 ไหม?" value={question} onChange={(e) => setQuestion(e.target.value)} maxLength={200} />
             {errors.question && <span className="error-text">{errors.question}</span>}
             <span className="char-count">{question.length}/200</span>
@@ -2039,7 +2039,7 @@ function VerificationModal({ onClose, user, onSuccess, darkMode }) {
             <p>• ห้ามใช้บอทหรือระบบอัตโนมัติในการโหวต</p>
             
             <h4>3. ระบบ Reputation</h4>
-            <p>• คะแนน Reputation จะเปลี่ยนแปลงตามความถูกต้องของการทำนาย</p>
+            <p>• คะแนน Reputation จะเปลี่ยนแปลงตามความถูกต้องของการโหวต</p>
             <p>• Admin มีสิทธิ์ปรับคะแนนหรือระงับบัญชีหากพบการกระทำผิด</p>
             
             <h4>4. ความรับผิดชอบ</h4>
@@ -2440,7 +2440,7 @@ export default function Home() {
               )
             }
           }))
-          // Live battles are never blind mode, always update
+          // ถ่ายทอดสดs are never blind mode, always update
           setLiveBattles(prev => prev.map(poll => ({
             ...poll,
             options: poll.options?.map(opt => 
@@ -2508,7 +2508,7 @@ export default function Home() {
     }
   }, [selectedPoll, userVotes])
   
-  // Auto-refresh Live Battles
+  // Auto-refresh ถ่ายทอดสดs
   useEffect(() => {
     if (activeCategory === 'live' || activeCategory === 'home') {
       const interval = setInterval(() => loadLiveBattles(), 10000)
@@ -2697,7 +2697,7 @@ export default function Home() {
               <>
                 <button className="dropdown-item" onClick={() => { setShowAuthModal('login'); setShowMenu(false) }}>เข้าสู่ระบบ</button>
                 <button className="dropdown-item" onClick={() => { setShowAuthModal('register'); setShowMenu(false) }}>สมัครสมาชิก</button>
-                <button className="dropdown-item" onClick={() => { setDarkMode(!darkMode); setShowMenu(false) }}>{darkMode ? '☀️ โหมดสว่าง' : '🌙 โหมดมืด'}</button>
+                <button className="dropdown-item" onClick={() => { setDarkMode(!darkMode); setShowMenu(false) }}>{darkMode ? 'โหมดสว่าง' : 'โหมดมืด'}</button>
                 <div className="dropdown-divider"></div>
               </>
             )}
@@ -2722,22 +2722,22 @@ export default function Home() {
                 <button className="dropdown-item" onClick={() => { setShowNotifications(true); setShowMenu(false) }}>
                   🔔 การแจ้งเตือน {unreadCount > 0 && <span className="mobile-notif-badge">{unreadCount}</span>}
                 </button>
-                <button className="dropdown-item" onClick={() => { setShowAccount(true); setShowMenu(false) }}>👤 บัญชีของฉัน</button>
-                <button className="dropdown-item" onClick={() => { setShowCreatePoll(true); setShowMenu(false) }}>➕ สร้างโพล</button>
-                {user.is_admin && <button className="dropdown-item" onClick={() => { setShowAdminPanel(true); setShowMenu(false) }}>🔧 Admin Panel</button>}
-                <button className="dropdown-item" onClick={() => { setDarkMode(!darkMode); setShowMenu(false) }}>{darkMode ? '☀️ โหมดสว่าง' : '🌙 โหมดมืด'}</button>
+                <button className="dropdown-item" onClick={() => { setShowAccount(true); setShowMenu(false) }}>บัญชีของฉัน</button>
+                <button className="dropdown-item" onClick={() => { setShowCreatePoll(true); setShowMenu(false) }}>สร้างโพล</button>
+                {user.is_admin && <button className="dropdown-item" onClick={() => { setShowAdminPanel(true); setShowMenu(false) }}>Admin Panel</button>}
+                <button className="dropdown-item" onClick={() => { setDarkMode(!darkMode); setShowMenu(false) }}>{darkMode ? 'โหมดสว่าง' : 'โหมดมืด'}</button>
                 <div className="dropdown-divider"></div>
               </>
             )}
-              <button className="dropdown-item" onClick={() => { setShowLeaderboardModal(true); setShowMenu(false) }}>🏆 อันดับ Leaderboard</button>
-              <button className="dropdown-item" onClick={() => { setShowPostingGuidelines(true); setShowMenu(false) }}>📝 คำแนะนำการโพสต์</button>
-              <button className="dropdown-item" onClick={() => { setShowMemberPrivileges(true); setShowMenu(false) }}>⭐ สิทธิ์การใช้งานของสมาชิก</button>
-              <button className="dropdown-item" onClick={() => { setShowPrivacyPolicy(true); setShowMenu(false) }}>🔒 นโยบายข้อมูลส่วนบุคคล</button>
-              <button className="dropdown-item" onClick={() => { setShowPWAInstall(true); setShowMenu(false) }}>📱 Download App คิดว่า..</button>
+              <button className="dropdown-item" onClick={() => { setShowLeaderboardModal(true); setShowMenu(false) }}>อันดับ Leaderboard</button>
+              <button className="dropdown-item" onClick={() => { setShowPostingGuidelines(true); setShowMenu(false) }}>คำแนะนำการโพสต์</button>
+              <button className="dropdown-item" onClick={() => { setShowMemberPrivileges(true); setShowMenu(false) }}>สิทธิ์การใช้งานของสมาชิก</button>
+              <button className="dropdown-item" onClick={() => { setShowPrivacyPolicy(true); setShowMenu(false) }}>นโยบายข้อมูลส่วนบุคคล</button>
+              <button className="dropdown-item" onClick={() => { setShowPWAInstall(true); setShowMenu(false) }}>Download App คิดว่า..</button>
             {user && (
               <>
                 <div className="dropdown-divider"></div>
-                <button className="dropdown-item" onClick={handleLogout} style={{ color: 'var(--red)' }}>🚪 ออกจากระบบ</button>
+                <button className="dropdown-item" onClick={handleLogout} style={{ color: 'var(--red)' }}>ออกจากระบบ</button>
               </>
             )}
           </div>
@@ -2822,13 +2822,13 @@ export default function Home() {
             </div>
           )}
 
-          {/* Live Battle Section */}
+          {/* ถ่ายทอดสด Section */}
           {activeCategory === 'live' ? (
             <section>
               <div className="section-header">
-                <h2 className="section-title">⚡ Live Battle</h2>
+                <h2 className="section-title">⚡ ถ่ายทอดสด</h2>
                 {user && (user.is_verified || user.is_admin) && (
-                  <button className="btn btn-live-create" onClick={() => setShowCreateLiveBattle(true)}>⚡ สร้าง Live Battle</button>
+                  <button className="btn btn-live-create" onClick={() => setShowCreateLiveBattle(true)}>⚡ สร้าง ถ่ายทอดสด</button>
                 )}
               </div>
               {liveBattles.length > 0 ? (
@@ -2840,7 +2840,7 @@ export default function Home() {
               ) : (
                 <div className="empty-state">
                   <span className="empty-icon">⚡</span>
-                  <p>ยังไม่มี Live Battle ที่กำลังดำเนินอยู่</p>
+                  <p>ยังไม่มี ถ่ายทอดสด ที่กำลังดำเนินอยู่</p>
                 </div>
               )}
             </section>
@@ -2850,7 +2850,7 @@ export default function Home() {
                 <h2 className="section-title">💊 Time Capsule</h2>
                 {user?.is_admin && <button className="btn btn-capsule-create" onClick={() => setShowCreateTimeCapsule(true)}>💊 สร้าง Time Capsule</button>}
               </div>
-              <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>ทำนายอนาคตระยะยาว 1-10 ปี</p>
+              <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>คิดว่าในอนาคตระยะยาว 1-10 ปี</p>
               {timeCapsules.length > 0 ? (
                 <div className="poll-grid">
                   {timeCapsules.map(capsule => (
@@ -2866,11 +2866,11 @@ export default function Home() {
             </section>
           ) : filteredPolls.length > 0 ? (
             <>
-              {/* Live Battle Preview on Home */}
+              {/* ถ่ายทอดสด Preview on Home */}
               {activeCategory === 'home' && !activeTag && liveBattles.length > 0 && (
                 <section>
                   <div className="section-header">
-                    <h2 className="section-title">⚡ Live Battle กำลังดำเนินอยู่</h2>
+                    <h2 className="section-title">⚡ ถ่ายทอดสด กำลังดำเนินอยู่</h2>
                     <button className="btn btn-sm btn-secondary" onClick={() => handleCategoryChange('live')}>ดูทั้งหมด →</button>
                   </div>
                   <div className="poll-grid">
@@ -3018,7 +3018,7 @@ export default function Home() {
       {/* Account Modal */}
       {showAccount && <AccountModal onClose={() => setShowAccount(false)} user={user} darkMode={darkMode} onUpdateUser={setUser} onOpenVerification={() => setShowVerificationModal(true)} />}
       
-      {/* Live Battle & Time Capsule Modals */}
+      {/* ถ่ายทอดสด & Time Capsule Modals */}
       {showCreateLiveBattle && <CreateLiveBattleModal onClose={() => setShowCreateLiveBattle(false)} user={user} onSuccess={() => { loadLiveBattles(); handleCategoryChange('live') }} darkMode={darkMode} />}
       {showCreateTimeCapsule && <CreateTimeCapsuleModal onClose={() => setShowCreateTimeCapsule(false)} user={user} onSuccess={() => { loadTimeCapsules(); handleCategoryChange('timecapsule') }} darkMode={darkMode} />}
       
