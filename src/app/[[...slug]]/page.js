@@ -15,7 +15,8 @@ import {
   createLiveBattleV2, getLiveBattles, endLiveBattle,
   signUpWithEmail, signInWithEmail, signInWithMagicLink, signOut, getSession, getUserFromSession, 
   resetPassword, updatePassword, onAuthStateChange, signInWithGoogle,
-  submitVerification, skipVerification, checkNeedsVerification, getUserPollLimit, findSimilarPolls, checkAndAwardCreatorPoints,
+  submitDemographics, skipVerification, checkNeedsVerification, getUserPollLimit, findSimilarPolls, checkAndAwardCreatorPoints,
+  checkAndGrantVerified, getVerifiedProgress, getUserVoteCount,
   getTrendingTags, getPollsByTag,
   getVoteDetails, getVoteStatistics, logAdminAction, getAdminAuditLogs
 } from '@/lib/supabase'
@@ -204,7 +205,7 @@ function MemberPrivilegesModal({ onClose, darkMode }) {
         <button className="modal-close" onClick={onClose}>✕</button>
         <div className="info-modal-header">
           <h2>⭐ สิทธิ์การใช้งานของสมาชิก</h2>
-          <p>เปรียบเทียบสิทธิ์ระหว่างสมาชิกทั่วไปและสมาชิกยืนยันตัวตน</p>
+          <p>เปรียบเทียบสิทธิ์ระหว่างสมาชิกทั่วไปและสมาชิกที่กรอกข้อมูลแล้ว</p>
         </div>
         <div className="info-modal-content">
           <table className="comparison-table">
@@ -212,7 +213,7 @@ function MemberPrivilegesModal({ onClose, darkMode }) {
               <tr>
                 <th>ฟีเจอร์</th>
                 <th>สมาชิกทั่วไป</th>
-                <th>ยืนยันตัวตนแล้ว ✓</th>
+                <th>กรอกข้อมูลแล้ว</th>
               </tr>
             </thead>
             <tbody>
@@ -225,11 +226,6 @@ function MemberPrivilegesModal({ onClose, darkMode }) {
                 <td className="feature-name">สร้างโพลต่อวัน</td>
                 <td><span className="cross-mark">✗</span></td>
                 <td><span className="check-mark">✓</span> 3 โพล/วัน</td>
-              </tr>
-              <tr>
-                <td className="feature-name">Verified Badge</td>
-                <td><span className="cross-mark">✗</span></td>
-                <td><span className="check-mark">✓</span> แสดงข้างชื่อ</td>
               </tr>
               <tr>
                 <td className="feature-name">สร้าง ถ่ายทอดสด</td>
@@ -251,17 +247,22 @@ function MemberPrivilegesModal({ onClose, darkMode }) {
                 <td><span className="check-mark">✓</span></td>
                 <td><span className="check-mark">✓</span></td>
               </tr>
-              <tr>
-                <td className="feature-name">สิทธิ์พิเศษในอนาคต</td>
-                <td><span className="cross-mark">✗</span></td>
-                <td><span className="check-mark">✓</span> รับก่อน</td>
-              </tr>
             </tbody>
           </table>
           
           <div className="info-card">
-            <h4>🔐 วิธียืนยันตัวตน</h4>
-            <p>ไปที่ "บัญชีของฉัน" แล้วกดปุ่ม "ยืนยันตัวตน" กรอกข้อมูลชื่อจริงและวันเกิด ยอมรับเงื่อนไข PDPA แล้วรอการอนุมัติ</p>
+            <h4>📝 วิธีกรอกข้อมูล</h4>
+            <p>ไปที่ "บัญชีของฉัน" แล้วกดปุ่ม "กรอกข้อมูลเพื่อสร้างโพลได้" กรอกชื่อจริง วันเกิด และยอมรับเงื่อนไข PDPA</p>
+          </div>
+          
+          <div className="info-card verified-info-card">
+            <h4>✓ Verified Badge</h4>
+            <p>Badge ✓ คือสัญญาณของความน่าเชื่อถือ ซึ่งได้จากการมีส่วนร่วมอย่างสม่ำเสมอในระบบ ไม่ใช่การยืนยันตัวตนทางกฎหมาย</p>
+            <ul style={{ marginTop: '0.5rem', paddingLeft: '1.25rem', fontSize: '0.9rem' }}>
+              <li>สมาชิกมาแล้วอย่างน้อย 14 วัน</li>
+              <li>โหวตแล้วอย่างน้อย 20 โพล</li>
+              <li>ยืนยันอีเมลแล้ว</li>
+            </ul>
           </div>
         </div>
       </div>
@@ -1238,18 +1239,39 @@ function AccountModal({ onClose, user, darkMode, onUpdateUser, onOpenVerificatio
               <div className="account-info">
                 <h2 className="account-username">
                   {profile.username}
-                  {profile.is_verified && <span className="verified-badge" title="ยืนยันตัวตนแล้ว"><svg viewBox="0 0 24 24" className="verified-check"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg></span>}
+                  {profile.is_verified && (
+                    <span className="verified-badge" title="Verified: สมาชิกที่มีส่วนร่วมอย่างต่อเนื่อง">
+                      <svg viewBox="0 0 24 24" className="verified-check"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
+                    </span>
+                  )}
                 </h2>
                 <div className="account-level"><span className="level-badge">{level.badge}</span><span className="level-name">{level.name}</span></div>
                 <div className="account-reputation">{profile.reputation.toLocaleString()} point</div>
                 {profile.email && <div className="account-email">📧 {profile.email}</div>}
-                {!profile.is_verified && (
+                
+                {/* Verified Status Section */}
+                {profile.is_verified ? (
+                  <div className="verified-status-section verified">
+                    <div className="verified-status-badge">✓ Verified</div>
+                    <p className="verified-status-desc">คุณเป็นสมาชิกที่มีส่วนร่วมอย่างต่อเนื่อง และความคิดเห็นของคุณมีน้ำหนักเต็มในระบบ</p>
+                  </div>
+                ) : (
+                  <div className="verified-status-section not-verified">
+                    <div className="verified-status-badge pending">ยังไม่ได้รับสถานะ Verified</div>
+                    <p className="verified-status-desc">สถานะ Verified คือสัญญาณของความน่าเชื่อถือ ซึ่งได้จากการมีส่วนร่วมอย่างสม่ำเสมอและพฤติกรรมที่ดีในระบบ</p>
+                    <p className="verified-status-cta">🌱 เริ่มสร้างความน่าเชื่อถือของคุณด้วยการโหวตและมีส่วนร่วม</p>
+                  </div>
+                )}
+                
+                {/* Profile Completion Prompt (for poll creation) */}
+                {!profile.full_name && (
                   <button className="verify-prompt-btn" onClick={() => { onClose(); onOpenVerification() }}>
-                    <span>⭐</span>
-                    <span>ยืนยันตัวตนเพื่อรับ Verified Badge</span>
+                    <span>📝</span>
+                    <span>กรอกข้อมูลเพื่อสร้างโพลได้</span>
                     <span className="verify-arrow">→</span>
                   </button>
                 )}
+                
                 <div className="account-follow-stats">
                   <span onClick={() => setActiveTab('followers')} style={{ cursor: 'pointer' }}><strong>{followCounts.followers}</strong> ผู้ติดตาม</span>
                   <span onClick={() => setActiveTab('following')} style={{ cursor: 'pointer' }}><strong>{followCounts.following}</strong> กำลังติดตาม</span>
@@ -1469,7 +1491,7 @@ function CreatePollModal({ onClose, user, onSuccess, darkMode }) {
   const [availableTags, setAvailableTags] = useState([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errors, setErrors] = useState({})
-  const [pollLimit, setPollLimit] = useState({ canCreate: false, used: 0, limit: 3, remaining: 0, isVerified: false })
+  const [pollLimit, setPollLimit] = useState({ canCreate: false, used: 0, limit: 3, remaining: 0, hasCompletedProfile: false })
   const [similarPolls, setSimilarPolls] = useState([])
   const [showSimilarWarning, setShowSimilarWarning] = useState(false)
   const [similarCheckDone, setSimilarCheckDone] = useState(false)
@@ -1562,20 +1584,19 @@ function CreatePollModal({ onClose, user, onSuccess, darkMode }) {
     tag.name.toLowerCase().includes(tagInput.toLowerCase()) && !selectedTags.find(t => t.id === tag.id)
   ).slice(0, 5)
 
-  // Not verified - show prompt
-  if (!pollLimit.isVerified && !user.is_admin) {
+  // Profile not completed - show prompt
+  if (!pollLimit.hasCompletedProfile && !user.is_admin) {
     return (
       <div className="modal-overlay" onClick={onClose}>
         <div className={`modal create-poll-modal ${darkMode ? 'dark' : ''}`} onClick={e => e.stopPropagation()}>
           <button className="modal-close" onClick={onClose}>✕</button>
           <div className="poll-limit-exceeded">
-            <span className="limit-icon">🔐</span>
-            <h2>ต้องยืนยันตัวตนก่อน</h2>
-            <p>เฉพาะผู้ใช้ที่ยืนยันตัวตนแล้วเท่านั้น<br/>ที่สามารถสร้างโพลได้</p>
+            <span className="limit-icon">📝</span>
+            <h2>กรอกข้อมูลเพิ่มเติมก่อน</h2>
+            <p>กรุณากรอกข้อมูลพื้นฐาน<br/>เพื่อปลดล็อกสิทธิ์สร้างโพล</p>
             <div className="verify-upsell">
-              <p>✓ <strong>ยืนยันตัวตน</strong> เพื่อสร้างได้ 3 โพล/วัน!</p>
-              <p>✓ รับ Verified Badge</p>
-              <p>✓ เพิ่มความน่าเชื่อถือ</p>
+              <p>📊 สร้างโพลได้ 3 โพล/วัน</p>
+              <p>📈 ช่วยให้เราเข้าใจภาพรวมผู้ใช้</p>
             </div>
             <button className="btn btn-secondary" onClick={onClose}>ปิด</button>
           </div>
@@ -1584,7 +1605,7 @@ function CreatePollModal({ onClose, user, onSuccess, darkMode }) {
     )
   }
 
-  // Verified but exceeded limit
+  // Profile completed but exceeded limit
   if (!pollLimit.canCreate && !user.is_admin) {
     return (
       <div className="modal-overlay" onClick={onClose}>
@@ -1978,10 +1999,25 @@ function CreateTimeCapsuleModal({ onClose, user, onSuccess, darkMode }) {
   )
 }
 
-// ===== Verification Modal (PDPA) =====
-function VerificationModal({ onClose, user, onSuccess, darkMode }) {
+// ===== Demographics Modal (Profile Completion) =====
+// Note: This modal collects user demographics for analytics.
+// Completing this allows creating polls (3/day).
+// Verified badge ✓ is earned separately through participation.
+
+const GENDER_OPTIONS = [
+  { value: '', label: '-- เลือกเพศ (ไม่บังคับ) --' },
+  { value: 'male', label: 'ชาย' },
+  { value: 'female', label: 'หญิง' },
+  { value: 'transgender', label: 'Transgender' },
+  { value: 'non_binary', label: 'Non-binary' },
+  { value: 'other', label: 'อื่นๆ' },
+  { value: 'prefer_not_to_say', label: 'ไม่ต้องการระบุ' },
+]
+
+function DemographicsModal({ onClose, user, onSuccess, darkMode }) {
   const [fullName, setFullName] = useState('')
   const [birthDate, setBirthDate] = useState('')
+  const [gender, setGender] = useState('')
   const [pdpaConsent, setPdpaConsent] = useState(false)
   const [marketingConsent, setMarketingConsent] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -2012,10 +2048,16 @@ function VerificationModal({ onClose, user, onSuccess, darkMode }) {
     if (age < 13) { setError('ต้องมีอายุอย่างน้อย 13 ปี'); return }
     if (!pdpaConsent) { setError('กรุณายอมรับเงื่อนไขการใช้งาน'); return }
     setIsSubmitting(true)
-    const { data, error: submitError } = await submitVerification(user.id, { fullName: fullName.trim(), birthDate, pdpaConsent, marketingConsent })
+    const { data, error: submitError } = await submitDemographics(user.id, { 
+      fullName: fullName.trim(), 
+      birthDate, 
+      gender: gender || null,
+      pdpaConsent, 
+      marketingConsent 
+    })
     setIsSubmitting(false)
     if (submitError) { setError(submitError.message) } 
-    else { onSuccess({ ...user, is_verified: true, full_name: fullName }) }
+    else { onSuccess({ ...user, full_name: fullName, birth_date: birthDate, gender }) }
   }
 
   const handleSkip = async () => { await skipVerification(user.id); onClose() }
@@ -2064,17 +2106,17 @@ function VerificationModal({ onClose, user, onSuccess, darkMode }) {
           <div className="info-modal-content" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
             <h4>1. ข้อมูลที่เราเก็บ</h4>
             <p>• ข้อมูลบัญชี: อีเมล, ชื่อผู้ใช้, รูปโปรไฟล์</p>
-            <p>• ข้อมูลยืนยันตัวตน: ชื่อจริง, วันเกิด (เก็บเป็นความลับ)</p>
+            <p>• ข้อมูลเพิ่มเติม: ชื่อจริง, วันเกิด, เพศ (เก็บเป็นความลับ)</p>
             <p>• ข้อมูลการใช้งาน: ประวัติการโหวต, โพลที่สร้าง</p>
             
             <h4>2. การใช้ข้อมูล</h4>
             <p>• เพื่อให้บริการและปรับปรุงประสบการณ์ผู้ใช้</p>
-            <p>• เพื่อยืนยันตัวตนและป้องกันการใช้งานผิดวัตถุประสงค์</p>
+            <p>• เพื่อวิเคราะห์ภาพรวมผู้ใช้และปรับการแสดงผล</p>
             <p>• เพื่อส่งการแจ้งเตือนที่เกี่ยวข้อง (ถ้าคุณยินยอม)</p>
             
             <h4>3. การเปิดเผยข้อมูล</h4>
             <p>• เราจะไม่ขายหรือแบ่งปันข้อมูลส่วนบุคคลกับบุคคลที่สาม</p>
-            <p>• ข้อมูลชื่อจริงและวันเกิดจะไม่แสดงต่อสาธารณะ</p>
+            <p>• ข้อมูลชื่อจริง วันเกิด และเพศจะไม่แสดงต่อสาธารณะ</p>
             
             <h4>4. สิทธิ์ของคุณ</h4>
             <p>• คุณสามารถขอดู แก้ไข หรือลบข้อมูลของคุณได้ตลอดเวลา</p>
@@ -2090,14 +2132,17 @@ function VerificationModal({ onClose, user, onSuccess, darkMode }) {
     <div className="modal-overlay">
       <div className={`modal verification-modal ${darkMode ? 'dark' : ''}`} onClick={e => e.stopPropagation()}>
         <div className="verification-header">
-          <span className="verification-icon">🔐</span>
-          <h2>ยืนยันตัวตน</h2>
-          <p>รับ Verified Badge และสิทธิ์สร้างโพล!</p>
+          <span className="verification-icon">📝</span>
+          <h2>กรอกข้อมูลเพิ่มเติม</h2>
+          <p>เพื่อปลดล็อกสิทธิ์สร้างโพล</p>
         </div>
         <div className="verification-benefits">
-          <div className="benefit-item"><span>✓</span><span>Verified Badge แสดงข้างชื่อ</span></div>
           <div className="benefit-item"><span>📊</span><span>สร้างโพลได้ 3 โพล/วัน</span></div>
-          <div className="benefit-item"><span>⭐</span><span>เพิ่มความน่าเชื่อถือ</span></div>
+          <div className="benefit-item"><span>📈</span><span>ช่วยให้เราเข้าใจภาพรวมของผู้ใช้</span></div>
+        </div>
+        <div className="demographics-note">
+          <span>ℹ️</span>
+          <span>เราใช้อีเมลเพื่อยืนยันว่าคุณเป็นเจ้าของบัญชีนี้จริง ข้อมูลนี้ช่วยให้เราเข้าใจภาพรวมของผู้ใช้และปรับการแสดงผลให้เหมาะสมยิ่งขึ้น</span>
         </div>
         {error && <div className="auth-error">❌ {error}</div>}
         <form onSubmit={handleSubmit}>
@@ -2110,6 +2155,14 @@ function VerificationModal({ onClose, user, onSuccess, darkMode }) {
             <input type="date" className="form-input" value={birthDate} onChange={e => setBirthDate(e.target.value)} max={maxDateStr} />
             {age !== null && age >= 13 && <span className="age-display">อายุ {age} ปี</span>}
           </div>
+          <div className="form-group">
+            <label>🏳️‍🌈 เพศ <span className="optional-label">(ไม่บังคับ - สำหรับวิเคราะห์ภาพรวมเท่านั้น)</span></label>
+            <select className="form-input" value={gender} onChange={e => setGender(e.target.value)}>
+              {GENDER_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
           <div className="consent-section">
             <label className="consent-item required">
               <input type="checkbox" checked={pdpaConsent} onChange={e => setPdpaConsent(e.target.checked)} />
@@ -2120,16 +2173,19 @@ function VerificationModal({ onClose, user, onSuccess, darkMode }) {
               <span>ยินยอมรับข่าวสารและการแจ้งเตือนพิเศษ (ไม่บังคับ)</span>
             </label>
           </div>
-          <div className="verification-note"><span>🔒</span><span>ข้อมูลของคุณจะถูกเก็บรักษาอย่างปลอดภัย</span></div>
+          <div className="verification-note"><span>🔒</span><span>ข้อมูลของคุณจะถูกเก็บรักษาอย่างปลอดภัยและไม่แสดงต่อสาธารณะ</span></div>
           <div className="modal-actions">
             <button type="button" className="btn btn-secondary" onClick={handleSkip}>ข้ามไปก่อน</button>
-            <button type="submit" className="btn btn-primary" disabled={isSubmitting}>{isSubmitting ? '⏳ กำลังยืนยัน...' : '✅ ยืนยันตัวตน'}</button>
+            <button type="submit" className="btn btn-primary" disabled={isSubmitting}>{isSubmitting ? '⏳ กำลังบันทึก...' : '✅ บันทึกข้อมูล'}</button>
           </div>
         </form>
       </div>
     </div>
   )
 }
+
+// Alias for backward compatibility
+const VerificationModal = DemographicsModal
 
 // ===== User Profile Modal =====
 function UserProfileModal({ userId, currentUser, onClose, darkMode }) {
@@ -2182,7 +2238,7 @@ function UserProfileModal({ userId, currentUser, onClose, darkMode }) {
               <div className="profile-info">
                 <h2 className="profile-username">
                   {profile.username}
-                  {profile.is_verified && <span className="verified-badge" title="ยืนยันตัวตนแล้ว"><svg viewBox="0 0 24 24" className="verified-check"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg></span>}
+                  {profile.is_verified && <span className="verified-badge" title="Verified: สมาชิกที่มีส่วนร่วมอย่างต่อเนื่อง"><svg viewBox="0 0 24 24" className="verified-check"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg></span>}
                 </h2>
                 <div className="profile-level">{level.badge} {level.name}</div>
                 <div className="profile-reputation">{profile.reputation.toLocaleString()} point</div>
@@ -2471,8 +2527,20 @@ export default function Home() {
   const checkAuthSession = async () => {
     const { data: userData } = await getUserFromSession()
     if (userData) {
-      setUser(userData)
-      localStorage.setItem('kidwa-user', JSON.stringify(userData))
+      // Check and auto-grant verified status if eligible
+      const { granted } = await checkAndGrantVerified(userData.id)
+      if (granted) {
+        // Refresh user data to get updated is_verified status
+        const { data: updatedUser } = await getUserFromSession()
+        if (updatedUser) {
+          setUser(updatedUser)
+          localStorage.setItem('kidwa-user', JSON.stringify(updatedUser))
+        }
+      } else {
+        setUser(userData)
+        localStorage.setItem('kidwa-user', JSON.stringify(userData))
+      }
+      
       const needsVerification = await checkNeedsVerification(userData.id)
       if (needsVerification) setShowVerificationModal(true)
     } else {
@@ -2673,7 +2741,7 @@ export default function Home() {
                   <div>
                     <span style={{ color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                       {user.username}
-                      {user.is_verified && <span className="verified-badge" title="ยืนยันตัวตนแล้ว"><svg viewBox="0 0 24 24" className="verified-check"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg></span>}
+                      {user.is_verified && <span className="verified-badge" title="Verified: สมาชิกที่มีส่วนร่วมอย่างต่อเนื่อง"><svg viewBox="0 0 24 24" className="verified-check"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg></span>}
                     </span>
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{getReputationLevel(user.reputation).badge} {user.reputation} pt</div>
                   </div>
@@ -2827,7 +2895,7 @@ export default function Home() {
             <section>
               <div className="section-header">
                 <h2 className="section-title">⚡ ถ่ายทอดสด</h2>
-                {user && (user.is_verified || user.is_admin) && (
+                {user && (user.full_name || user.is_admin) && (
                   <button className="btn btn-live-create" onClick={() => setShowCreateLiveBattle(true)}>⚡ สร้าง ถ่ายทอดสด</button>
                 )}
               </div>
@@ -2910,7 +2978,7 @@ export default function Home() {
             <div className="empty-state">
               <span className="empty-icon">🔍</span>
               <p>{activeTag ? `ไม่พบโพลที่มีแท็ก #${activeTag}` : 'ยังไม่มีโพลในหมวดนี้'}</p>
-              {user && user.is_verified && <button className="btn btn-primary" onClick={() => setShowCreatePoll(true)}>➕ สร้างโพลแรก</button>}
+              {user && user.full_name && <button className="btn btn-primary" onClick={() => setShowCreatePoll(true)}>➕ สร้างโพลแรก</button>}
             </div>
           )}
         </div>
