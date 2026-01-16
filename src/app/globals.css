@@ -1867,3 +1867,634 @@ select.form-input { appearance: none; background-image: url("data:image/svg+xml,
 .dark .health-details {
   background: rgba(0, 0, 0, 0.3);
 }
+
+/* ============================================================
+   KIDWA: About Us Modal Styles
+   Add these styles to app/globals.css
+   ============================================================ */
+
+/* ===== ABOUT US MODAL ===== */
+
+.about-modal {
+  max-width: 600px;
+  width: 95%;
+  max-height: 90vh;
+  overflow-y: auto;
+  background: linear-gradient(180deg, #0f0f1a 0%, #1a1a2e 100%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.about-modal.dark {
+  background: linear-gradient(180deg, #0a0a12 0%, #12121e 100%);
+}
+
+/* Hero Section */
+.about-hero {
+  text-align: center;
+  padding: 2rem 1.5rem;
+  background: radial-gradient(ellipse at center, rgba(139, 92, 246, 0.15) 0%, transparent 70%);
+  margin: -1.5rem -1.5rem 1.5rem -1.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.about-logo {
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin-bottom: 0.75rem;
+}
+
+.about-logo-text {
+  background: linear-gradient(135deg, #fff 0%, #a78bfa 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.about-logo-dots {
+  color: #8b5cf6;
+  animation: pulse-dots 2s infinite;
+}
+
+@keyframes pulse-dots {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.about-tagline {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.95rem;
+  max-width: 300px;
+  margin: 0 auto;
+  line-height: 1.5;
+}
+
+/* Tab Navigation */
+.about-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 0.375rem;
+  border-radius: 12px;
+}
+
+.about-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.75rem 0.5rem;
+  background: transparent;
+  border: none;
+  border-radius: 10px;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.about-tab:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.about-tab.active {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.3) 0%, rgba(59, 130, 246, 0.2) 100%);
+  color: #fff;
+}
+
+.about-tab-icon {
+  font-size: 1.25rem;
+}
+
+.about-tab-label {
+  font-size: 0.7rem;
+  font-weight: 500;
+}
+
+/* Content Sections */
+.about-content {
+  min-height: 350px;
+}
+
+.about-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.animate-fade {
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Cards */
+.about-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 1.25rem;
+}
+
+.about-card.highlight {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(59, 130, 246, 0.05) 100%);
+  border-color: rgba(139, 92, 246, 0.2);
+}
+
+.about-card h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.about-card-desc {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.85rem;
+}
+
+/* Comparison Visual */
+.comparison-visual {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.compare-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 1rem;
+  border-radius: 12px;
+  min-width: 100px;
+}
+
+.compare-item.old {
+  background: rgba(255, 255, 255, 0.05);
+  opacity: 0.6;
+}
+
+.compare-item.new {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(59, 130, 246, 0.15) 100%);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+}
+
+.compare-icon {
+  font-size: 1.5rem;
+}
+
+.compare-label {
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.compare-desc {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.5);
+  text-align: center;
+}
+
+.compare-arrow {
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 1.25rem;
+}
+
+/* Mini Cards Grid */
+.about-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+}
+
+@media (max-width: 480px) {
+  .about-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.about-mini-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 1rem;
+  text-align: center;
+}
+
+.mini-icon {
+  font-size: 1.5rem;
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.about-mini-card h4 {
+  font-size: 0.85rem;
+  margin-bottom: 0.25rem;
+}
+
+.about-mini-card p {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+  line-height: 1.4;
+}
+
+/* Poll Types Showcase */
+.poll-types-showcase {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+}
+
+@media (max-width: 500px) {
+  .poll-types-showcase {
+    grid-template-columns: 1fr;
+  }
+}
+
+.poll-type-showcase-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 1rem;
+  transition: all 0.2s ease;
+}
+
+.poll-type-showcase-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.poll-type-showcase-card.prediction {
+  border-left: 3px solid #8b5cf6;
+}
+
+.poll-type-showcase-card.opinion {
+  border-left: 3px solid #3b82f6;
+}
+
+.poll-type-showcase-card.live {
+  border-left: 3px solid #f59e0b;
+}
+
+.poll-type-showcase-card.capsule {
+  border-left: 3px solid #10b981;
+}
+
+.ptc-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.ptc-icon {
+  font-size: 1.25rem;
+}
+
+.ptc-header h4 {
+  font-size: 0.9rem;
+  font-weight: 600;
+  flex: 1;
+}
+
+.ptc-badge {
+  font-size: 0.6rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 10px;
+  font-weight: 500;
+}
+
+.ptc-badge.rep {
+  background: rgba(139, 92, 246, 0.2);
+  color: #a78bfa;
+}
+
+.ptc-badge.no-rep {
+  background: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
+}
+
+.ptc-badge.live-badge {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+}
+
+.ptc-badge.capsule-badge {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+}
+
+.poll-type-showcase-card > p {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 0.75rem;
+  line-height: 1.4;
+}
+
+.ptc-features {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.ptc-features span {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* Reputation Section */
+.rep-formula {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+}
+
+.formula-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.75rem 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+}
+
+.formula-box.correct {
+  background: rgba(34, 197, 94, 0.15);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.formula-box.wrong {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.formula-label {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.formula-value {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.formula-op {
+  font-size: 1.25rem;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+/* Conviction Showcase */
+.conviction-showcase {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 14px;
+  padding: 1rem;
+  margin-top: 0.5rem;
+}
+
+.conviction-showcase h4 {
+  font-size: 0.9rem;
+  margin-bottom: 0.25rem;
+}
+
+.conviction-showcase > p {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 1rem;
+}
+
+.conviction-levels {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.conviction-level {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.75rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.conviction-level.low {
+  background: rgba(34, 197, 94, 0.1);
+}
+
+.conviction-level.medium {
+  background: rgba(245, 158, 11, 0.1);
+}
+
+.conviction-level.high {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.conv-emoji {
+  font-size: 1.5rem;
+}
+
+.conv-name {
+  font-size: 0.65rem;
+  color: rgba(255, 255, 255, 0.6);
+  text-align: center;
+}
+
+.conv-multiplier {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+/* Rep Levels */
+.rep-levels {
+  margin-top: 0.5rem;
+}
+
+.rep-levels h4 {
+  font-size: 0.85rem;
+  margin-bottom: 0.75rem;
+}
+
+.level-ladder {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.level-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 8px;
+  font-size: 0.8rem;
+}
+
+.level-item span:first-child {
+  font-size: 1rem;
+}
+
+.level-pts {
+  margin-left: auto;
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* Rank Types */
+.rank-types {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.rank-type-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  transition: all 0.2s ease;
+}
+
+.rank-type-card.featured {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(59, 130, 246, 0.05) 100%);
+  border-color: rgba(139, 92, 246, 0.2);
+}
+
+.rank-type-icon {
+  font-size: 1.75rem;
+  line-height: 1;
+}
+
+.rank-type-card h4 {
+  font-size: 0.95rem;
+  margin-bottom: 0.125rem;
+}
+
+.rank-type-meaning {
+  font-size: 0.8rem;
+  color: #a78bfa;
+  margin-bottom: 0.375rem;
+}
+
+.rank-type-desc {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+  line-height: 1.4;
+  margin-bottom: 0.5rem;
+}
+
+.rank-type-window {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  font-size: 0.65rem;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* Verified Info Box */
+.verified-info-box {
+  display: flex;
+  gap: 1rem;
+  padding: 1rem;
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.1) 0%, rgba(16, 185, 129, 0.05) 100%);
+  border: 1px solid rgba(34, 197, 94, 0.2);
+  border-radius: 14px;
+  margin-top: 0.75rem;
+}
+
+.verified-icon-large {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #22c55e, #10b981);
+  border-radius: 50%;
+  font-size: 1.25rem;
+  color: white;
+  flex-shrink: 0;
+}
+
+.verified-info-content h4 {
+  font-size: 0.95rem;
+  margin-bottom: 0.25rem;
+}
+
+.verified-info-content > p {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 0.5rem;
+}
+
+.verified-info-content ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.verified-info-content li {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+  padding-left: 1rem;
+  position: relative;
+  margin-bottom: 0.25rem;
+}
+
+.verified-info-content li::before {
+  content: '✓';
+  position: absolute;
+  left: 0;
+  color: #4ade80;
+}
+
+/* Footer */
+.about-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.about-version {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.about-separator {
+  color: rgba(255, 255, 255, 0.2);
+}
+
+.about-tagline-small {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+  font-style: italic;
+}
+
+/* ===== UPDATED LEADERBOARD PERIOD INFO ===== */
+
+.leaderboard-period-info {
+  text-align: center;
+  padding: 0.5rem;
+  margin-bottom: 1rem;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+}
