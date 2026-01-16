@@ -3135,3 +3135,733 @@ export default function Home() {
     </div>
   )
 }
+// ============================================================
+// KIDWA: Opinion Poll & Admin Extension UI Components
+// Add these components to app/page.js
+// ============================================================
+
+// ===== IMPORT ADDITIONS =====
+// Add to imports at top of page.js:
+/*
+import {
+  createOpinionPoll,
+  suggestShadowOption,
+  voteForShadowOption,
+  getShadowOptions,
+  voteOthersWithShadow,
+  extendPollTime,
+  getPollExtensionHistory,
+  getOpinionPolls,
+  checkSuggestionValidity,
+  getCleanupHealth,
+  safeResolvePoll,
+  closeOpinionPoll
+} from '@/lib/supabase'
+*/
+
+// ===== SHADOW OPTIONS MODAL =====
+// Shows when user clicks "อื่นๆ" option
+
+function OthersOptionsModal({ poll, currentUser, darkMode, onClose, onVote }) {
+  const [shadowOptions, setShadowOptions] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [showSuggestionForm, setShowSuggestionForm] = useState(false)
+  const [suggestionText, setSuggestionText] = useState('')
+  const [suggestionError, setSuggestionError] = useState('')
+  const [similarShadow, setSimilarShadow] = useState(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  useEffect(() => {
+    loadShadowOptions()
+  }, [poll.id])
+
+  const loadShadowOptions = async () => {
+    setIsLoading(true)
+    const { data } = await getShadowOptions(poll.id)
+    setShadowOptions(data || [])
+    setIsLoading(false)
+  }
+
+  const handleSuggestionChange = async (text) => {
+    setSuggestionText(text)
+    setSuggestionError('')
+    setSimilarShadow(null)
+    
+    if (text.length >= 2) {
+      // Check validity as user types
+      const validation = await checkSuggestionValidity(poll.id, text, currentUser?.id)
+      if (!validation.valid) {
+        setSuggestionError(validation.error)
+        if (validation.similarShadow) {
+          setSimilarShadow(validation.similarShadow)
+        }
+      }
+    }
+  }
+
+  const handleSubmitSuggestion = async () => {
+    if (!currentUser?.is_verified) {
+      setSuggestionError('ต้องเป็น Verified user เพื่อเสนอมุมมอง')
+      return
+    }
+
+    setIsSubmitting(true)
+    const { data, error, similarShadow: foundSimilar, canSupport } = await suggestShadowOption(
+      poll.id, 
+      suggestionText, 
+      currentUser.id
+    )
+
+    if (error) {
+      setSuggestionError(error.message)
+      if (foundSimilar && canSupport) {
+        setSimilarShadow(foundSimilar)
+      }
+    } else {
+      setSuggestionText('')
+      setShowSuggestionForm(false)
+      await loadShadowOptions()
+    }
+    setIsSubmitting(false)
+  }
+
+  const handleVoteShadow = async (shadowId) => {
+    if (!currentUser) return
+    
+    const { data, error, promoted, promotionMessage } = await voteForShadowOption(shadowId, currentUser.id)
+    
+    if (error) {
+      alert(error.message)
+    } else {
+      await loadShadowOptions()
+      if (promoted) {
+        alert(promotionMessage)
+        onClose() // Close modal and refresh poll
+      }
+    }
+  }
+
+  const handleVoteOthersWithShadow = async (shadowId) => {
+    if (!currentUser) return
+    
+    const { data, error } = await voteOthersWithShadow(currentUser.id, poll.id, shadowId, 50)
+    
+    if (error) {
+      alert(error.message)
+    } else {
+      onVote && onVote()
+      onClose()
+    }
+  }
+
+  const handleSupportSimilar = async () => {
+    if (similarShadow) {
+      await handleVoteShadow(similarShadow.id)
+      setSimilarShadow(null)
+      setSuggestionText('')
+    }
+  }
+
+  const getProgressPercentage = (shadow) => {
+    // Dynamic threshold based on poll size
+    const threshold = Math.max(3, Math.ceil(poll.totalVotes * 0.1))
+    return Math.min(100, Math.round((shadow.unique_voters / threshold) * 100))
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className={`modal others-modal ${darkMode ? 'dark' : ''}`} onClick={e => e.stopPropagation()}>
+        <button className="modal-close" onClick={onClose}>✕</button>
+        
+        <div className="others-modal-header">
+          <h2>💡 มุมมองที่ชุมชนกำลังพิจารณา</h2>
+          <p className="others-modal-subtitle">โหวตสนับสนุนมุมมองที่คุณเห็นด้วย หรือเสนอมุมมองใหม่</p>
+        </div>
+
+        <div className="others-modal-content">
+          {isLoading ? (
+            <div className="loading-spinner">กำลังโหลด...</div>
+          ) : shadowOptions.length === 0 ? (
+            <div className="no-shadows">
+              <p>ยังไม่มีมุมมองเพิ่มเติมในขณะนี้</p>
+              <p className="no-shadows-hint">เป็นคนแรกที่เสนอมุมมองใหม่!</p>
+            </div>
+          ) : (
+            <div className="shadow-options-list">
+              {shadowOptions.map((shadow) => (
+                <div key={shadow.id} className="shadow-option-card">
+                  <div className="shadow-option-text">{shadow.text}</div>
+                  <div className="shadow-option-status">
+                    <span className="shadow-status-label">กำลังถูกพิจารณาโดยชุมชน</span>
+                    <div className="shadow-progress-bar">
+                      <div 
+                        className="shadow-progress-fill" 
+                        style={{ width: `${getProgressPercentage(shadow)}%` }}
+                      />
+                    </div>
+                    <span className="shadow-progress-text">
+                      {shadow.unique_voters}/{Math.max(3, Math.ceil((poll.totalVotes || 0) * 0.1))} คนสนับสนุน
+                    </span>
+                  </div>
+                  <div className="shadow-option-actions">
+                    <button 
+                      className="btn-support-shadow"
+                      onClick={() => handleVoteShadow(shadow.id)}
+                      disabled={!currentUser?.email_verified}
+                    >
+                      👍 สนับสนุน
+                    </button>
+                    <button 
+                      className="btn-vote-shadow"
+                      onClick={() => handleVoteOthersWithShadow(shadow.id)}
+                      disabled={!currentUser}
+                    >
+                      ✓ โหวตเลือกนี้
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="suggestion-section">
+            {!showSuggestionForm ? (
+              <button 
+                className="btn-show-suggestion"
+                onClick={() => setShowSuggestionForm(true)}
+                disabled={!currentUser?.is_verified}
+              >
+                💡 เสนอมุมมองเพิ่มเติม
+              </button>
+            ) : (
+              <div className="suggestion-form">
+                <label>เสนอมุมมองของคุณ:</label>
+                <input
+                  type="text"
+                  value={suggestionText}
+                  onChange={(e) => handleSuggestionChange(e.target.value)}
+                  placeholder="พิมพ์คำตอบที่คุณต้องการเสนอ..."
+                  maxLength={100}
+                  className={suggestionError ? 'input-error' : ''}
+                />
+                
+                {suggestionError && (
+                  <div className="suggestion-error">
+                    <span>⚠️ {suggestionError}</span>
+                    {similarShadow && (
+                      <div className="similar-shadow-suggestion">
+                        <p>มีคนเสนอคำตอบคล้ายกันไว้แล้ว:</p>
+                        <div className="similar-shadow-card">
+                          <span>"{similarShadow.text}"</span>
+                          <span className="similar-shadow-progress">
+                            ({similarShadow.unique_voters}/3 คนสนับสนุน)
+                          </span>
+                        </div>
+                        <button 
+                          className="btn-support-similar"
+                          onClick={handleSupportSimilar}
+                        >
+                          สนับสนุนอันนี้แทน
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="suggestion-form-actions">
+                  <button 
+                    className="btn-cancel"
+                    onClick={() => {
+                      setShowSuggestionForm(false)
+                      setSuggestionText('')
+                      setSuggestionError('')
+                      setSimilarShadow(null)
+                    }}
+                  >
+                    ยกเลิก
+                  </button>
+                  <button 
+                    className="btn-submit-suggestion"
+                    onClick={handleSubmitSuggestion}
+                    disabled={isSubmitting || !!suggestionError || suggestionText.length < 2}
+                  >
+                    {isSubmitting ? 'กำลังส่ง...' : 'ยืนยัน'}
+                  </button>
+                </div>
+              </div>
+            )}
+            
+            {!currentUser?.is_verified && (
+              <p className="suggestion-requirement">
+                ต้องเป็น Verified user เพื่อเสนอมุมมองเพิ่มเติม
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ===== POLL EXTENSION INDICATOR =====
+// Shows on polls that have been extended
+
+function PollExtensionIndicator({ poll, darkMode }) {
+  const [showHistory, setShowHistory] = useState(false)
+  const [history, setHistory] = useState([])
+
+  const loadHistory = async () => {
+    const { data } = await getPollExtensionHistory(poll.id)
+    setHistory(data || [])
+  }
+
+  if (!poll.extended_at) return null
+
+  return (
+    <div className={`extension-indicator ${darkMode ? 'dark' : ''}`}>
+      <div 
+        className="extension-badge"
+        onClick={() => {
+          loadHistory()
+          setShowHistory(!showHistory)
+        }}
+      >
+        <span className="extension-icon">⏰</span>
+        <span className="extension-text">ขยายเวลาแล้ว</span>
+        <span className="extension-count">({poll.extension_count || 1}x)</span>
+      </div>
+      
+      {showHistory && history.length > 0 && (
+        <div className="extension-history-popup">
+          <h4>ประวัติการขยายเวลา</h4>
+          {history.map((ext, idx) => (
+            <div key={ext.id} className="extension-history-item">
+              <div className="ext-history-date">
+                {new Date(ext.extended_at).toLocaleDateString('th-TH', { 
+                  day: 'numeric', 
+                  month: 'short',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}
+              </div>
+              <div className="ext-history-reason">
+                <strong>เหตุผล:</strong> {ext.reason}
+              </div>
+              <div className="ext-history-by">
+                โดย: @{ext.users?.username || 'admin'}
+              </div>
+              {ext.was_expired && (
+                <span className="ext-was-expired">ขยายหลังหมดเวลา</span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ===== ADMIN: POLL EXTENSION MODAL =====
+
+function AdminExtendPollModal({ poll, adminId, darkMode, onClose, onExtended }) {
+  const [newEndDate, setNewEndDate] = useState('')
+  const [newEndTime, setNewEndTime] = useState('')
+  const [reason, setReason] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState('')
+
+  // Set default to tomorrow
+  useEffect(() => {
+    const tomorrow = new Date()
+    tomorrow.setDate(tomorrow.getDate() + 7)
+    setNewEndDate(tomorrow.toISOString().split('T')[0])
+    setNewEndTime('20:00')
+  }, [])
+
+  const handleSubmit = async () => {
+    if (!reason.trim()) {
+      setError('กรุณาระบุเหตุผลในการขยายเวลา')
+      return
+    }
+    
+    if (!newEndDate || !newEndTime) {
+      setError('กรุณาระบุวันเวลาสิ้นสุดใหม่')
+      return
+    }
+
+    setIsSubmitting(true)
+    setError('')
+
+    const newEndsAt = new Date(`${newEndDate}T${newEndTime}:00`)
+    
+    const { data, error: extError, notifiedCount } = await extendPollTime(
+      poll.id,
+      newEndsAt.toISOString(),
+      reason,
+      adminId
+    )
+
+    if (extError) {
+      setError(extError.message)
+      setIsSubmitting(false)
+    } else {
+      alert(`ขยายเวลาสำเร็จ! แจ้งเตือนผู้โหวต ${notifiedCount} คน`)
+      onExtended && onExtended(data)
+      onClose()
+    }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className={`modal admin-extend-modal ${darkMode ? 'dark' : ''}`} onClick={e => e.stopPropagation()}>
+        <button className="modal-close" onClick={onClose}>✕</button>
+        
+        <div className="admin-extend-header">
+          <h2>⏰ ขยายเวลาโพล</h2>
+          <p className="admin-extend-poll-question">"{poll.question}"</p>
+        </div>
+
+        <div className="admin-extend-content">
+          {/* Current status */}
+          <div className="extend-current-status">
+            <div className="status-row">
+              <span className="status-label">เวลาสิ้นสุดปัจจุบัน:</span>
+              <span className="status-value">
+                {new Date(poll.ends_at).toLocaleDateString('th-TH', {
+                  day: 'numeric',
+                  month: 'long',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}
+              </span>
+            </div>
+            {poll.original_ends_at && (
+              <div className="status-row">
+                <span className="status-label">เวลาสิ้นสุดเดิม:</span>
+                <span className="status-value original">
+                  {new Date(poll.original_ends_at).toLocaleDateString('th-TH', {
+                    day: 'numeric',
+                    month: 'long',
+                    year: 'numeric'
+                  })}
+                </span>
+              </div>
+            )}
+            <div className="status-row">
+              <span className="status-label">ขยายแล้ว:</span>
+              <span className="status-value">{poll.extension_count || 0} ครั้ง</span>
+            </div>
+            <div className="status-row">
+              <span className="status-label">สถานะ:</span>
+              <span className={`status-value ${new Date(poll.ends_at) < new Date() ? 'expired' : 'active'}`}>
+                {new Date(poll.ends_at) < new Date() ? '❌ หมดเวลาแล้ว' : '✓ ยังเปิดอยู่'}
+              </span>
+            </div>
+          </div>
+
+          {/* Warning for non-prediction polls */}
+          {poll.poll_type !== 'prediction' && (
+            <div className="extend-warning">
+              ⚠️ เฉพาะ Prediction polls เท่านั้นที่ขยายเวลาได้
+            </div>
+          )}
+
+          {/* New end time inputs */}
+          <div className="extend-form">
+            <div className="form-group">
+              <label>วันสิ้นสุดใหม่:</label>
+              <input
+                type="date"
+                value={newEndDate}
+                onChange={(e) => setNewEndDate(e.target.value)}
+                min={new Date().toISOString().split('T')[0]}
+              />
+            </div>
+            
+            <div className="form-group">
+              <label>เวลาสิ้นสุดใหม่:</label>
+              <input
+                type="time"
+                value={newEndTime}
+                onChange={(e) => setNewEndTime(e.target.value)}
+              />
+            </div>
+            
+            <div className="form-group">
+              <label>เหตุผลในการขยายเวลา: *</label>
+              <textarea
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="เช่น: รอผลการประกาศอย่างเป็นทางการ, เหตุการณ์ถูกเลื่อน..."
+                rows={3}
+              />
+              <p className="form-hint">
+                เหตุผลนี้จะแสดงให้ผู้ใช้ทุกคนเห็น และบันทึกใน audit log
+              </p>
+            </div>
+          </div>
+
+          {error && (
+            <div className="extend-error">
+              ⚠️ {error}
+            </div>
+          )}
+
+          {/* Preview of notification */}
+          <div className="extend-preview">
+            <h4>ตัวอย่างการแจ้งเตือน:</h4>
+            <div className="notification-preview">
+              ⏰ โพล "{poll.question?.substring(0, 40)}..." ถูกขยายเวลา เหตุผล: {reason || '[เหตุผลของคุณ]'}
+            </div>
+          </div>
+        </div>
+
+        <div className="admin-extend-actions">
+          <button className="btn-cancel" onClick={onClose}>
+            ยกเลิก
+          </button>
+          <button 
+            className="btn-extend"
+            onClick={handleSubmit}
+            disabled={isSubmitting || poll.poll_type !== 'prediction' || !reason.trim()}
+          >
+            {isSubmitting ? 'กำลังขยาย...' : '⏰ ขยายเวลา'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ===== OPINION POLL CARD COMPONENT =====
+// Modified PollCard that handles "อื่นๆ" specially
+
+function OpinionPollOption({ option, poll, isSelected, onVote, currentUser, darkMode }) {
+  const [showOthersModal, setShowOthersModal] = useState(false)
+  const isOthersOption = option.is_system && option.option_key === 'others'
+  
+  const totalVotes = poll.options?.reduce((sum, o) => sum + o.votes, 0) || 0
+  const percentage = totalVotes > 0 ? Math.round((option.votes / totalVotes) * 100) : 0
+
+  const handleClick = () => {
+    if (isOthersOption) {
+      setShowOthersModal(true)
+    } else {
+      onVote(option.id)
+    }
+  }
+
+  return (
+    <>
+      <div 
+        className={`poll-option opinion-option ${isSelected ? 'selected' : ''} ${isOthersOption ? 'others-option' : ''}`}
+        onClick={handleClick}
+      >
+        <div className="option-content">
+          <span className="option-text">
+            {isOthersOption && '💡 '}
+            {option.text}
+            {isOthersOption && poll.pendingShadowCount > 0 && (
+              <span className="shadow-count-badge">
+                {poll.pendingShadowCount} มุมมองรอพิจารณา
+              </span>
+            )}
+          </span>
+          {!poll.blind_mode && (
+            <span className="option-percentage">{percentage}%</span>
+          )}
+        </div>
+        {!poll.blind_mode && (
+          <div className="option-bar">
+            <div 
+              className="option-bar-fill" 
+              style={{ width: `${percentage}%` }}
+            />
+          </div>
+        )}
+        {isOthersOption && (
+          <span className="others-hint">คลิกเพื่อดูหรือเสนอมุมมองเพิ่มเติม</span>
+        )}
+      </div>
+
+      {showOthersModal && (
+        <OthersOptionsModal
+          poll={{ ...poll, totalVotes }}
+          currentUser={currentUser}
+          darkMode={darkMode}
+          onClose={() => setShowOthersModal(false)}
+          onVote={() => {
+            setShowOthersModal(false)
+            // Refresh poll data
+          }}
+        />
+      )}
+    </>
+  )
+}
+
+// ===== CREATE OPINION POLL MODAL ADDITION =====
+// Add poll_type selector to CreatePollModal
+
+function PollTypeSelector({ selectedType, onSelect, darkMode }) {
+  const pollTypes = [
+    { 
+      id: 'prediction', 
+      name: 'คิดว่าในอนาคต..', 
+      icon: '🔮', 
+      description: 'ทายผลเหตุการณ์ที่จะเกิดขึ้น มีคำตอบถูก/ผิด',
+      features: ['มีผลต่อ Reputation', 'Blind Mode อัตโนมัติ', 'ตัวเลือกตายตัว']
+    },
+    { 
+      id: 'opinion', 
+      name: 'ความคิดเห็น', 
+      icon: '💬', 
+      description: 'สำรวจความคิดเห็น ไม่มีคำตอบถูก/ผิด',
+      features: ['ไม่มีผลต่อ Reputation', 'เสนอตัวเลือกเพิ่มได้', 'เห็นผลทันที']
+    }
+  ]
+
+  return (
+    <div className={`poll-type-selector ${darkMode ? 'dark' : ''}`}>
+      <label>ประเภทโพล:</label>
+      <div className="poll-types-grid">
+        {pollTypes.map(type => (
+          <div 
+            key={type.id}
+            className={`poll-type-card ${selectedType === type.id ? 'selected' : ''}`}
+            onClick={() => onSelect(type.id)}
+          >
+            <div className="poll-type-header">
+              <span className="poll-type-icon">{type.icon}</span>
+              <span className="poll-type-name">{type.name}</span>
+            </div>
+            <p className="poll-type-description">{type.description}</p>
+            <ul className="poll-type-features">
+              {type.features.map((feature, idx) => (
+                <li key={idx}>{feature}</li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ===== EXPORT ALL NEW COMPONENTS =====
+// Add these exports to the end of page.js:
+/*
+export {
+  OthersOptionsModal,
+  PollExtensionIndicator,
+  AdminExtendPollModal,
+  OpinionPollOption,
+  PollTypeSelector,
+  CleanupHealthIndicator
+}
+*/
+
+// ===== ADMIN: CLEANUP HEALTH INDICATOR =====
+// Shows in Admin Dashboard - CRITICAL for ops monitoring
+
+function CleanupHealthIndicator({ darkMode }) {
+  const [health, setHealth] = useState(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [showDetails, setShowDetails] = useState(false)
+
+  useEffect(() => {
+    loadHealth()
+    // Refresh every 5 minutes
+    const interval = setInterval(loadHealth, 5 * 60 * 1000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const loadHealth = async () => {
+    setIsLoading(true)
+    const data = await getCleanupHealth()
+    setHealth(data)
+    setIsLoading(false)
+  }
+
+  if (isLoading) {
+    return (
+      <div className={`health-indicator loading ${darkMode ? 'dark' : ''}`}>
+        <span>⏳ Checking...</span>
+      </div>
+    )
+  }
+
+  const statusClass = health?.status === 'critical' ? 'critical' 
+    : health?.status === 'warning' ? 'warning' 
+    : 'ok'
+
+  return (
+    <div className={`health-indicator ${statusClass} ${darkMode ? 'dark' : ''}`}>
+      <div 
+        className="health-summary"
+        onClick={() => setShowDetails(!showDetails)}
+      >
+        <span className="health-icon">
+          {health?.status === 'critical' ? '🚨' : health?.status === 'warning' ? '⚠️' : '✅'}
+        </span>
+        <span className="health-label">Shadow Cleanup</span>
+        <span className="health-status">{health?.message}</span>
+      </div>
+
+      {showDetails && (
+        <div className="health-details">
+          <div className="health-row">
+            <span>Last successful run:</span>
+            <span>
+              {health?.lastSuccessfulRun 
+                ? new Date(health.lastSuccessfulRun).toLocaleString('th-TH')
+                : 'Never'}
+            </span>
+          </div>
+          <div className="health-row">
+            <span>Hours since last run:</span>
+            <span className={health?.hoursSinceLastRun > 24 ? 'text-red' : ''}>
+              {health?.hoursSinceLastRun || '∞'} ชม.
+            </span>
+          </div>
+          <div className="health-row">
+            <span>Pending shadows:</span>
+            <span>{health?.pendingShadowCount || 0}</span>
+          </div>
+          <div className="health-row">
+            <span>Last cleaned:</span>
+            <span>{health?.lastCleanedCount || 0} items</span>
+          </div>
+          {health?.lastFailedRun && (
+            <div className="health-row warning">
+              <span>⚠️ Last failure:</span>
+              <span>{new Date(health.lastFailedRun).toLocaleString('th-TH')}</span>
+            </div>
+          )}
+          <button 
+            className="btn-refresh-health"
+            onClick={(e) => { e.stopPropagation(); loadHealth(); }}
+          >
+            🔄 Refresh
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ===== ADMIN DASHBOARD SECTION =====
+// Add this to AdminPanel component
+
+function AdminSystemHealth({ darkMode }) {
+  return (
+    <div className={`admin-system-health ${darkMode ? 'dark' : ''}`}>
+      <h3>🖥️ System Health</h3>
+      <div className="health-grid">
+        <CleanupHealthIndicator darkMode={darkMode} />
+        {/* Add more health indicators here as needed */}
+      </div>
+    </div>
+  )
+}
