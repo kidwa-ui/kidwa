@@ -1236,3 +1236,1151 @@ export async function checkAndAwardCreatorPoints(pollId) {
 
   return { awarded: false }
 }
+// ============================================================
+// KIDWA: Opinion Poll & Admin Extension Functions
+// Add these functions to lib/supabase.js
+// ============================================================
+
+// ╔════════════════════════════════════════════════════════════╗
+// ║  INVARIANT: SHADOW/OPINION POLLS = NO REPUTATION IMPACT    ║
+// ╠════════════════════════════════════════════════════════════╣
+// ║  Shadow votes are "exploratory support" NOT "stance"       ║
+// ║  Opinion polls have no correct answer → no rep impact      ║
+// ║                                                            ║
+// ║  NEVER add reputation logic to:                            ║
+// ║  - voteForShadowOption()                                   ║
+// ║  - voteOthersWithShadow()                                  ║
+// ║  - suggestShadowOption()                                   ║
+// ║  - Any opinion poll resolution                             ║
+// ║                                                            ║
+// ║  Violation WILL cause:                                     ║
+// ║  - Reputation farming exploits                             ║
+// ║  - Distorted user incentives                               ║
+// ║  - Loss of opinion poll integrity                          ║
+// ║                                                            ║
+// ║  This invariant is ENFORCED in:                            ║
+// ║  - resolvePoll() runtime guard                             ║
+// ║  - Code review checklist                                   ║
+// ╚════════════════════════════════════════════════════════════╝
+
+// ===== OPINION POLL CONSTANTS =====
+
+const BLOCKED_SUGGESTIONS = [
+  'อื่นๆ', 'อื่น ๆ', 'other', 'others',
+  'ไม่แน่ใจ', 'ไม่รู้', 'not sure',
+  'แล้วแต่', 'แล้วแต่สถานการณ์', 'depends',
+  'ไม่มีความเห็น', 'no comment',
+  'ทั้งหมด', 'all of above', 'ทุกข้อ',
+  'ไม่มี', 'none', 'n/a'
+]
+
+const MIN_SUGGESTION_LENGTH = 2
+const MAX_SUGGESTION_LENGTH = 100
+const MAX_OFFICIAL_OPTIONS = 10
+const SHADOW_EXPIRY_HOURS = 72
+const MIN_PROMOTION_THRESHOLD = 3
+const PROMOTION_THRESHOLD_PERCENTAGE = 0.1 // 10%
+const MIN_TRUST_MULTIPLIER = 0.8
+
+// ===== TEXT NORMALIZATION & SIMILARITY =====
+
+function normalizeText(text) {
+  if (!text) return ''
+  return text
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim()
+    // Remove common Thai filler words at start
+    .replace(/^(ก็|คือ|แบบ|อันนี้|อันนั้น|คำตอบ)\s*/g, '')
+    // Remove punctuation
+    .replace(/[.,!?;:'"()[\]{}]/g, '')
+}
+
+function calculateLevenshteinDistance(str1, str2) {
+  const m = str1.length
+  const n = str2.length
+  
+  if (m === 0) return n
+  if (n === 0) return m
+  
+  const dp = Array(m + 1).fill(null).map(() => Array(n + 1).fill(0))
+  
+  for (let i = 0; i <= m; i++) dp[i][0] = i
+  for (let j = 0; j <= n; j++) dp[0][j] = j
+  
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      const cost = str1[i - 1] === str2[j - 1] ? 0 : 1
+      dp[i][j] = Math.min(
+        dp[i - 1][j] + 1,      // deletion
+        dp[i][j - 1] + 1,      // insertion
+        dp[i - 1][j - 1] + cost // substitution
+      )
+    }
+  }
+  
+  return dp[m][n]
+}
+
+function calculateSimilarity(str1, str2) {
+  const normalized1 = normalizeText(str1)
+  const normalized2 = normalizeText(str2)
+  
+  if (normalized1 === normalized2) return 1.0
+  if (!normalized1 || !normalized2) return 0.0
+  
+  const maxLength = Math.max(normalized1.length, normalized2.length)
+  const distance = calculateLevenshteinDistance(normalized1, normalized2)
+  
+  return 1 - (distance / maxLength)
+}
+
+// ===== TRUST WEIGHT CALCULATION =====
+
+export async function getUserTrustWeight(userId) {
+  const { data: user, error } = await supabase
+    .from('users')
+    .select('created_at, is_verified, total_predictions')
+    .eq('id', userId)
+    .single()
+  
+  if (error || !user) return 0.5
+  
+  let weight = 0.5 // base weight
+  
+  // Account age bonus
+  const daysSinceSignup = Math.floor((Date.now() - new Date(user.created_at).getTime()) / (1000 * 60 * 60 * 24))
+  if (daysSinceSignup >= 30) weight += 0.3
+  else if (daysSinceSignup >= 14) weight += 0.15
+  
+  // Verified bonus
+  if (user.is_verified) weight += 0.4
+  
+  // Vote history bonus
+  if (user.total_predictions >= 20) weight += 0.2
+  
+  // Max 1.4 per user
+  return Math.min(1.4, weight)
+}
+
+// ===== OPINION POLL CREATION =====
+
+export async function createOpinionPoll({ question, options, category, tags, endsAt, createdBy }) {
+  try {
+    // 1. Create poll with allow_suggestions = true
+    const { data: poll, error: pollError } = await supabase
+      .from('polls')
+      .insert([{ 
+        question, 
+        category, 
+        blind_mode: false, 
+        poll_type: 'opinion',
+        allow_suggestions: true,
+        ends_at: endsAt, 
+        created_by: createdBy, 
+        featured: false, 
+        resolved: false 
+      }])
+      .select()
+      .single()
+    
+    if (pollError) throw pollError
+
+    // 2. Create user-provided options
+    const optionsData = options.map(opt => ({ 
+      poll_id: poll.id, 
+      text: opt, 
+      votes: 0,
+      is_system: false,
+      option_key: null
+    }))
+    
+    // 3. Add system "อื่นๆ" option
+    optionsData.push({
+      poll_id: poll.id,
+      text: 'อื่นๆ',
+      votes: 0,
+      is_system: true,
+      option_key: 'others'
+    })
+    
+    const { error: optionsError } = await supabase.from('options').insert(optionsData)
+    if (optionsError) throw optionsError
+
+    // 4. Add tags
+    if (tags && tags.length > 0) {
+      const tagLinks = tags.map(tagId => ({ poll_id: poll.id, tag_id: tagId }))
+      await supabase.from('poll_tags').insert(tagLinks)
+    }
+
+    return { data: poll, error: null }
+  } catch (error) {
+    return { data: null, error }
+  }
+}
+
+// ===== SHADOW OPTION FUNCTIONS =====
+
+export async function checkSuggestionValidity(pollId, suggestionText, userId) {
+  const normalized = normalizeText(suggestionText)
+  
+  // 1. Check length
+  if (normalized.length < MIN_SUGGESTION_LENGTH) {
+    return { valid: false, error: 'คำตอบสั้นเกินไป' }
+  }
+  if (suggestionText.length > MAX_SUGGESTION_LENGTH) {
+    return { valid: false, error: 'คำตอบยาวเกินไป (ไม่เกิน 100 ตัวอักษร)' }
+  }
+  
+  // 2. Check blocklist
+  const isBlocked = BLOCKED_SUGGESTIONS.some(blocked => 
+    normalized.includes(normalizeText(blocked))
+  )
+  if (isBlocked) {
+    return { valid: false, error: 'คำตอบนี้กว้างเกินไป กรุณาระบุให้ชัดเจนกว่านี้' }
+  }
+  
+  // 3. Check user already suggested
+  const { data: existingSuggestion } = await supabase
+    .from('shadow_options')
+    .select('id')
+    .eq('poll_id', pollId)
+    .eq('suggested_by', userId)
+    .in('status', ['pending', 'promoted'])
+    .single()
+  
+  if (existingSuggestion) {
+    return { valid: false, error: 'คุณเคยเสนอมุมมองในโพลนี้แล้ว' }
+  }
+  
+  // 4. Check similarity with official options
+  const { data: officialOptions } = await supabase
+    .from('options')
+    .select('id, text')
+    .eq('poll_id', pollId)
+    .eq('is_system', false)
+  
+  for (const opt of officialOptions || []) {
+    const similarity = calculateSimilarity(suggestionText, opt.text)
+    if (similarity > 0.7) {
+      return { 
+        valid: false, 
+        error: `มีคำตอบคล้ายกันอยู่แล้ว: "${opt.text}"`,
+        similarOption: opt
+      }
+    }
+  }
+  
+  // 5. Check similarity with pending shadow options
+  const { data: shadowOptions } = await supabase
+    .from('shadow_options')
+    .select('id, text, unique_voters, trust_score')
+    .eq('poll_id', pollId)
+    .eq('status', 'pending')
+  
+  for (const shadow of shadowOptions || []) {
+    const similarity = calculateSimilarity(suggestionText, shadow.text)
+    if (similarity > 0.7) {
+      return { 
+        valid: false, 
+        error: `มีคนเสนอคำตอบคล้ายกันไว้แล้ว`,
+        similarShadow: shadow,
+        canSupport: true
+      }
+    }
+  }
+  
+  return { valid: true }
+}
+
+export async function suggestShadowOption(pollId, text, userId) {
+  // 1. Verify user is verified
+  const { data: user } = await supabase
+    .from('users')
+    .select('email_verified, is_verified')
+    .eq('id', userId)
+    .single()
+  
+  if (!user?.email_verified || !user?.is_verified) {
+    return { data: null, error: { message: 'ต้องเป็น Verified user เพื่อเสนอมุมมอง' } }
+  }
+  
+  // 2. Check poll allows suggestions
+  const { data: poll } = await supabase
+    .from('polls')
+    .select('allow_suggestions, poll_type, resolved, ends_at')
+    .eq('id', pollId)
+    .single()
+  
+  if (!poll?.allow_suggestions || poll.poll_type !== 'opinion') {
+    return { data: null, error: { message: 'โพลนี้ไม่รองรับการเสนอมุมมองเพิ่มเติม' } }
+  }
+  
+  if (poll.resolved) {
+    return { data: null, error: { message: 'โพลนี้จบแล้ว' } }
+  }
+  
+  // 3. Validate suggestion
+  const validation = await checkSuggestionValidity(pollId, text, userId)
+  if (!validation.valid) {
+    return { 
+      data: null, 
+      error: { message: validation.error },
+      similarOption: validation.similarOption,
+      similarShadow: validation.similarShadow,
+      canSupport: validation.canSupport
+    }
+  }
+  
+  // 4. Create shadow option
+  const { data: shadow, error } = await supabase
+    .from('shadow_options')
+    .insert([{
+      poll_id: pollId,
+      text: text.trim(),
+      suggested_by: userId,
+      status: 'pending',
+      normalized_text: normalizeText(text)
+    }])
+    .select()
+    .single()
+  
+  if (error) return { data: null, error }
+  
+  // 5. Auto-vote by suggester
+  const trustWeight = await getUserTrustWeight(userId)
+  await supabase
+    .from('shadow_votes')
+    .insert([{
+      shadow_option_id: shadow.id,
+      user_id: userId,
+      trust_weight: trustWeight
+    }])
+  
+  return { data: shadow, error: null }
+}
+
+export async function voteForShadowOption(shadowId, userId) {
+  // 1. Check user eligibility
+  const { data: user } = await supabase
+    .from('users')
+    .select('email_verified')
+    .eq('id', userId)
+    .single()
+  
+  if (!user?.email_verified) {
+    return { data: null, error: { message: 'ต้องยืนยันอีเมลก่อนโหวต' } }
+  }
+  
+  // 2. Check shadow option status
+  const { data: shadow } = await supabase
+    .from('shadow_options')
+    .select('status, poll_id')
+    .eq('id', shadowId)
+    .single()
+  
+  if (!shadow || shadow.status !== 'pending') {
+    return { data: null, error: { message: 'ไม่สามารถโหวตมุมมองนี้ได้' } }
+  }
+  
+  // 3. Check if already voted
+  const { data: existingVote } = await supabase
+    .from('shadow_votes')
+    .select('id')
+    .eq('shadow_option_id', shadowId)
+    .eq('user_id', userId)
+    .single()
+  
+  if (existingVote) {
+    return { data: null, error: { message: 'คุณสนับสนุนมุมมองนี้แล้ว' } }
+  }
+  
+  // 4. Create shadow vote
+  const trustWeight = await getUserTrustWeight(userId)
+  const { data: vote, error } = await supabase
+    .from('shadow_votes')
+    .insert([{
+      shadow_option_id: shadowId,
+      user_id: userId,
+      trust_weight: trustWeight
+    }])
+    .select()
+    .single()
+  
+  if (error) return { data: null, error }
+  
+  // 5. Check for promotion eligibility
+  const promotionCheck = await checkAndPromoteShadow(shadowId)
+  
+  return { 
+    data: vote, 
+    error: null,
+    promoted: promotionCheck.promoted,
+    promotionMessage: promotionCheck.message
+  }
+}
+
+export async function getShadowOptions(pollId) {
+  const { data, error } = await supabase
+    .from('shadow_options')
+    .select(`
+      id, text, status, unique_voters, trust_score, created_at,
+      suggested_by,
+      users:suggested_by (username)
+    `)
+    .eq('poll_id', pollId)
+    .eq('status', 'pending')
+    .order('trust_score', { ascending: false })
+  
+  return { data, error }
+}
+
+// ===== SHADOW PROMOTION LOGIC =====
+
+async function getPromotionThreshold(pollId) {
+  const { count } = await supabase
+    .from('votes')
+    .select('*', { count: 'exact', head: true })
+    .eq('poll_id', pollId)
+  
+  const totalVoters = count || 0
+  const dynamicThreshold = Math.ceil(totalVoters * PROMOTION_THRESHOLD_PERCENTAGE)
+  
+  return Math.max(MIN_PROMOTION_THRESHOLD, dynamicThreshold)
+}
+
+export async function checkAndPromoteShadow(shadowId) {
+  // 1. Get shadow data
+  const { data: shadow } = await supabase
+    .from('shadow_options')
+    .select('*, poll_id')
+    .eq('id', shadowId)
+    .single()
+  
+  if (!shadow || shadow.status !== 'pending') {
+    return { promoted: false, reason: 'Invalid shadow option' }
+  }
+  
+  // 2. Get threshold
+  const threshold = await getPromotionThreshold(shadow.poll_id)
+  const minTrustScore = threshold * MIN_TRUST_MULTIPLIER
+  
+  // 3. Check if meets requirements
+  if (shadow.unique_voters < threshold || shadow.trust_score < minTrustScore) {
+    return { 
+      promoted: false, 
+      reason: 'Not enough support',
+      progress: {
+        voters: shadow.unique_voters,
+        threshold,
+        trustScore: shadow.trust_score,
+        minTrustScore
+      }
+    }
+  }
+  
+  // 4. Check current option count
+  const { data: currentOptions } = await supabase
+    .from('options')
+    .select('id, text, votes')
+    .eq('poll_id', shadow.poll_id)
+    .eq('is_system', false)
+  
+  if (currentOptions.length >= MAX_OFFICIAL_OPTIONS) {
+    // Need to replace lowest voted option
+    const lowestOption = currentOptions.sort((a, b) => a.votes - b.votes)[0]
+    
+    // Get shadow vote count
+    const { count: shadowVotes } = await supabase
+      .from('votes')
+      .select('*', { count: 'exact', head: true })
+      .eq('shadow_option_id', shadowId)
+    
+    if ((shadowVotes || 0) <= lowestOption.votes) {
+      return { 
+        promoted: false, 
+        reason: `มุมมองนี้ยังมี votes น้อยกว่าตัวเลือกที่มีอยู่ (${lowestOption.votes} votes)`,
+        needsMoreVotes: true
+      }
+    }
+    
+    // Demote the lowest option
+    await demoteOption(lowestOption.id, shadow.poll_id)
+  }
+  
+  // 5. Promote!
+  return await promoteShadowToOfficial(shadowId)
+}
+
+async function promoteShadowToOfficial(shadowId) {
+  const { data: shadow } = await supabase
+    .from('shadow_options')
+    .select('*')
+    .eq('id', shadowId)
+    .single()
+  
+  if (!shadow) return { promoted: false, reason: 'Shadow not found' }
+  
+  // 1. Create new official option
+  const { data: newOption, error: optionError } = await supabase
+    .from('options')
+    .insert([{
+      poll_id: shadow.poll_id,
+      text: shadow.text,
+      votes: 0,
+      is_system: false,
+      option_key: null
+    }])
+    .select()
+    .single()
+  
+  if (optionError) return { promoted: false, reason: 'Failed to create option' }
+  
+  // 2. Transfer votes from "อื่นๆ" that pointed to this shadow
+  const { data: shadowVotes } = await supabase
+    .from('votes')
+    .select('id')
+    .eq('shadow_option_id', shadowId)
+  
+  if (shadowVotes && shadowVotes.length > 0) {
+    // Update votes to point to new official option
+    await supabase
+      .from('votes')
+      .update({ 
+        option_id: newOption.id, 
+        shadow_option_id: null 
+      })
+      .eq('shadow_option_id', shadowId)
+    
+    // Update vote count on new option
+    await supabase
+      .from('options')
+      .update({ votes: shadowVotes.length })
+      .eq('id', newOption.id)
+    
+    // Decrease "อื่นๆ" vote count
+    const { data: othersOption } = await supabase
+      .from('options')
+      .select('id, votes')
+      .eq('poll_id', shadow.poll_id)
+      .eq('option_key', 'others')
+      .single()
+    
+    if (othersOption) {
+      await supabase
+        .from('options')
+        .update({ votes: Math.max(0, othersOption.votes - shadowVotes.length) })
+        .eq('id', othersOption.id)
+    }
+  }
+  
+  // 3. Update shadow status
+  await supabase
+    .from('shadow_options')
+    .update({ 
+      status: 'promoted', 
+      promoted_at: new Date().toISOString(),
+      promoted_to_option_id: newOption.id
+    })
+    .eq('id', shadowId)
+  
+  // 4. Notify suggester
+  await createNotification({
+    userId: shadow.suggested_by,
+    type: 'shadow_promoted',
+    message: `🎉 มุมมองของคุณ "${shadow.text}" ได้รับการยอมรับจากชุมชนและกลายเป็นตัวเลือกหลักแล้ว`,
+    pollId: shadow.poll_id
+  })
+  
+  return { 
+    promoted: true, 
+    message: '🎉 มุมมองนี้ได้รับการยอมรับจากชุมชน และกลายเป็นตัวเลือกหลักแล้ว',
+    newOptionId: newOption.id
+  }
+}
+
+async function demoteOption(optionId, pollId) {
+  const { data: option } = await supabase
+    .from('options')
+    .select('id, text, votes')
+    .eq('id', optionId)
+    .single()
+  
+  if (!option) return
+  
+  // 1. Create shadow option from demoted
+  const { data: newShadow } = await supabase
+    .from('shadow_options')
+    .insert([{
+      poll_id: pollId,
+      text: option.text,
+      suggested_by: null, // System demoted
+      status: 'pending',
+      normalized_text: normalizeText(option.text)
+    }])
+    .select()
+    .single()
+  
+  // 2. Get "อื่นๆ" option
+  const { data: othersOption } = await supabase
+    .from('options')
+    .select('id, votes')
+    .eq('poll_id', pollId)
+    .eq('option_key', 'others')
+    .single()
+  
+  // 3. Transfer votes to "อื่นๆ" and point to new shadow
+  await supabase
+    .from('votes')
+    .update({ 
+      option_id: othersOption.id, 
+      shadow_option_id: newShadow?.id 
+    })
+    .eq('option_id', optionId)
+  
+  // 4. Update "อื่นๆ" vote count
+  if (othersOption) {
+    await supabase
+      .from('options')
+      .update({ votes: othersOption.votes + option.votes })
+      .eq('id', othersOption.id)
+  }
+  
+  // 5. Delete old option
+  await supabase
+    .from('options')
+    .delete()
+    .eq('id', optionId)
+  
+  // 6. Notify affected voters
+  const { data: affectedVotes } = await supabase
+    .from('votes')
+    .select('user_id')
+    .eq('shadow_option_id', newShadow?.id)
+  
+  for (const vote of affectedVotes || []) {
+    await createNotification({
+      userId: vote.user_id,
+      type: 'option_demoted',
+      message: `ตัวเลือก "${option.text}" ถูกย้ายไป "อื่นๆ" เนื่องจากมีมุมมองใหม่ที่ได้รับความนิยมมากกว่า คุณสามารถเปลี่ยน vote ได้ถ้าต้องการ`,
+      pollId: pollId
+    })
+  }
+}
+
+// ===== VOTE FOR "อื่นๆ" WITH SHADOW =====
+
+export async function voteOthersWithShadow(userId, pollId, shadowOptionId, confidence = 50) {
+  // 1. Get "อื่นๆ" option
+  const { data: othersOption } = await supabase
+    .from('options')
+    .select('id')
+    .eq('poll_id', pollId)
+    .eq('option_key', 'others')
+    .single()
+  
+  if (!othersOption) {
+    return { data: null, error: { message: 'ไม่พบตัวเลือก "อื่นๆ"' } }
+  }
+  
+  // 2. Verify shadow option exists and is pending
+  if (shadowOptionId) {
+    const { data: shadow } = await supabase
+      .from('shadow_options')
+      .select('status, poll_id')
+      .eq('id', shadowOptionId)
+      .single()
+    
+    if (!shadow || shadow.status !== 'pending' || shadow.poll_id !== pollId) {
+      return { data: null, error: { message: 'มุมมองนี้ไม่พร้อมให้โหวต' } }
+    }
+  }
+  
+  // 3. Cast vote using existing vote function logic
+  const { data: poll } = await supabase
+    .from('polls')
+    .select('ends_at, resolved')
+    .eq('id', pollId)
+    .single()
+  
+  if (!poll) return { data: null, error: { message: 'ไม่พบโพลนี้' } }
+  if (new Date() > new Date(poll.ends_at)) return { data: null, error: { message: 'โพลนี้หมดเวลาแล้ว' } }
+  if (poll.resolved) return { data: null, error: { message: 'โพลนี้ถูกเฉลยแล้ว' } }
+  
+  // 4. Check existing vote
+  const { data: existingVote } = await supabase
+    .from('votes')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('poll_id', pollId)
+    .single()
+  
+  if (existingVote) {
+    // Update existing vote
+    const { data, error } = await supabase
+      .from('votes')
+      .update({ 
+        option_id: othersOption.id, 
+        shadow_option_id: shadowOptionId,
+        confidence, 
+        updated_at: new Date().toISOString() 
+      })
+      .eq('id', existingVote.id)
+      .select()
+      .single()
+    
+    return { data, error, isUpdate: true }
+  } else {
+    // Create new vote
+    const { data, error } = await supabase
+      .from('votes')
+      .insert([{ 
+        user_id: userId, 
+        poll_id: pollId, 
+        option_id: othersOption.id, 
+        shadow_option_id: shadowOptionId,
+        confidence 
+      }])
+      .select()
+      .single()
+    
+    return { data, error, isUpdate: false }
+  }
+}
+
+// ===== SHADOW EXPIRY CLEANUP =====
+// Use cleanupExpiredShadowsWithLogging() instead - see CLEANUP CRON section above
+
+// Legacy alias for backward compatibility
+export const cleanupExpiredShadows = cleanupExpiredShadowsWithLogging
+
+// ===== ADMIN: POLL TIME EXTENSION =====
+
+export async function extendPollTime(pollId, newEndsAt, reason, adminId) {
+  // 1. Verify admin
+  const { data: admin } = await supabase
+    .from('users')
+    .select('is_admin')
+    .eq('id', adminId)
+    .single()
+  
+  if (!admin?.is_admin) {
+    return { data: null, error: { message: 'Unauthorized: Admin access required' } }
+  }
+  
+  // 2. Get poll data
+  const { data: poll, error: pollError } = await supabase
+    .from('polls')
+    .select('*')
+    .eq('id', pollId)
+    .single()
+  
+  if (pollError || !poll) {
+    return { data: null, error: { message: 'Poll not found' } }
+  }
+  
+  // 3. Validate poll type (only prediction allowed)
+  if (poll.poll_type !== 'prediction') {
+    return { 
+      data: null, 
+      error: { message: 'เฉพาะ Prediction polls เท่านั้นที่ขยายเวลาได้ Live Battle และ Time Capsule ไม่สามารถแก้ไขเวลาได้' } 
+    }
+  }
+  
+  // 4. Check if already resolved
+  if (poll.resolved) {
+    return { data: null, error: { message: 'ไม่สามารถขยายเวลาโพลที่ resolved แล้ว' } }
+  }
+  
+  // 5. Validate new end time
+  if (new Date(newEndsAt) <= new Date()) {
+    return { data: null, error: { message: 'วันเวลาสิ้นสุดใหม่ต้องอยู่ในอนาคต' } }
+  }
+  
+  // 6. Store original_ends_at if first extension
+  const originalEndsAt = poll.original_ends_at || poll.ends_at
+  
+  // 7. Get vote count for audit
+  const { count: totalVotes } = await supabase
+    .from('votes')
+    .select('*', { count: 'exact', head: true })
+    .eq('poll_id', pollId)
+  
+  // 8. Update poll
+  const { data: updatedPoll, error: updateError } = await supabase
+    .from('polls')
+    .update({
+      ends_at: newEndsAt,
+      original_ends_at: originalEndsAt,
+      extended_at: new Date().toISOString(),
+      extended_by: adminId,
+      extension_reason: reason,
+      extension_count: (poll.extension_count || 0) + 1
+    })
+    .eq('id', pollId)
+    .select()
+    .single()
+  
+  if (updateError) return { data: null, error: updateError }
+  
+  // 9. Create audit log entry
+  await supabase
+    .from('poll_extensions')
+    .insert([{
+      poll_id: pollId,
+      admin_id: adminId,
+      original_ends_at: originalEndsAt,
+      new_ends_at: newEndsAt,
+      reason: reason,
+      poll_type: poll.poll_type,
+      poll_question: poll.question?.substring(0, 200),
+      total_votes_at_extension: totalVotes || 0,
+      was_expired: new Date(poll.ends_at) < new Date()
+    }])
+  
+  // 10. Log admin action
+  await logAdminAction(adminId, 'extend_poll', 'poll', pollId, {
+    original_ends_at: originalEndsAt,
+    new_ends_at: newEndsAt,
+    reason: reason,
+    extension_count: (poll.extension_count || 0) + 1,
+    was_expired: new Date(poll.ends_at) < new Date()
+  })
+  
+  // 11. Notify all voters
+  const { data: voters } = await supabase
+    .from('votes')
+    .select('user_id')
+    .eq('poll_id', pollId)
+  
+  const uniqueVoterIds = [...new Set(voters?.map(v => v.user_id) || [])]
+  
+  for (const voterId of uniqueVoterIds) {
+    await createNotification({
+      userId: voterId,
+      type: 'poll_extended',
+      message: `⏰ โพล "${poll.question?.substring(0, 40)}..." ถูกขยายเวลา เหตุผล: ${reason}`,
+      pollId: pollId
+    })
+  }
+  
+  return { 
+    data: updatedPoll, 
+    error: null,
+    notifiedCount: uniqueVoterIds.length
+  }
+}
+
+// ===== ADMIN: GET POLL EXTENSION HISTORY =====
+
+export async function getPollExtensionHistory(pollId) {
+  const { data, error } = await supabase
+    .from('poll_extensions')
+    .select(`
+      id,
+      original_ends_at,
+      new_ends_at,
+      extended_at,
+      reason,
+      total_votes_at_extension,
+      was_expired,
+      users:admin_id (username)
+    `)
+    .eq('poll_id', pollId)
+    .order('extended_at', { ascending: false })
+  
+  return { data, error }
+}
+
+// ===== INVARIANT GUARD: OPINION POLL RESOLUTION =====
+// This function MUST be called before resolving any poll
+// to enforce the NO_REP invariant for opinion polls
+
+export function assertNotOpinionPoll(poll, operation) {
+  if (poll?.poll_type === 'opinion') {
+    console.error(`[INVARIANT VIOLATION] Attempted ${operation} on opinion poll ${poll.id}`)
+    throw new Error(`INVARIANT: Opinion polls cannot have ${operation}. They have no correct answer.`)
+  }
+}
+
+// Wrapper for resolvePoll that enforces invariant
+export async function safeResolvePoll(pollId, correctOptionId, adminId = null) {
+  // 1. Fetch poll to check type
+  const { data: poll } = await supabase
+    .from('polls')
+    .select('id, poll_type, question')
+    .eq('id', pollId)
+    .single()
+  
+  // 2. INVARIANT CHECK: Opinion polls cannot be "resolved" with correct answer
+  if (poll?.poll_type === 'opinion') {
+    console.warn(`[INVARIANT] Blocking resolution attempt on opinion poll: ${pollId}`)
+    return { 
+      error: { 
+        message: 'Opinion polls ไม่มีคำตอบถูก/ผิด จึงไม่สามารถ resolve แบบปกติได้',
+        code: 'OPINION_NO_RESOLUTION'
+      },
+      invariantBlocked: true
+    }
+  }
+  
+  // 3. Safe to proceed with normal resolution
+  // Import and call the original resolvePoll from main supabase.js
+  // return await resolvePoll(pollId, correctOptionId, adminId)
+  
+  // Note: This is a wrapper - integrate with existing resolvePoll
+  return { proceedWithResolution: true, pollType: poll?.poll_type }
+}
+
+// Close opinion poll without reputation impact
+export async function closeOpinionPoll(pollId, adminId = null) {
+  const { data: poll } = await supabase
+    .from('polls')
+    .select('poll_type, question')
+    .eq('id', pollId)
+    .single()
+  
+  // Only allow for opinion polls
+  if (poll?.poll_type !== 'opinion') {
+    return { error: { message: 'Use resolvePoll() for non-opinion polls' } }
+  }
+  
+  // Simply mark as resolved without correct_option_id
+  // NO reputation changes - this is the invariant
+  const { error } = await supabase
+    .from('polls')
+    .update({ 
+      resolved: true, 
+      resolved_at: new Date().toISOString(),
+      // correct_option_id intentionally NULL for opinion polls
+    })
+    .eq('id', pollId)
+  
+  if (adminId) {
+    await logAdminAction(adminId, 'close_opinion_poll', 'poll', pollId, {
+      question: poll?.question?.substring(0, 100),
+      note: 'Opinion poll closed - NO reputation impact (invariant)'
+    })
+  }
+  
+  console.log(`[INVARIANT OK] Opinion poll ${pollId} closed without rep impact`)
+  
+  return { error, reputationImpact: false }
+}
+
+// ===== CLEANUP CRON WITH OBSERVABILITY =====
+// CRITICAL INFRASTRUCTURE - Monitor this!
+
+export async function logCleanupEvent({ jobId, event, cleanedCount, errors, durationMs, errorMessage }) {
+  try {
+    await supabase
+      .from('cleanup_logs')
+      .insert([{
+        job_id: jobId,
+        event,
+        cleaned_count: cleanedCount,
+        errors: errors ? JSON.stringify(errors) : null,
+        duration_ms: durationMs,
+        error_message: errorMessage,
+        timestamp: new Date().toISOString()
+      }])
+  } catch (e) {
+    // Fallback: at minimum log to console
+    console.error('[CLEANUP LOG FAILED]', e, { jobId, event })
+  }
+}
+
+export async function cleanupExpiredShadowsWithLogging() {
+  const startTime = Date.now()
+  const jobId = crypto.randomUUID ? crypto.randomUUID() : `job-${Date.now()}`
+  
+  // 1. Log start
+  await logCleanupEvent({ jobId, event: 'started' })
+  console.log(`[CLEANUP] Job ${jobId} started`)
+  
+  try {
+    // 2. Do actual cleanup
+    const expiryTime = new Date(Date.now() - SHADOW_EXPIRY_HOURS * 60 * 60 * 1000)
+    
+    const { data: expiredShadows, error: fetchError } = await supabase
+      .from('shadow_options')
+      .select('id, poll_id, text, suggested_by')
+      .eq('status', 'pending')
+      .lt('created_at', expiryTime.toISOString())
+    
+    if (fetchError) throw fetchError
+    
+    let cleanedCount = 0
+    const errors = []
+    
+    for (const shadow of expiredShadows || []) {
+      try {
+        // Update status to expired
+        await supabase
+          .from('shadow_options')
+          .update({ 
+            status: 'expired',
+            expired_at: new Date().toISOString()
+          })
+          .eq('id', shadow.id)
+        
+        // Clear shadow_option_id from votes
+        await supabase
+          .from('votes')
+          .update({ shadow_option_id: null })
+          .eq('shadow_option_id', shadow.id)
+        
+        // Notify suggester
+        if (shadow.suggested_by) {
+          await createNotification({
+            userId: shadow.suggested_by,
+            type: 'shadow_expired',
+            message: `มุมมอง "${shadow.text}" ไม่ได้รับการสนับสนุนเพียงพอภายใน 72 ชม.`,
+            pollId: shadow.poll_id
+          })
+        }
+        
+        cleanedCount++
+      } catch (itemError) {
+        errors.push({ shadowId: shadow.id, error: itemError.message })
+      }
+    }
+    
+    // 3. Log success
+    const durationMs = Date.now() - startTime
+    await logCleanupEvent({ 
+      jobId, 
+      event: 'completed', 
+      cleanedCount, 
+      errors: errors.length > 0 ? errors : null,
+      durationMs 
+    })
+    
+    console.log(`[CLEANUP] Job ${jobId} completed: ${cleanedCount} shadows cleaned in ${durationMs}ms`)
+    
+    return { 
+      success: true, 
+      jobId,
+      cleaned: cleanedCount, 
+      errors: errors.length > 0 ? errors : null,
+      durationMs
+    }
+    
+  } catch (error) {
+    // 4. Log failure (CRITICAL!)
+    const durationMs = Date.now() - startTime
+    await logCleanupEvent({ 
+      jobId, 
+      event: 'failed', 
+      errorMessage: error.message,
+      durationMs
+    })
+    
+    console.error(`[CLEANUP FAILED] Job ${jobId}: ${error.message}`)
+    
+    // Note: In production, add alerting here (webhook, email, etc.)
+    // await sendAlert({ type: 'CLEANUP_FAILED', message: error.message })
+    
+    return { 
+      success: false, 
+      jobId,
+      error: error.message,
+      durationMs
+    }
+  }
+}
+
+// Health check for cleanup cron
+export async function getCleanupHealth() {
+  const { data: lastRun } = await supabase
+    .from('cleanup_logs')
+    .select('*')
+    .eq('event', 'completed')
+    .order('timestamp', { ascending: false })
+    .limit(1)
+    .single()
+  
+  const { data: lastFailed } = await supabase
+    .from('cleanup_logs')
+    .select('*')
+    .eq('event', 'failed')
+    .order('timestamp', { ascending: false })
+    .limit(1)
+    .single()
+  
+  const { count: pendingShadows } = await supabase
+    .from('shadow_options')
+    .select('*', { count: 'exact', head: true })
+    .eq('status', 'pending')
+  
+  const hoursSinceLastRun = lastRun 
+    ? (Date.now() - new Date(lastRun.timestamp).getTime()) / (1000 * 60 * 60)
+    : Infinity
+  
+  const isHealthy = hoursSinceLastRun < 24
+  const needsAttention = hoursSinceLastRun > 12
+  const isCritical = hoursSinceLastRun > 24
+  
+  return {
+    healthy: isHealthy,
+    status: isCritical ? 'critical' : needsAttention ? 'warning' : 'ok',
+    lastSuccessfulRun: lastRun?.timestamp || null,
+    lastFailedRun: lastFailed?.timestamp || null,
+    hoursSinceLastRun: Math.round(hoursSinceLastRun * 10) / 10,
+    pendingShadowCount: pendingShadows || 0,
+    lastCleanedCount: lastRun?.cleaned_count || 0,
+    alert: isCritical,
+    message: isCritical 
+      ? '🚨 Cleanup has not run for 24+ hours!' 
+      : needsAttention 
+        ? '⚠️ Cleanup running behind schedule'
+        : '✅ Cleanup healthy'
+  }
+}
+
+// ===== GET OPINION POLLS =====
+
+export async function getOpinionPolls(limit = 20) {
+  const { data: polls, error } = await supabase
+    .from('polls')
+    .select('*, options(*)')
+    .eq('poll_type', 'opinion')
+    .eq('resolved', false)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  
+  if (error || !polls) return { data: polls, error }
+  
+  // Fetch tags
+  const pollIds = polls.map(p => p.id)
+  const { data: pollTags } = await supabase
+    .from('poll_tags')
+    .select('poll_id, tags(id, name)')
+    .in('poll_id', pollIds)
+  
+  const pollTagsMap = {}
+  pollTags?.forEach(pt => {
+    if (!pollTagsMap[pt.poll_id]) pollTagsMap[pt.poll_id] = []
+    if (pt.tags) pollTagsMap[pt.poll_id].push(pt.tags)
+  })
+  
+  // Fetch shadow options count for each poll
+  const { data: shadowCounts } = await supabase
+    .from('shadow_options')
+    .select('poll_id')
+    .in('poll_id', pollIds)
+    .eq('status', 'pending')
+  
+  const shadowCountMap = {}
+  shadowCounts?.forEach(s => {
+    shadowCountMap[s.poll_id] = (shadowCountMap[s.poll_id] || 0) + 1
+  })
+  
+  const pollsWithExtras = polls.map(poll => ({
+    ...poll,
+    tags: pollTagsMap[poll.id] || [],
+    pendingShadowCount: shadowCountMap[poll.id] || 0
+  }))
+  
+  return { data: pollsWithExtras, error: null }
+}
