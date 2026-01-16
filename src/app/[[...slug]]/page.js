@@ -3865,3 +3865,406 @@ function AdminSystemHealth({ darkMode }) {
     </div>
   )
 }
+// ============================================================
+// KIDWA: Leaderboard Update & About Us Page
+// Apply these changes to app/page.js
+// ============================================================
+
+// ===== 1. REMOVE SEASONAL FROM LEADERBOARD MODAL =====
+// Replace the entire LeaderboardModal function with this:
+
+function LeaderboardModal({ onClose, darkMode, currentUser, onViewProfile }) {
+  const [activeTab, setActiveTab] = useState('weekly') // Changed default from 'seasonal' to 'weekly'
+  const [leaderboard, setLeaderboard] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => { loadLeaderboard() }, [activeTab])
+
+  const loadLeaderboard = async () => {
+    setIsLoading(true)
+    let data = []
+    if (activeTab === 'weekly') {
+      const result = await getWeeklyLeaderboard(20)
+      data = result.data || []
+    } else if (activeTab === 'monthly') {
+      const result = await getMonthlyLeaderboard(20)
+      data = result.data || []
+    } else {
+      // alltime
+      const result = await getLeaderboard(20)
+      data = result.data || []
+    }
+    setLeaderboard(data)
+    setIsLoading(false)
+  }
+
+  const getRankIcon = (index) => {
+    if (index === 0) return '🥇'
+    if (index === 1) return '🥈'
+    if (index === 2) return '🥉'
+    return `${index + 1}`
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className={`modal leaderboard-modal ${darkMode ? 'dark' : ''}`} onClick={e => e.stopPropagation()}>
+        <button className="modal-close" onClick={onClose}>✕</button>
+        <div className="leaderboard-modal-header">
+          <h2>🏆 อันดับ Leaderboard</h2>
+          <p>ผู้ใช้ที่มี Reputation สูงสุด</p>
+        </div>
+        
+        {/* REMOVED: seasonal tab */}
+        <div className="leaderboard-tabs-full">
+          <button className={`lb-tab ${activeTab === 'weekly' ? 'active' : ''}`} onClick={() => setActiveTab('weekly')}>
+            ⚡ รายสัปดาห์
+          </button>
+          <button className={`lb-tab ${activeTab === 'monthly' ? 'active' : ''}`} onClick={() => setActiveTab('monthly')}>
+            📅 รายเดือน
+          </button>
+          <button className={`lb-tab ${activeTab === 'alltime' ? 'active' : ''}`} onClick={() => setActiveTab('alltime')}>
+            👑 ตลอดกาล
+          </button>
+        </div>
+        
+        {/* Updated period info - Rolling windows, not resets */}
+        <div className="leaderboard-period-info">
+          {activeTab === 'weekly' && <span>ความคมชัดล่าสุด · Rolling 7 วัน</span>}
+          {activeTab === 'monthly' && <span>ความสม่ำเสมอ · Rolling 30 วัน</span>}
+          {activeTab === 'alltime' && <span>ชื่อเสียงสะสม · ตั้งแต่เริ่มใช้งาน</span>}
+        </div>
+        
+        <div className="leaderboard-list-full">
+          {isLoading ? (
+            <div className="leaderboard-loading">⏳ กำลังโหลด...</div>
+          ) : leaderboard.length === 0 ? (
+            <div className="leaderboard-empty">ยังไม่มีข้อมูล</div>
+          ) : (
+            leaderboard.map((item, i) => (
+              <div 
+                key={item.id} 
+                className={`leaderboard-item-full ${currentUser?.id === item.id ? 'current-user' : ''}`}
+                onClick={() => { onViewProfile(item.id); onClose() }}
+              >
+                <div className="lb-rank">{getRankIcon(i)}</div>
+                <div className="lb-avatar">
+                  {item.avatar_url ? (
+                    <img src={item.avatar_url} alt={item.username} />
+                  ) : (
+                    item.username[0].toUpperCase()
+                  )}
+                </div>
+                <div className="lb-info">
+                  <span className="lb-username">
+                    {item.username}
+                    {item.is_verified && <span className="verified-badge"><svg viewBox="0 0 24 24" className="verified-check"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg></span>}
+                  </span>
+                  <span className="lb-stats">{item.correct_predictions || 0}/{item.total_predictions || 0} แม่น</span>
+                </div>
+                <div className="lb-points">
+                  <span className="lb-badge">{getReputationLevel(item.reputation).badge}</span>
+                  <span className="lb-rep">
+                    {activeTab === 'weekly' && item.weeklyPoints ? `+${item.weeklyPoints}` : 
+                     activeTab === 'monthly' && item.monthlyPoints ? `+${item.monthlyPoints}` :
+                     item.reputation?.toLocaleString()} pt
+                  </span>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ===== 2. ABOUT US MODAL (Modern & Cool Design) =====
+
+function AboutUsModal({ onClose, darkMode }) {
+  const [activeSection, setActiveSection] = useState('what')
+  
+  const sections = [
+    { id: 'what', icon: '🎯', label: 'คืออะไร' },
+    { id: 'polls', icon: '📊', label: 'ประเภทโพล' },
+    { id: 'rep', icon: '⭐', label: 'คะแนน' },
+    { id: 'rank', icon: '🏆', label: 'อันดับ' },
+  ]
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className={`modal about-modal ${darkMode ? 'dark' : ''}`} onClick={e => e.stopPropagation()}>
+        <button className="modal-close" onClick={onClose}>✕</button>
+        
+        {/* Hero Section */}
+        <div className="about-hero">
+          <div className="about-logo">
+            <span className="about-logo-text">คิดว่า</span>
+            <span className="about-logo-dots">..</span>
+          </div>
+          <p className="about-tagline">ไม่ใช่แค่โหวต แต่คือการพิสูจน์ว่าคุณมองเห็นอนาคต</p>
+        </div>
+
+        {/* Tab Navigation */}
+        <div className="about-tabs">
+          {sections.map(s => (
+            <button 
+              key={s.id}
+              className={`about-tab ${activeSection === s.id ? 'active' : ''}`}
+              onClick={() => setActiveSection(s.id)}
+            >
+              <span className="about-tab-icon">{s.icon}</span>
+              <span className="about-tab-label">{s.label}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Content Sections */}
+        <div className="about-content">
+          
+          {/* Section: What is Kidwa */}
+          {activeSection === 'what' && (
+            <div className="about-section animate-fade">
+              <div className="about-card highlight">
+                <h3>Kidwa ต่างจากโพลทั่วไปอย่างไร?</h3>
+                <div className="comparison-visual">
+                  <div className="compare-item old">
+                    <span className="compare-icon">📋</span>
+                    <span className="compare-label">โพลทั่วไป</span>
+                    <span className="compare-desc">โหวต → จบ</span>
+                  </div>
+                  <div className="compare-arrow">→</div>
+                  <div className="compare-item new">
+                    <span className="compare-icon">🎯</span>
+                    <span className="compare-label">Kidwa</span>
+                    <span className="compare-desc">โหวต → รอผล → ได้/เสียคะแนน</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="about-grid">
+                <div className="about-mini-card">
+                  <span className="mini-icon">🔮</span>
+                  <h4>ทำนาย</h4>
+                  <p>ใช้วิจารณญาณทำนายเหตุการณ์ในอนาคต</p>
+                </div>
+                <div className="about-mini-card">
+                  <span className="mini-icon">⏳</span>
+                  <h4>รอผล</h4>
+                  <p>เมื่อถึงเวลา ระบบจะเฉลยคำตอบที่ถูกต้อง</p>
+                </div>
+                <div className="about-mini-card">
+                  <span className="mini-icon">📈</span>
+                  <h4>สะสม</h4>
+                  <p>ทายถูกได้คะแนน ทายผิดเสียคะแนน</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Section: Poll Types */}
+          {activeSection === 'polls' && (
+            <div className="about-section animate-fade">
+              <div className="poll-types-showcase">
+                
+                <div className="poll-type-showcase-card prediction">
+                  <div className="ptc-header">
+                    <span className="ptc-icon">🔮</span>
+                    <h4>Prediction</h4>
+                    <span className="ptc-badge rep">มีผล Rep</span>
+                  </div>
+                  <p>ทายผลเหตุการณ์ในอนาคต เช่น ผลเลือกตั้ง, ผลกีฬา</p>
+                  <div className="ptc-features">
+                    <span>✓ มีคำตอบถูก/ผิด</span>
+                    <span>✓ Blind Mode</span>
+                    <span>✓ ได้/เสีย Reputation</span>
+                  </div>
+                </div>
+
+                <div className="poll-type-showcase-card opinion">
+                  <div className="ptc-header">
+                    <span className="ptc-icon">💬</span>
+                    <h4>Opinion</h4>
+                    <span className="ptc-badge no-rep">ไม่มีผล Rep</span>
+                  </div>
+                  <p>สำรวจความคิดเห็น ไม่มีถูก/ผิด</p>
+                  <div className="ptc-features">
+                    <span>✓ เสนอตัวเลือกเพิ่มได้</span>
+                    <span>✓ เห็นผลทันที</span>
+                    <span>✓ ไม่มีผลต่อคะแนน</span>
+                  </div>
+                </div>
+
+                <div className="poll-type-showcase-card live">
+                  <div className="ptc-header">
+                    <span className="ptc-icon">⚡</span>
+                    <h4>Live Battle</h4>
+                    <span className="ptc-badge live-badge">Real-time</span>
+                  </div>
+                  <p>โหวตสดๆ ดูผลเปลี่ยนแปลงแบบ real-time</p>
+                  <div className="ptc-features">
+                    <span>✓ Countdown timer</span>
+                    <span>✓ ดูผลสดๆ</span>
+                    <span>✓ ระยะสั้น</span>
+                  </div>
+                </div>
+
+                <div className="poll-type-showcase-card capsule">
+                  <div className="ptc-header">
+                    <span className="ptc-icon">💊</span>
+                    <h4>Time Capsule</h4>
+                    <span className="ptc-badge capsule-badge">Long-term</span>
+                  </div>
+                  <p>ทำนายอนาคตระยะยาว เป็นปีๆ</p>
+                  <div className="ptc-features">
+                    <span>✓ Blind จนกว่าจะถึงเวลา</span>
+                    <span>✓ ระยะยาว 1+ ปี</span>
+                    <span>✓ ทดสอบวิสัยทัศน์</span>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          )}
+
+          {/* Section: Reputation */}
+          {activeSection === 'rep' && (
+            <div className="about-section animate-fade">
+              <div className="about-card">
+                <h3>ระบบคะแนน Reputation</h3>
+                <p className="about-card-desc">คะแนนสะท้อนความแม่นยำในการวิเคราะห์ของคุณ</p>
+                
+                <div className="rep-formula">
+                  <div className="formula-box">
+                    <span className="formula-label">เริ่มต้น</span>
+                    <span className="formula-value">1,000 pt</span>
+                  </div>
+                  <div className="formula-op">+</div>
+                  <div className="formula-box correct">
+                    <span className="formula-label">ทายถูก</span>
+                    <span className="formula-value">+คะแนน</span>
+                  </div>
+                  <div className="formula-op">-</div>
+                  <div className="formula-box wrong">
+                    <span className="formula-label">ทายผิด</span>
+                    <span className="formula-value">-คะแนน</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="conviction-showcase">
+                <h4>Conviction Level</h4>
+                <p>ยิ่งมั่นใจมาก ยิ่งได้/เสียมาก</p>
+                <div className="conviction-levels">
+                  <div className="conviction-level low">
+                    <span className="conv-emoji">🥶</span>
+                    <span className="conv-name">ไม่ค่อยมั่นใจ</span>
+                    <span className="conv-multiplier">×0.8</span>
+                  </div>
+                  <div className="conviction-level medium">
+                    <span className="conv-emoji">🥺</span>
+                    <span className="conv-name">โหวตเลย</span>
+                    <span className="conv-multiplier">×1.0</span>
+                  </div>
+                  <div className="conviction-level high">
+                    <span className="conv-emoji">😎</span>
+                    <span className="conv-name">มั่นใจมาก</span>
+                    <span className="conv-multiplier">×1.3</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rep-levels">
+                <h4>ระดับชื่อเสียง</h4>
+                <div className="level-ladder">
+                  <div className="level-item"><span>👑</span> ตำนาน <span className="level-pts">10,000+</span></div>
+                  <div className="level-item"><span>🏆</span> ปรมาจารย์ <span className="level-pts">5,001+</span></div>
+                  <div className="level-item"><span>⭐</span> ผู้เชี่ยวชาญ <span className="level-pts">3,001+</span></div>
+                  <div className="level-item"><span>🔮</span> นักวิเคราะห์ <span className="level-pts">1,501+</span></div>
+                  <div className="level-item"><span>🎯</span> ผู้เริ่มต้น <span className="level-pts">501+</span></div>
+                  <div className="level-item"><span>🌱</span> นักศึกษา <span className="level-pts">0+</span></div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Section: Rankings */}
+          {activeSection === 'rank' && (
+            <div className="about-section animate-fade">
+              <div className="about-card">
+                <h3>อันดับ Leaderboard</h3>
+                <p className="about-card-desc">ไม่มี Season, ไม่มี Reset — ทุกอันดับเป็น Rolling Window</p>
+              </div>
+
+              <div className="rank-types">
+                <div className="rank-type-card">
+                  <div className="rank-type-icon">⚡</div>
+                  <h4>Weekly</h4>
+                  <p className="rank-type-meaning">ความคมชัดล่าสุด</p>
+                  <p className="rank-type-desc">คะแนนที่ได้/เสียในช่วง 7 วันที่ผ่านมา สะท้อนฟอร์มปัจจุบัน</p>
+                  <div className="rank-type-window">Rolling 7 วัน</div>
+                </div>
+
+                <div className="rank-type-card">
+                  <div className="rank-type-icon">📅</div>
+                  <h4>Monthly</h4>
+                  <p className="rank-type-meaning">ความสม่ำเสมอ</p>
+                  <p className="rank-type-desc">คะแนนสะสมในช่วง 30 วัน สะท้อนความต่อเนื่อง</p>
+                  <div className="rank-type-window">Rolling 30 วัน</div>
+                </div>
+
+                <div className="rank-type-card featured">
+                  <div className="rank-type-icon">👑</div>
+                  <h4>All-time</h4>
+                  <p className="rank-type-meaning">ชื่อเสียงสะสม</p>
+                  <p className="rank-type-desc">Reputation รวมตั้งแต่เริ่มใช้งาน สะท้อนความน่าเชื่อถือระยะยาว</p>
+                  <div className="rank-type-window">ตลอดกาล</div>
+                </div>
+              </div>
+
+              <div className="verified-info-box">
+                <div className="verified-icon-large">✓</div>
+                <div className="verified-info-content">
+                  <h4>Verified Badge</h4>
+                  <p>สัญลักษณ์ของความน่าเชื่อถือ ได้จากการมีส่วนร่วมอย่างต่อเนื่อง</p>
+                  <ul>
+                    <li>เป็นสมาชิกมาแล้ว 14+ วัน</li>
+                    <li>โหวตแล้ว 20+ โพล</li>
+                    <li>ยืนยันอีเมลแล้ว</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
+
+        </div>
+
+        {/* Footer */}
+        <div className="about-footer">
+          <span className="about-version">Kidwa v1.0</span>
+          <span className="about-separator">·</span>
+          <span className="about-tagline-small">แล้วคุณล่ะ คิดว่า..?</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ===== 3. ADD STATE AND MENU ITEM =====
+// Add to main component state declarations:
+/*
+const [showAboutUs, setShowAboutUs] = useState(false)
+*/
+
+// ===== 4. ADD MENU ITEM =====
+// In the hamburger menu dropdown, between "อันดับ Leaderboard" and "คำแนะนำการโพสต์":
+/*
+<button className="dropdown-item" onClick={() => { setShowLeaderboardModal(true); setShowMenu(false) }}>อันดับ Leaderboard</button>
+<button className="dropdown-item" onClick={() => { setShowAboutUs(true); setShowMenu(false) }}>เกี่ยวกับ Kidwa</button>  // <-- ADD THIS
+<button className="dropdown-item" onClick={() => { setShowPostingGuidelines(true); setShowMenu(false) }}>คำแนะนำการโพสต์</button>
+*/
+
+// ===== 5. ADD MODAL RENDER =====
+// At the bottom with other modals:
+/*
+{showAboutUs && <AboutUsModal onClose={() => setShowAboutUs(false)} darkMode={darkMode} />}
+*/
