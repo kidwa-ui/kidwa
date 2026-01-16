@@ -2384,3 +2384,255 @@ export async function getOpinionPolls(limit = 20) {
   
   return { data: pollsWithExtras, error: null }
 }
+// ============================================================
+// KIDWA: Recognition Notification System
+// Add these functions to lib/supabase.js
+// ============================================================
+
+// ===== RECOGNITION CONSTANTS =====
+
+const RECOGNITION_CONFIG = {
+  weekly: {
+    minVotes: 5,           // ต้องโหวตอย่างน้อย 5 โพล
+    type: 'weekly_top'
+  },
+  monthly: {
+    minVotes: 15,          // ต้องโหวตอย่างน้อย 15 โพล
+    type: 'monthly_top'
+  }
+}
+
+// ===== PERIOD KEY HELPERS =====
+
+function getWeekKey(date = new Date()) {
+  // ISO week format: YYYY-WXX
+  const d = new Date(date)
+  d.setHours(0, 0, 0, 0)
+  d.setDate(d.getDate() + 3 - (d.getDay() + 6) % 7)
+  const week1 = new Date(d.getFullYear(), 0, 4)
+  const weekNum = 1 + Math.round(((d - week1) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7)
+  return `${d.getFullYear()}-W${weekNum.toString().padStart(2, '0')}`
+}
+
+function getPreviousWeekKey() {
+  const d = new Date()
+  d.setDate(d.getDate() - 7)
+  return getWeekKey(d)
+}
+
+function getMonthKey(date = new Date()) {
+  const d = new Date(date)
+  return `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}`
+}
+
+function getPreviousMonthKey() {
+  const d = new Date()
+  d.setMonth(d.getMonth() - 1)
+  return getMonthKey(d)
+}
+
+// ===== CHECK IF ALREADY RECOGNIZED =====
+
+async function hasReceivedRecognition(userId, recognitionType, periodKey) {
+  const { data } = await supabase
+    .from('recognition_notifications')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('recognition_type', recognitionType)
+    .eq('period_key', periodKey)
+    .single()
+  
+  return !!data
+}
+
+// ===== WEEKLY RECOGNITION (Run Monday morning) =====
+
+export async function processWeeklyRecognition() {
+  const periodKey = getPreviousWeekKey()
+  console.log(`[RECOGNITION] Processing weekly recognition for ${periodKey}`)
+  
+  // 1. Get weekly leaderboard (already excludes admins)
+  const { data: weeklyBoard } = await getWeeklyLeaderboard(1)
+  
+  if (!weeklyBoard || weeklyBoard.length === 0) {
+    console.log('[RECOGNITION] No weekly data found')
+    return { success: true, recognized: null, reason: 'no_data' }
+  }
+  
+  const topUser = weeklyBoard[0]
+  
+  // 2. Check minimum participation
+  // weeklyPoints comes from votes with points_earned in this week
+  // We need to also check vote count
+  const weekStart = getBangkokWeekStart()
+  const { count: voteCount } = await supabase
+    .from('votes')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', topUser.id)
+    .gte('created_at', weekStart)
+  
+  if ((voteCount || 0) < RECOGNITION_CONFIG.weekly.minVotes) {
+    console.log(`[RECOGNITION] Top user ${topUser.username} has only ${voteCount} votes, minimum is ${RECOGNITION_CONFIG.weekly.minVotes}`)
+    return { success: true, recognized: null, reason: 'below_minimum', voteCount }
+  }
+  
+  // 3. Check if already recognized
+  const alreadyRecognized = await hasReceivedRecognition(
+    topUser.id, 
+    RECOGNITION_CONFIG.weekly.type, 
+    periodKey
+  )
+  
+  if (alreadyRecognized) {
+    console.log(`[RECOGNITION] User ${topUser.username} already recognized for ${periodKey}`)
+    return { success: true, recognized: null, reason: 'already_recognized' }
+  }
+  
+  // 4. Send recognition notification (Private, no ranking language)
+  await createNotification({
+    userId: topUser.id,
+    type: 'weekly_recognition',
+    message: '📊 สัปดาห์ที่ผ่านมาคุณวิเคราะห์ได้แม่นยำมาก ขอบคุณที่ร่วมแบ่งปันมุมมองกับชุมชน คิดว่า..!'
+  })
+  
+  // 5. Record recognition to prevent duplicates
+  await supabase
+    .from('recognition_notifications')
+    .insert([{
+      user_id: topUser.id,
+      recognition_type: RECOGNITION_CONFIG.weekly.type,
+      period_key: periodKey,
+      votes_in_period: voteCount,
+      points_earned_in_period: topUser.weeklyPoints
+    }])
+  
+  console.log(`[RECOGNITION] Weekly recognition sent to ${topUser.username}`)
+  
+  return { 
+    success: true, 
+    recognized: {
+      userId: topUser.id,
+      username: topUser.username,
+      periodKey,
+      voteCount,
+      points: topUser.weeklyPoints
+    }
+  }
+}
+
+// ===== MONTHLY RECOGNITION (Run 1st of month) =====
+
+export async function processMonthlyRecognition() {
+  const periodKey = getPreviousMonthKey()
+  console.log(`[RECOGNITION] Processing monthly recognition for ${periodKey}`)
+  
+  // 1. Get monthly leaderboard (already excludes admins)
+  const { data: monthlyBoard } = await getMonthlyLeaderboard(1)
+  
+  if (!monthlyBoard || monthlyBoard.length === 0) {
+    console.log('[RECOGNITION] No monthly data found')
+    return { success: true, recognized: null, reason: 'no_data' }
+  }
+  
+  const topUser = monthlyBoard[0]
+  
+  // 2. Check minimum participation
+  const monthStart = getBangkokMonthStart()
+  const { count: voteCount } = await supabase
+    .from('votes')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', topUser.id)
+    .gte('created_at', monthStart)
+  
+  if ((voteCount || 0) < RECOGNITION_CONFIG.monthly.minVotes) {
+    console.log(`[RECOGNITION] Top user ${topUser.username} has only ${voteCount} votes, minimum is ${RECOGNITION_CONFIG.monthly.minVotes}`)
+    return { success: true, recognized: null, reason: 'below_minimum', voteCount }
+  }
+  
+  // 3. Check if already recognized
+  const alreadyRecognized = await hasReceivedRecognition(
+    topUser.id, 
+    RECOGNITION_CONFIG.monthly.type, 
+    periodKey
+  )
+  
+  if (alreadyRecognized) {
+    console.log(`[RECOGNITION] User ${topUser.username} already recognized for ${periodKey}`)
+    return { success: true, recognized: null, reason: 'already_recognized' }
+  }
+  
+  // 4. Send recognition notification (Private, no ranking language)
+  await createNotification({
+    userId: topUser.id,
+    type: 'monthly_recognition',
+    message: '📈 เดือนที่ผ่านมาคุณมีส่วนร่วมอย่างสม่ำเสมอและมีคุณภาพ ขอบคุณที่เป็นส่วนสำคัญของชุมชน คิดว่า..!'
+  })
+  
+  // 5. Record recognition
+  await supabase
+    .from('recognition_notifications')
+    .insert([{
+      user_id: topUser.id,
+      recognition_type: RECOGNITION_CONFIG.monthly.type,
+      period_key: periodKey,
+      votes_in_period: voteCount,
+      points_earned_in_period: topUser.monthlyPoints
+    }])
+  
+  console.log(`[RECOGNITION] Monthly recognition sent to ${topUser.username}`)
+  
+  return { 
+    success: true, 
+    recognized: {
+      userId: topUser.id,
+      username: topUser.username,
+      periodKey,
+      voteCount,
+      points: topUser.monthlyPoints
+    }
+  }
+}
+
+// ===== CRON JOB HANDLERS =====
+// Schedule these via Vercel Cron, Railway, or similar
+
+/*
+// vercel.json example:
+{
+  "crons": [
+    {
+      "path": "/api/cron/weekly-recognition",
+      "schedule": "0 1 * * 1"  // Monday 01:00 UTC (08:00 Bangkok)
+    },
+    {
+      "path": "/api/cron/monthly-recognition", 
+      "schedule": "0 1 1 * *"  // 1st of month 01:00 UTC
+    }
+  ]
+}
+
+// pages/api/cron/weekly-recognition.js
+export default async function handler(req, res) {
+  // Verify cron secret if needed
+  const result = await processWeeklyRecognition()
+  return res.json(result)
+}
+
+// pages/api/cron/monthly-recognition.js
+export default async function handler(req, res) {
+  const result = await processMonthlyRecognition()
+  return res.json(result)
+}
+*/
+
+// ===== GET USER'S RECOGNITION HISTORY =====
+
+export async function getUserRecognitionHistory(userId) {
+  const { data, error } = await supabase
+    .from('recognition_notifications')
+    .select('*')
+    .eq('user_id', userId)
+    .order('sent_at', { ascending: false })
+  
+  return { data, error }
+}
