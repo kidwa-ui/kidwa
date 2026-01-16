@@ -496,7 +496,7 @@ function PWAInstallModal({ onClose, darkMode, deferredPrompt, onInstall }) {
 
 // ===== Leaderboard Modal (แยกจาก sidebar) =====
 function LeaderboardModal({ onClose, darkMode, currentUser, onViewProfile }) {
-  const [activeTab, setActiveTab] = useState('seasonal') // seasonal, monthly, weekly, alltime
+  const [activeTab, setActiveTab] = useState('weekly')
   const [leaderboard, setLeaderboard] = useState([])
   const [isLoading, setIsLoading] = useState(true)
 
@@ -536,25 +536,21 @@ function LeaderboardModal({ onClose, darkMode, currentUser, onViewProfile }) {
         </div>
         
         <div className="leaderboard-tabs-full">
-          <button className={`lb-tab ${activeTab === 'seasonal' ? 'active' : ''}`} onClick={() => setActiveTab('seasonal')}>
-            🌟 ประจำฤดูกาล
+          <button className={`lb-tab ${activeTab === 'weekly' ? 'active' : ''}`} onClick={() => setActiveTab('weekly')}>
+            ⚡ รายสัปดาห์
           </button>
           <button className={`lb-tab ${activeTab === 'monthly' ? 'active' : ''}`} onClick={() => setActiveTab('monthly')}>
             📅 รายเดือน
           </button>
-          <button className={`lb-tab ${activeTab === 'weekly' ? 'active' : ''}`} onClick={() => setActiveTab('weekly')}>
-            📆 รายสัปดาห์
-          </button>
           <button className={`lb-tab ${activeTab === 'alltime' ? 'active' : ''}`} onClick={() => setActiveTab('alltime')}>
-            ♾️ ตลอดกาล
+            👑 ตลอดกาล
           </button>
         </div>
         
         <div className="leaderboard-period-info">
-          {activeTab === 'seasonal' && <span>🗓️ ตัดรอบทุก 3 เดือน</span>}
-          {activeTab === 'monthly' && <span>🗓️ ตัดรอบทุกสิ้นเดือน เวลา 23:59 น.</span>}
-          {activeTab === 'weekly' && <span>🗓️ ตัดรอบทุกวันอาทิตย์ เวลา 23:59 น.</span>}
-          {activeTab === 'alltime' && <span>🗓️ นับตั้งแต่เริ่มใช้งาน</span>}
+          {activeTab === 'weekly' && <span>ความคมชัดล่าสุด · Rolling 7 วัน</span>}
+          {activeTab === 'monthly' && <span>ความสม่ำเสมอ · Rolling 30 วัน</span>}
+          {activeTab === 'alltime' && <span>ชื่อเสียงสะสม · ตั้งแต่เริ่มใช้งาน</span>}
         </div>
         
         <div className="leaderboard-list-full">
@@ -586,7 +582,11 @@ function LeaderboardModal({ onClose, darkMode, currentUser, onViewProfile }) {
                 </div>
                 <div className="lb-points">
                   <span className="lb-badge">{getReputationLevel(item.reputation).badge}</span>
-                  <span className="lb-rep">{item.reputation?.toLocaleString()} pt</span>
+                  <span className="lb-rep">
+                    {activeTab === 'weekly' && item.weeklyPoints ? `+${item.weeklyPoints}` : 
+                     activeTab === 'monthly' && item.monthlyPoints ? `+${item.monthlyPoints}` :
+                     item.reputation?.toLocaleString()} pt
+                  </span>
                 </div>
               </div>
             ))
@@ -2423,6 +2423,7 @@ export default function Home() {
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false)
   const [showPWAInstall, setShowPWAInstall] = useState(false)
   const [showLeaderboardModal, setShowLeaderboardModal] = useState(false)
+  const [showAboutUs, setShowAboutUs] = useState(false)
 
   // ===== Click Outside / Scroll to Close Dropdown =====
   useEffect(() => {
@@ -2798,6 +2799,7 @@ export default function Home() {
               </>
             )}
               <button className="dropdown-item" onClick={() => { setShowLeaderboardModal(true); setShowMenu(false) }}>อันดับ Leaderboard</button>
+              <button className="dropdown-item" onClick={() => { setShowAboutUs(true); setShowMenu(false) }}>เกี่ยวกับ คิดว่า..</button>
               <button className="dropdown-item" onClick={() => { setShowPostingGuidelines(true); setShowMenu(false) }}>คำแนะนำการโพสต์</button>
               <button className="dropdown-item" onClick={() => { setShowMemberPrivileges(true); setShowMenu(false) }}>สิทธิ์การใช้งานของสมาชิก</button>
               <button className="dropdown-item" onClick={() => { setShowPrivacyPolicy(true); setShowMenu(false) }}>นโยบายข้อมูลส่วนบุคคล</button>
@@ -3132,6 +3134,7 @@ export default function Home() {
       
       {/* Leaderboard Modal */}
       {showLeaderboardModal && <LeaderboardModal onClose={() => setShowLeaderboardModal(false)} darkMode={darkMode} currentUser={user} onViewProfile={setViewProfileUserId} />}
+      {showAboutUs && <AboutUsModal onClose={() => setShowAboutUs(false)} darkMode={darkMode} />}
     </div>
   )
 }
@@ -3865,121 +3868,8 @@ function AdminSystemHealth({ darkMode }) {
     </div>
   )
 }
-// ============================================================
-// KIDWA: Leaderboard Update & About Us Page
-// Apply these changes to app/page.js
-// ============================================================
 
-// ===== 1. REMOVE SEASONAL FROM LEADERBOARD MODAL =====
-// Replace the entire LeaderboardModal function with this:
-
-function LeaderboardModal({ onClose, darkMode, currentUser, onViewProfile }) {
-  const [activeTab, setActiveTab] = useState('weekly') // Changed default from 'seasonal' to 'weekly'
-  const [leaderboard, setLeaderboard] = useState([])
-  const [isLoading, setIsLoading] = useState(true)
-
-  useEffect(() => { loadLeaderboard() }, [activeTab])
-
-  const loadLeaderboard = async () => {
-    setIsLoading(true)
-    let data = []
-    if (activeTab === 'weekly') {
-      const result = await getWeeklyLeaderboard(20)
-      data = result.data || []
-    } else if (activeTab === 'monthly') {
-      const result = await getMonthlyLeaderboard(20)
-      data = result.data || []
-    } else {
-      // alltime
-      const result = await getLeaderboard(20)
-      data = result.data || []
-    }
-    setLeaderboard(data)
-    setIsLoading(false)
-  }
-
-  const getRankIcon = (index) => {
-    if (index === 0) return '🥇'
-    if (index === 1) return '🥈'
-    if (index === 2) return '🥉'
-    return `${index + 1}`
-  }
-
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className={`modal leaderboard-modal ${darkMode ? 'dark' : ''}`} onClick={e => e.stopPropagation()}>
-        <button className="modal-close" onClick={onClose}>✕</button>
-        <div className="leaderboard-modal-header">
-          <h2>🏆 อันดับ Leaderboard</h2>
-          <p>ผู้ใช้ที่มี Reputation สูงสุด</p>
-        </div>
-        
-        {/* REMOVED: seasonal tab */}
-        <div className="leaderboard-tabs-full">
-          <button className={`lb-tab ${activeTab === 'weekly' ? 'active' : ''}`} onClick={() => setActiveTab('weekly')}>
-            ⚡ รายสัปดาห์
-          </button>
-          <button className={`lb-tab ${activeTab === 'monthly' ? 'active' : ''}`} onClick={() => setActiveTab('monthly')}>
-            📅 รายเดือน
-          </button>
-          <button className={`lb-tab ${activeTab === 'alltime' ? 'active' : ''}`} onClick={() => setActiveTab('alltime')}>
-            👑 ตลอดกาล
-          </button>
-        </div>
-        
-        {/* Updated period info - Rolling windows, not resets */}
-        <div className="leaderboard-period-info">
-          {activeTab === 'weekly' && <span>ความคมชัดล่าสุด · Rolling 7 วัน</span>}
-          {activeTab === 'monthly' && <span>ความสม่ำเสมอ · Rolling 30 วัน</span>}
-          {activeTab === 'alltime' && <span>ชื่อเสียงสะสม · ตั้งแต่เริ่มใช้งาน</span>}
-        </div>
-        
-        <div className="leaderboard-list-full">
-          {isLoading ? (
-            <div className="leaderboard-loading">⏳ กำลังโหลด...</div>
-          ) : leaderboard.length === 0 ? (
-            <div className="leaderboard-empty">ยังไม่มีข้อมูล</div>
-          ) : (
-            leaderboard.map((item, i) => (
-              <div 
-                key={item.id} 
-                className={`leaderboard-item-full ${currentUser?.id === item.id ? 'current-user' : ''}`}
-                onClick={() => { onViewProfile(item.id); onClose() }}
-              >
-                <div className="lb-rank">{getRankIcon(i)}</div>
-                <div className="lb-avatar">
-                  {item.avatar_url ? (
-                    <img src={item.avatar_url} alt={item.username} />
-                  ) : (
-                    item.username[0].toUpperCase()
-                  )}
-                </div>
-                <div className="lb-info">
-                  <span className="lb-username">
-                    {item.username}
-                    {item.is_verified && <span className="verified-badge"><svg viewBox="0 0 24 24" className="verified-check"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg></span>}
-                  </span>
-                  <span className="lb-stats">{item.correct_predictions || 0}/{item.total_predictions || 0} แม่น</span>
-                </div>
-                <div className="lb-points">
-                  <span className="lb-badge">{getReputationLevel(item.reputation).badge}</span>
-                  <span className="lb-rep">
-                    {activeTab === 'weekly' && item.weeklyPoints ? `+${item.weeklyPoints}` : 
-                     activeTab === 'monthly' && item.monthlyPoints ? `+${item.monthlyPoints}` :
-                     item.reputation?.toLocaleString()} pt
-                  </span>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ===== 2. ABOUT US MODAL (Modern & Cool Design) =====
-
+// ===== About Us Modal =====
 function AboutUsModal({ onClose, darkMode }) {
   const [activeSection, setActiveSection] = useState('what')
   
@@ -4198,26 +4088,32 @@ function AboutUsModal({ onClose, darkMode }) {
               <div className="rank-types">
                 <div className="rank-type-card">
                   <div className="rank-type-icon">⚡</div>
-                  <h4>Weekly</h4>
-                  <p className="rank-type-meaning">ความคมชัดล่าสุด</p>
-                  <p className="rank-type-desc">คะแนนที่ได้/เสียในช่วง 7 วันที่ผ่านมา สะท้อนฟอร์มปัจจุบัน</p>
-                  <div className="rank-type-window">Rolling 7 วัน</div>
+                  <div>
+                    <h4>Weekly</h4>
+                    <p className="rank-type-meaning">ความคมชัดล่าสุด</p>
+                    <p className="rank-type-desc">คะแนนที่ได้/เสียในช่วง 7 วันที่ผ่านมา สะท้อนฟอร์มปัจจุบัน</p>
+                    <div className="rank-type-window">Rolling 7 วัน</div>
+                  </div>
                 </div>
 
                 <div className="rank-type-card">
                   <div className="rank-type-icon">📅</div>
-                  <h4>Monthly</h4>
-                  <p className="rank-type-meaning">ความสม่ำเสมอ</p>
-                  <p className="rank-type-desc">คะแนนสะสมในช่วง 30 วัน สะท้อนความต่อเนื่อง</p>
-                  <div className="rank-type-window">Rolling 30 วัน</div>
+                  <div>
+                    <h4>Monthly</h4>
+                    <p className="rank-type-meaning">ความสม่ำเสมอ</p>
+                    <p className="rank-type-desc">คะแนนสะสมในช่วง 30 วัน สะท้อนความต่อเนื่อง</p>
+                    <div className="rank-type-window">Rolling 30 วัน</div>
+                  </div>
                 </div>
 
                 <div className="rank-type-card featured">
                   <div className="rank-type-icon">👑</div>
-                  <h4>All-time</h4>
-                  <p className="rank-type-meaning">ชื่อเสียงสะสม</p>
-                  <p className="rank-type-desc">Reputation รวมตั้งแต่เริ่มใช้งาน สะท้อนความน่าเชื่อถือระยะยาว</p>
-                  <div className="rank-type-window">ตลอดกาล</div>
+                  <div>
+                    <h4>All-time</h4>
+                    <p className="rank-type-meaning">ชื่อเสียงสะสม</p>
+                    <p className="rank-type-desc">Reputation รวมตั้งแต่เริ่มใช้งาน สะท้อนความน่าเชื่อถือระยะยาว</p>
+                    <div className="rank-type-window">ตลอดกาล</div>
+                  </div>
                 </div>
               </div>
 
@@ -4248,23 +4144,3 @@ function AboutUsModal({ onClose, darkMode }) {
     </div>
   )
 }
-
-// ===== 3. ADD STATE AND MENU ITEM =====
-// Add to main component state declarations:
-/*
-const [showAboutUs, setShowAboutUs] = useState(false)
-*/
-
-// ===== 4. ADD MENU ITEM =====
-// In the hamburger menu dropdown, between "อันดับ Leaderboard" and "คำแนะนำการโพสต์":
-/*
-<button className="dropdown-item" onClick={() => { setShowLeaderboardModal(true); setShowMenu(false) }}>อันดับ Leaderboard</button>
-<button className="dropdown-item" onClick={() => { setShowAboutUs(true); setShowMenu(false) }}>เกี่ยวกับ Kidwa</button>  // <-- ADD THIS
-<button className="dropdown-item" onClick={() => { setShowPostingGuidelines(true); setShowMenu(false) }}>คำแนะนำการโพสต์</button>
-*/
-
-// ===== 5. ADD MODAL RENDER =====
-// At the bottom with other modals:
-/*
-{showAboutUs && <AboutUsModal onClose={() => setShowAboutUs(false)} darkMode={darkMode} />}
-*/
