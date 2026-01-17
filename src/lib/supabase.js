@@ -1450,7 +1450,7 @@ export async function checkSuggestionValidity(pollId, suggestionText, userId) {
     .single()
   
   if (existingSuggestion) {
-    return { valid: false, error: 'คุณเคยเสนอมุมมองในโพลนี้แล้ว' }
+    return { valid: false, error: 'คุณเคยเสนอตัวเลือกในโพลนี้แล้ว' }
   }
   
   // 4. Check similarity with official options
@@ -1502,7 +1502,7 @@ export async function suggestShadowOption(pollId, text, userId) {
     .single()
   
   if (!user?.email_verified || !user?.is_verified) {
-    return { data: null, error: { message: 'ต้องเป็น Verified user เพื่อเสนอมุมมอง' } }
+    return { data: null, error: { message: 'กรุณายืนยันอีเมล เพื่อเสนอตัวเลือกง' } }
   }
   
   // 2. Check poll allows suggestions
@@ -1513,7 +1513,7 @@ export async function suggestShadowOption(pollId, text, userId) {
     .single()
   
   if (!poll?.allow_suggestions || poll.poll_type !== 'opinion') {
-    return { data: null, error: { message: 'โพลนี้ไม่รองรับการเสนอมุมมองเพิ่มเติม' } }
+    return { data: null, error: { message: 'โพลนี้ไม่รองรับการเสนอตัวเลือกเพิ่มเติม' } }
   }
   
   if (poll.resolved) {
@@ -1580,7 +1580,7 @@ export async function voteForShadowOption(shadowId, userId) {
     .single()
   
   if (!shadow || shadow.status !== 'pending') {
-    return { data: null, error: { message: 'ไม่สามารถโหวตมุมมองนี้ได้' } }
+    return { data: null, error: { message: 'ไม่สามารถโหวตตัวเลือกนี้ได้' } }
   }
   
   // 3. Check if already voted
@@ -1592,7 +1592,7 @@ export async function voteForShadowOption(shadowId, userId) {
     .single()
   
   if (existingVote) {
-    return { data: null, error: { message: 'คุณสนับสนุนมุมมองนี้แล้ว' } }
+    return { data: null, error: { message: 'คุณสนับสนุนตัวเลือกนี้แล้ว' } }
   }
   
   // 4. Create shadow vote
@@ -1699,7 +1699,7 @@ export async function checkAndPromoteShadow(shadowId) {
     if ((shadowVotes || 0) <= lowestOption.votes) {
       return { 
         promoted: false, 
-        reason: `มุมมองนี้ยังมี votes น้อยกว่าตัวเลือกที่มีอยู่ (${lowestOption.votes} votes)`,
+        reason: `ตัวเลือกนี้ยังมี votes น้อยกว่าตัวเลือกที่มีอยู่ (${lowestOption.votes} votes)`,
         needsMoreVotes: true
       }
     }
@@ -1788,13 +1788,13 @@ async function promoteShadowToOfficial(shadowId) {
   await createNotification({
     userId: shadow.suggested_by,
     type: 'shadow_promoted',
-    message: `🎉 มุมมองของคุณ "${shadow.text}" ได้รับการยอมรับจากชุมชนและกลายเป็นตัวเลือกหลักแล้ว`,
+    message: `🎉 ตัวเลือกของคุณ "${shadow.text}" ได้รับการยอมรับจากชุมชนและกลายเป็นตัวเลือกหลักแล้ว`,
     pollId: shadow.poll_id
   })
   
   return { 
     promoted: true, 
-    message: '🎉 มุมมองนี้ได้รับการยอมรับจากชุมชน และกลายเป็นตัวเลือกหลักแล้ว',
+    message: '🎉 ตัวเลือกนี้ได้รับการยอมรับจากชุมชน และกลายเป็นตัวเลือกหลักแล้ว',
     newOptionId: newOption.id
   }
 }
@@ -1862,7 +1862,7 @@ async function demoteOption(optionId, pollId) {
     await createNotification({
       userId: vote.user_id,
       type: 'option_demoted',
-      message: `ตัวเลือก "${option.text}" ถูกย้ายไป "อื่นๆ" เนื่องจากมีมุมมองใหม่ที่ได้รับความนิยมมากกว่า คุณสามารถเปลี่ยน vote ได้ถ้าต้องการ`,
+      message: `ตัวเลือก "${option.text}" ถูกย้ายไป "อื่นๆ" เนื่องจากมีมุมมองใหม่ที่ได้รับความนิยมมากกว่า`,
       pollId: pollId
     })
   }
@@ -2492,7 +2492,7 @@ export async function processWeeklyRecognition() {
   await createNotification({
     userId: topUser.id,
     type: 'weekly_recognition',
-    message: '📊 สัปดาห์ที่ผ่านมาคุณวิเคราะห์ได้แม่นยำมาก ขอบคุณที่ร่วมแบ่งปันมุมมองกับชุมชน คิดว่า..!'
+    message: '📊 สัปดาห์ที่ผ่านมา สิ่งที่คุณคิดว่า.. สุดยอดมาก ขอบคุณที่ร่วมแบ่งปันมุมมองกับชุมชน คิดว่า..!'
   })
   
   // 5. Record recognition to prevent duplicates
