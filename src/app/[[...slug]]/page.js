@@ -3945,7 +3945,7 @@ function AboutUsModal({ onClose, darkMode }) {
                 <div className="about-mini-card">
                   <span className="mini-icon">📈</span>
                   <h4>สะสม</h4>
-                  <p>ผลโหวตถูก/ผิด นับคะแนน</p>
+                  <p>ผลโหวต นับคะแนน</p>
                 </div>
               </div>
             </div>
