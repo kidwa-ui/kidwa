@@ -537,19 +537,19 @@ function LeaderboardModal({ onClose, darkMode, currentUser, onViewProfile }) {
         
         <div className="leaderboard-tabs-full">
           <button className={`lb-tab ${activeTab === 'weekly' ? 'active' : ''}`} onClick={() => setActiveTab('weekly')}>
-            ⚡ รายสัปดาห์
+            ประจำสัปดาห์
           </button>
           <button className={`lb-tab ${activeTab === 'monthly' ? 'active' : ''}`} onClick={() => setActiveTab('monthly')}>
-            📅 รายเดือน
+            รายเดือน
           </button>
           <button className={`lb-tab ${activeTab === 'alltime' ? 'active' : ''}`} onClick={() => setActiveTab('alltime')}>
-            👑 ตลอดกาล
+            ตลอดกาล
           </button>
         </div>
         
         <div className="leaderboard-period-info">
-          {activeTab === 'weekly' && <span>ความคมชัดล่าสุด · Rolling 7 วัน</span>}
-          {activeTab === 'monthly' && <span>ความสม่ำเสมอ · Rolling 30 วัน</span>}
+          {activeTab === 'weekly' && <span>คะแนนล่าสุด · นับใหม่ทุกวันจันทร์</span>}
+          {activeTab === 'monthly' && <span>ความสม่ำเสมอ · นับใหม่ทุกต้นเดือน</span>}
           {activeTab === 'alltime' && <span>ชื่อเสียงสะสม · ตั้งแต่เริ่มใช้งาน</span>}
         </div>
         
@@ -1328,7 +1328,7 @@ function AccountModal({ onClose, user, darkMode, onUpdateUser, onOpenVerificatio
                   </div>
                   
                   <div className="insight-section">
-                    <h4 className="insight-title">💭 สไตล์การแสดงมุมมอง</h4>
+                    <h4 className="insight-title">💭 สไตล์การคิดว่า..</h4>
                     {convictionStyle ? (
                       <div className="style-badge">
                         <span className="style-name">{convictionStyle.style}</span>
@@ -3009,7 +3009,7 @@ export default function Home() {
               <span style={{ marginLeft: '1rem' }}>⏱️ {getDaysRemaining(selectedPoll.ends_at)}</span>
             </div>
             
-            {isExpired(selectedPoll.ends_at) && !selectedPoll.resolved && <div className="expired-notice">⏰ โพลนี้หมดเวลาแล้ว รอ Admin เฉลย</div>}
+            {isExpired(selectedPoll.ends_at) && !selectedPoll.resolved && <div className="expired-notice">⏰ โพลนี้หมดเวลาแล้ว รอเฉลย</div>}
             {userVotes[selectedPoll.id] && <div className="voted-notice">✅ คุณโหวตแล้ว ({confidenceLevels.find(c => c.value === userVotes[selectedPoll.id].confidence)?.emoji} {confidenceLevels.find(c => c.value === userVotes[selectedPoll.id].confidence)?.label})</div>}
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
@@ -3204,7 +3204,7 @@ function OthersOptionsModal({ poll, currentUser, darkMode, onClose, onVote }) {
 
   const handleSubmitSuggestion = async () => {
     if (!currentUser?.is_verified) {
-      setSuggestionError('ต้องเป็น Verified user เพื่อเสนอมุมมอง')
+      setSuggestionError('ต้องเป็น Verified user เพื่อเสนอตัวเลือก')
       return
     }
 
@@ -3277,8 +3277,8 @@ function OthersOptionsModal({ poll, currentUser, darkMode, onClose, onVote }) {
         <button className="modal-close" onClick={onClose}>✕</button>
         
         <div className="others-modal-header">
-          <h2>💡 มุมมองที่ชุมชนกำลังพิจารณา</h2>
-          <p className="others-modal-subtitle">โหวตสนับสนุนมุมมองที่คุณเห็นด้วย หรือเสนอมุมมองใหม่</p>
+          <h2>💡 คำตอบที่ชุมชนกำลังพิจารณา</h2>
+          <p className="others-modal-subtitle">โหวตสนับสนุนตัวเลือกที่คุณเห็นด้วย หรือเสนอตัวเลือกใหม่</p>
         </div>
 
         <div className="others-modal-content">
@@ -3286,8 +3286,8 @@ function OthersOptionsModal({ poll, currentUser, darkMode, onClose, onVote }) {
             <div className="loading-spinner">กำลังโหลด...</div>
           ) : shadowOptions.length === 0 ? (
             <div className="no-shadows">
-              <p>ยังไม่มีมุมมองเพิ่มเติมในขณะนี้</p>
-              <p className="no-shadows-hint">เป็นคนแรกที่เสนอมุมมองใหม่!</p>
+              <p>ยังไม่มีตัวเลือกเพิ่มเติมในขณะนี้</p>
+              <p className="no-shadows-hint">คุณเป็นคนแรกที่เสนอตัวเลือกใหม่!</p>
             </div>
           ) : (
             <div className="shadow-options-list">
@@ -3334,11 +3334,11 @@ function OthersOptionsModal({ poll, currentUser, darkMode, onClose, onVote }) {
                 onClick={() => setShowSuggestionForm(true)}
                 disabled={!currentUser?.is_verified}
               >
-                💡 เสนอมุมมองเพิ่มเติม
+                💡 เสนอตัวเลือกเพิ่มเติม
               </button>
             ) : (
               <div className="suggestion-form">
-                <label>เสนอมุมมองของคุณ:</label>
+                <label>เสนอตัวเลือกของคุณ:</label>
                 <input
                   type="text"
                   value={suggestionText}
@@ -3396,7 +3396,7 @@ function OthersOptionsModal({ poll, currentUser, darkMode, onClose, onVote }) {
             
             {!currentUser?.is_verified && (
               <p className="suggestion-requirement">
-                ต้องเป็น Verified user เพื่อเสนอมุมมองเพิ่มเติม
+                ยืนยันตัวตนเพื่อเสนอตัวเลือกอื่น
               </p>
             )}
           </div>
@@ -3667,7 +3667,7 @@ function OpinionPollOption({ option, poll, isSelected, onVote, currentUser, dark
             {option.text}
             {isOthersOption && poll.pendingShadowCount > 0 && (
               <span className="shadow-count-badge">
-                {poll.pendingShadowCount} มุมมองรอพิจารณา
+                {poll.pendingShadowCount} ตัวเลือกรอพิจารณา
               </span>
             )}
           </span>
@@ -3684,7 +3684,7 @@ function OpinionPollOption({ option, poll, isSelected, onVote, currentUser, dark
           </div>
         )}
         {isOthersOption && (
-          <span className="others-hint">คลิกเพื่อดูหรือเสนอมุมมองเพิ่มเติม</span>
+          <span className="others-hint">คลิกเพื่อดูหรือเสนอตัวเลือกเพิ่มเติม</span>
         )}
       </div>
 
@@ -3915,7 +3915,7 @@ function AboutUsModal({ onClose, darkMode }) {
           {activeSection === 'what' && (
             <div className="about-section animate-fade">
               <div className="about-card highlight">
-                <h3>Kidwa ต่างจากโพลทั่วไปอย่างไร?</h3>
+                <h3>คิดว่า.. ต่างจากโพลทั่วไปอย่างไร?</h3>
                 <div className="comparison-visual">
                   <div className="compare-item old">
                     <span className="compare-icon">📋</span>
@@ -3925,8 +3925,8 @@ function AboutUsModal({ onClose, darkMode }) {
                   <div className="compare-arrow">→</div>
                   <div className="compare-item new">
                     <span className="compare-icon">🎯</span>
-                    <span className="compare-label">Kidwa</span>
-                    <span className="compare-desc">โหวต → รอผล → ได้/เสียคะแนน</span>
+                    <span className="compare-label">คิดว่า..</span>
+                    <span className="compare-desc">โหวต → รอผล → นับ Reputation</span>
                   </div>
                 </div>
               </div>
@@ -3934,18 +3934,18 @@ function AboutUsModal({ onClose, darkMode }) {
               <div className="about-grid">
                 <div className="about-mini-card">
                   <span className="mini-icon">🔮</span>
-                  <h4>ทำนาย</h4>
-                  <p>ใช้วิจารณญาณทำนายเหตุการณ์ในอนาคต</p>
+                  <h4>คิดว่า..</h4>
+                  <p>ใช้วิจารณญาณ คิดว่าจะเป็น..</p>
                 </div>
                 <div className="about-mini-card">
                   <span className="mini-icon">⏳</span>
                   <h4>รอผล</h4>
-                  <p>เมื่อถึงเวลา ระบบจะเฉลยคำตอบที่ถูกต้อง</p>
+                  <p>เมื่อถึงเวลา ระบบจะเฉลยคำตอบ</p>
                 </div>
                 <div className="about-mini-card">
                   <span className="mini-icon">📈</span>
                   <h4>สะสม</h4>
-                  <p>ทายถูกได้คะแนน ทายผิดเสียคะแนน</p>
+                  <p>ผลโหวตถูก/ผิด นับคะแนน</p>
                 </div>
               </div>
             </div>
@@ -3962,11 +3962,11 @@ function AboutUsModal({ onClose, darkMode }) {
                     <h4>Prediction</h4>
                     <span className="ptc-badge rep">มีผล Rep</span>
                   </div>
-                  <p>ทายผลเหตุการณ์ในอนาคต เช่น ผลเลือกตั้ง, ผลกีฬา</p>
+                  <p>คิดว่า.. เหตุการณ์ในอนาคต เช่น ผลเลือกตั้ง, ใครจะชนะมิสยูนิเวิร์ส</p>
                   <div className="ptc-features">
-                    <span>✓ มีคำตอบถูก/ผิด</span>
-                    <span>✓ Blind Mode</span>
-                    <span>✓ ได้/เสีย Reputation</span>
+                    <span>✓ มีคำตอบแน่ๆ และต้องเฉลย</span>
+                    <span>✓ Blind Mode ป้องกัน Selection Bias</span>
+                    <span>✓ นับ Reputation</span>
                   </div>
                 </div>
 
@@ -3976,11 +3976,11 @@ function AboutUsModal({ onClose, darkMode }) {
                     <h4>Opinion</h4>
                     <span className="ptc-badge no-rep">ไม่มีผล Rep</span>
                   </div>
-                  <p>สำรวจความคิดเห็น ไม่มีถูก/ผิด</p>
+                  <p>แบบสำรวจความคิดเห็น ไม่มีถูก/ผิด</p>
                   <div className="ptc-features">
-                    <span>✓ เสนอตัวเลือกเพิ่มได้</span>
-                    <span>✓ เห็นผลทันที</span>
-                    <span>✓ ไม่มีผลต่อคะแนน</span>
+                    <span>✓ เสนอเพิ่มตัวเลือกได้</span>
+                    <span>✓ ผลโหวตขึ้นทันที</span>
+                    <span>✓ ไม่มีผลต่อ Rep</span>
                   </div>
                 </div>
 
@@ -4004,11 +4004,11 @@ function AboutUsModal({ onClose, darkMode }) {
                     <h4>Time Capsule</h4>
                     <span className="ptc-badge capsule-badge">Long-term</span>
                   </div>
-                  <p>ทำนายอนาคตระยะยาว เป็นปีๆ</p>
+                  <p>คิดว่า.. อนาคตระยะยาว เป็นปีๆ</p>
                   <div className="ptc-features">
                     <span>✓ Blind จนกว่าจะถึงเวลา</span>
                     <span>✓ ระยะยาว 1+ ปี</span>
-                    <span>✓ ทดสอบวิสัยทัศน์</span>
+                    <span>✓ ทดสอบการมองการณ์ไกล</span>
                   </div>
                 </div>
 
@@ -4021,7 +4021,7 @@ function AboutUsModal({ onClose, darkMode }) {
             <div className="about-section animate-fade">
               <div className="about-card">
                 <h3>ระบบคะแนน Reputation</h3>
-                <p className="about-card-desc">คะแนนสะท้อนความแม่นยำในการวิเคราะห์ของคุณ</p>
+                <p className="about-card-desc">คะแนนสะท้อนสิ่งที่คุณคิดว่า..</p>
                 
                 <div className="rep-formula">
                   <div className="formula-box">
@@ -4030,12 +4030,12 @@ function AboutUsModal({ onClose, darkMode }) {
                   </div>
                   <div className="formula-op">+</div>
                   <div className="formula-box correct">
-                    <span className="formula-label">ทายถูก</span>
+                    <span className="formula-label">โหวตถูก</span>
                     <span className="formula-value">+คะแนน</span>
                   </div>
                   <div className="formula-op">-</div>
                   <div className="formula-box wrong">
-                    <span className="formula-label">ทายผิด</span>
+                    <span className="formula-label">คลาดเคลื่อน</span>
                     <span className="formula-value">-คะแนน</span>
                   </div>
                 </div>
@@ -4043,7 +4043,7 @@ function AboutUsModal({ onClose, darkMode }) {
 
               <div className="conviction-showcase">
                 <h4>Conviction Level</h4>
-                <p>ยิ่งมั่นใจมาก ยิ่งได้/เสียมาก</p>
+                <p>ยิ่งมั่นใจมาก ยิ่งมีผลต่อ Rep</p>
                 <div className="conviction-levels">
                   <div className="conviction-level low">
                     <span className="conv-emoji">🥶</span>
@@ -4090,9 +4090,9 @@ function AboutUsModal({ onClose, darkMode }) {
                   <div className="rank-type-icon">⚡</div>
                   <div>
                     <h4>Weekly</h4>
-                    <p className="rank-type-meaning">ความคมชัดล่าสุด</p>
-                    <p className="rank-type-desc">คะแนนที่ได้/เสียในช่วง 7 วันที่ผ่านมา สะท้อนฟอร์มปัจจุบัน</p>
-                    <div className="rank-type-window">Rolling 7 วัน</div>
+                    <p className="rank-type-meaning">คะแนนล่าสุด</p>
+                    <p className="rank-type-desc">สะท้อนความคิด..ในช่วง 7 วันที่ผ่านมา </p>
+                    <div className="rank-type-window">ทุกสัปดาห์</div>
                   </div>
                 </div>
 
@@ -4101,8 +4101,8 @@ function AboutUsModal({ onClose, darkMode }) {
                   <div>
                     <h4>Monthly</h4>
                     <p className="rank-type-meaning">ความสม่ำเสมอ</p>
-                    <p className="rank-type-desc">คะแนนสะสมในช่วง 30 วัน สะท้อนความต่อเนื่อง</p>
-                    <div className="rank-type-window">Rolling 30 วัน</div>
+                    <p className="rank-type-desc">สะท้อนความต่อเนื่องทั้งเดือน</p>
+                    <div className="rank-type-window">ทุกเดือน</div>
                   </div>
                 </div>
 
@@ -4136,9 +4136,9 @@ function AboutUsModal({ onClose, darkMode }) {
 
         {/* Footer */}
         <div className="about-footer">
-          <span className="about-version">Kidwa v1.0</span>
+          <span className="about-version">แล้วคุณล่ะ</span>
           <span className="about-separator">·</span>
-          <span className="about-tagline-small">แล้วคุณล่ะ คิดว่า..?</span>
+          <span className="about-tagline-small">คิดว่า..?</span>
         </div>
       </div>
     </div>
