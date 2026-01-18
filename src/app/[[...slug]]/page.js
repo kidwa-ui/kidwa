@@ -4144,3 +4144,563 @@ function AboutUsModal({ onClose, darkMode }) {
     </div>
   )
 }
+// ============================================================
+// KIDWA: Admin 2FA UI Components
+// Add these components to app/page.js
+// ============================================================
+
+// ===== IMPORTS =====
+// Add to imports at top of page.js:
+/*
+import {
+  enrollMFA,
+  verifyMFAEnrollment,
+  challengeMFA,
+  verifyMFA,
+  getMFAStatus,
+  listMFAFactors,
+  unenrollMFA,
+  requireMFA
+} from '@/lib/supabase'
+*/
+
+// ===== MFA SETUP MODAL =====
+// แสดงเมื่อ Admin ยังไม่ได้ตั้งค่า 2FA
+
+function MFASetupModal({ onComplete, onClose, darkMode }) {
+  const [step, setStep] = useState('intro') // intro, generating, scan, verify, done
+  const [qrCode, setQrCode] = useState(null)
+  const [secret, setSecret] = useState(null)
+  const [factorId, setFactorId] = useState(null)
+  const [code, setCode] = useState('')
+  const [error, setError] = useState(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [showSecret, setShowSecret] = useState(false)
+
+  const handleStartSetup = async () => {
+    setStep('generating')
+    setIsLoading(true)
+    setError(null)
+    
+    const result = await enrollMFA()
+    
+    if (result.error) {
+      setError(result.error.message || 'ไม่สามารถสร้าง QR Code ได้')
+      setStep('intro')
+    } else {
+      setQrCode(result.qrCode)
+      setSecret(result.secret)
+      setFactorId(result.factorId)
+      setStep('scan')
+    }
+    setIsLoading(false)
+  }
+
+  const handleVerify = async () => {
+    if (code.length !== 6) return
+    
+    setIsLoading(true)
+    setError(null)
+    
+    const result = await verifyMFAEnrollment(factorId, code)
+    
+    if (result.error || !result.success) {
+      setError('รหัสไม่ถูกต้อง กรุณาลองใหม่')
+      setCode('')
+    } else {
+      setStep('done')
+      setTimeout(() => {
+        onComplete?.()
+      }, 2000)
+    }
+    setIsLoading(false)
+  }
+
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter' && code.length === 6) {
+      handleVerify()
+    }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className={`modal mfa-setup-modal ${darkMode ? 'dark' : ''}`} onClick={e => e.stopPropagation()}>
+        {step !== 'done' && <button className="modal-close" onClick={onClose}>✕</button>}
+        
+        {/* Step: Intro */}
+        {step === 'intro' && (
+          <div className="mfa-step-content">
+            <div className="mfa-icon">🔐</div>
+            <h2>ตั้งค่า Two-Factor Authentication</h2>
+            <p className="mfa-description">
+              เพื่อความปลอดภัยของ Admin Panel กรุณาเปิดใช้งาน 2FA 
+              คุณจะต้องใช้แอป Authenticator เช่น Google Authenticator, Authy, หรือ 1Password
+            </p>
+            
+            <div className="mfa-requirements">
+              <h4>สิ่งที่ต้องเตรียม:</h4>
+              <ul>
+                <li>📱 มือถือพร้อมแอป Authenticator</li>
+                <li>⏱️ ใช้เวลาประมาณ 2 นาที</li>
+              </ul>
+            </div>
+            
+            <button 
+              className="btn-primary mfa-btn-start"
+              onClick={handleStartSetup}
+              disabled={isLoading}
+            >
+              {isLoading ? '⏳ กำลังเตรียม...' : '🚀 เริ่มตั้งค่า'}
+            </button>
+          </div>
+        )}
+
+        {/* Step: Generating */}
+        {step === 'generating' && (
+          <div className="mfa-step-content">
+            <div className="mfa-loading">
+              <div className="mfa-spinner"></div>
+              <p>กำลังสร้าง QR Code...</p>
+            </div>
+          </div>
+        )}
+
+        {/* Step: Scan QR */}
+        {step === 'scan' && (
+          <div className="mfa-step-content">
+            <h2>สแกน QR Code</h2>
+            <p className="mfa-description">
+              เปิดแอป Authenticator แล้วสแกน QR Code นี้
+            </p>
+            
+            <div className="mfa-qr-container">
+              {qrCode && <img src={qrCode} alt="MFA QR Code" className="mfa-qr-image" />}
+            </div>
+            
+            <div className="mfa-secret-section">
+              <button 
+                className="btn-text"
+                onClick={() => setShowSecret(!showSecret)}
+              >
+                {showSecret ? '🔒 ซ่อน Key' : '🔑 แสดง Key (กรอกเอง)'}
+              </button>
+              
+              {showSecret && (
+                <div className="mfa-secret-box">
+                  <code>{secret}</code>
+                  <button 
+                    className="btn-copy"
+                    onClick={() => navigator.clipboard.writeText(secret)}
+                  >
+                    📋
+                  </button>
+                </div>
+              )}
+            </div>
+            
+            <div className="mfa-verify-section">
+              <h4>ใส่รหัส 6 หลักจากแอป:</h4>
+              <div className="mfa-code-input-group">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="000000"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  onKeyPress={handleKeyPress}
+                  maxLength={6}
+                  className="mfa-code-input"
+                  autoFocus
+                />
+                <button 
+                  className="btn-primary"
+                  onClick={handleVerify}
+                  disabled={code.length !== 6 || isLoading}
+                >
+                  {isLoading ? '⏳' : '✓ ยืนยัน'}
+                </button>
+              </div>
+              
+              {error && <p className="mfa-error">{error}</p>}
+            </div>
+          </div>
+        )}
+
+        {/* Step: Done */}
+        {step === 'done' && (
+          <div className="mfa-step-content mfa-success">
+            <div className="mfa-success-icon">✅</div>
+            <h2>ตั้งค่าสำเร็จ!</h2>
+            <p>2FA เปิดใช้งานแล้ว บัญชีของคุณปลอดภัยยิ่งขึ้น</p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ===== MFA CHALLENGE MODAL =====
+// แสดงเมื่อต้องยืนยัน 2FA ก่อนทำ action
+
+function MFAChallengeModal({ onSuccess, onCancel, darkMode, actionName = 'ดำเนินการ' }) {
+  const [factorId, setFactorId] = useState(null)
+  const [code, setCode] = useState('')
+  const [error, setError] = useState(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [attempts, setAttempts] = useState(0)
+
+  useEffect(() => {
+    loadFactors()
+  }, [])
+
+  const loadFactors = async () => {
+    const { factors } = await listMFAFactors()
+    if (factors.length > 0) {
+      setFactorId(factors[0].id)
+    }
+    setIsLoading(false)
+  }
+
+  const handleVerify = async () => {
+    if (code.length !== 6 || !factorId) return
+    
+    setIsLoading(true)
+    setError(null)
+    
+    // Create challenge
+    const { challengeId, error: challengeError } = await challengeMFA(factorId)
+    if (challengeError) {
+      setError('ไม่สามารถสร้าง challenge ได้')
+      setIsLoading(false)
+      return
+    }
+    
+    // Verify code
+    const { success, error: verifyError } = await verifyMFA(factorId, challengeId, code)
+    
+    if (verifyError || !success) {
+      setAttempts(prev => prev + 1)
+      setError(`รหัสไม่ถูกต้อง (${attempts + 1}/5)`)
+      setCode('')
+      
+      if (attempts >= 4) {
+        setError('ลองผิดเกินกำหนด กรุณารอสักครู่')
+        setTimeout(() => onCancel?.(), 2000)
+      }
+    } else {
+      onSuccess?.()
+    }
+    setIsLoading(false)
+  }
+
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter' && code.length === 6) {
+      handleVerify()
+    }
+  }
+
+  if (isLoading && !factorId) {
+    return (
+      <div className="modal-overlay">
+        <div className={`modal mfa-challenge-modal ${darkMode ? 'dark' : ''}`}>
+          <div className="mfa-loading">
+            <div className="mfa-spinner"></div>
+            <p>กำลังโหลด...</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onCancel}>
+      <div className={`modal mfa-challenge-modal ${darkMode ? 'dark' : ''}`} onClick={e => e.stopPropagation()}>
+        <button className="modal-close" onClick={onCancel}>✕</button>
+        
+        <div className="mfa-challenge-content">
+          <div className="mfa-icon">🔐</div>
+          <h2>ยืนยันตัวตน</h2>
+          <p className="mfa-description">
+            ใส่รหัส 6 หลักจากแอป Authenticator เพื่อ{actionName}
+          </p>
+          
+          <div className="mfa-code-input-group">
+            <input
+              type="text"
+              inputMode="numeric"
+              placeholder="000000"
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              onKeyPress={handleKeyPress}
+              maxLength={6}
+              className="mfa-code-input large"
+              autoFocus
+              disabled={isLoading || attempts >= 5}
+            />
+          </div>
+          
+          {error && <p className="mfa-error">{error}</p>}
+          
+          <div className="mfa-actions">
+            <button 
+              className="btn-secondary"
+              onClick={onCancel}
+            >
+              ยกเลิก
+            </button>
+            <button 
+              className="btn-primary"
+              onClick={handleVerify}
+              disabled={code.length !== 6 || isLoading || attempts >= 5}
+            >
+              {isLoading ? '⏳ กำลังตรวจสอบ...' : '✓ ยืนยัน'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ===== MFA STATUS INDICATOR =====
+// แสดงใน Admin Panel
+
+function MFAStatusIndicator({ darkMode, onSetup }) {
+  const [status, setStatus] = useState(null)
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    checkStatus()
+  }, [])
+
+  const checkStatus = async () => {
+    const mfaStatus = await getMFAStatus()
+    const { factors } = await listMFAFactors()
+    
+    setStatus({
+      ...mfaStatus,
+      hasFactors: factors.length > 0
+    })
+    setIsLoading(false)
+  }
+
+  if (isLoading) {
+    return <div className="mfa-status loading">⏳</div>
+  }
+
+  if (status?.hasMFA) {
+    return (
+      <div className={`mfa-status verified ${darkMode ? 'dark' : ''}`}>
+        <span className="mfa-status-icon">🔒</span>
+        <span className="mfa-status-text">2FA Active</span>
+      </div>
+    )
+  }
+
+  if (status?.hasFactors && !status?.hasMFA) {
+    return (
+      <div className={`mfa-status pending ${darkMode ? 'dark' : ''}`}>
+        <span className="mfa-status-icon">⚠️</span>
+        <span className="mfa-status-text">2FA ต้องยืนยัน</span>
+      </div>
+    )
+  }
+
+  return (
+    <div className={`mfa-status not-setup ${darkMode ? 'dark' : ''}`}>
+      <span className="mfa-status-icon">🔓</span>
+      <span className="mfa-status-text">2FA ไม่ได้เปิด</span>
+      <button className="btn-small" onClick={onSetup}>ตั้งค่า</button>
+    </div>
+  )
+}
+
+// ===== ADMIN PANEL MFA SECTION =====
+// เพิ่มใน Admin Panel
+
+function AdminMFASection({ darkMode }) {
+  const [showSetup, setShowSetup] = useState(false)
+  const [mfaStatus, setMfaStatus] = useState(null)
+  const [factors, setFactors] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    loadMFAData()
+  }, [])
+
+  const loadMFAData = async () => {
+    const status = await getMFAStatus()
+    const { factors: factorList } = await listMFAFactors()
+    
+    setMfaStatus(status)
+    setFactors(factorList)
+    setIsLoading(false)
+  }
+
+  const handleRemoveMFA = async (factorId) => {
+    if (!confirm('คุณแน่ใจหรือไม่ที่จะลบ 2FA? คุณจะต้องตั้งค่าใหม่')) return
+    
+    const { success } = await unenrollMFA(factorId)
+    if (success) {
+      loadMFAData()
+    }
+  }
+
+  return (
+    <div className={`admin-mfa-section ${darkMode ? 'dark' : ''}`}>
+      <h3>🔐 Two-Factor Authentication</h3>
+      
+      {isLoading ? (
+        <div className="mfa-loading-inline">⏳ กำลังโหลด...</div>
+      ) : (
+        <>
+          <div className="mfa-status-card">
+            <div className="mfa-status-row">
+              <span>สถานะ:</span>
+              <span className={`mfa-badge ${mfaStatus?.hasMFA ? 'active' : 'inactive'}`}>
+                {mfaStatus?.hasMFA ? '✅ เปิดใช้งานแล้ว' : '❌ ยังไม่ได้เปิด'}
+              </span>
+            </div>
+            
+            <div className="mfa-status-row">
+              <span>Security Level:</span>
+              <span className="mfa-level">
+                {mfaStatus?.currentLevel === 'aal2' ? '🛡️ AAL2 (สูงสุด)' : '🔓 AAL1 (พื้นฐาน)'}
+              </span>
+            </div>
+          </div>
+          
+          {factors.length > 0 ? (
+            <div className="mfa-factors-list">
+              <h4>อุปกรณ์ที่ลงทะเบียน:</h4>
+              {factors.map(factor => (
+                <div key={factor.id} className="mfa-factor-item">
+                  <span className="factor-icon">📱</span>
+                  <span className="factor-name">{factor.friendly_name || 'Authenticator'}</span>
+                  <span className="factor-date">
+                    เพิ่มเมื่อ {new Date(factor.created_at).toLocaleDateString('th-TH')}
+                  </span>
+                  <button 
+                    className="btn-danger-small"
+                    onClick={() => handleRemoveMFA(factor.id)}
+                  >
+                    🗑️
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="mfa-no-factors">
+              <p>ยังไม่ได้ตั้งค่า 2FA</p>
+              <button 
+                className="btn-primary"
+                onClick={() => setShowSetup(true)}
+              >
+                🔐 ตั้งค่า 2FA เลย
+              </button>
+            </div>
+          )}
+        </>
+      )}
+      
+      {showSetup && (
+        <MFASetupModal 
+          darkMode={darkMode}
+          onComplete={() => {
+            setShowSetup(false)
+            loadMFAData()
+          }}
+          onClose={() => setShowSetup(false)}
+        />
+      )}
+    </div>
+  )
+}
+
+// ===== HOOK: useMFAProtectedAction =====
+// ใช้ wrap admin actions ที่ต้องการ MFA
+
+function useMFAProtectedAction() {
+  const [showChallenge, setShowChallenge] = useState(false)
+  const [pendingAction, setPendingAction] = useState(null)
+
+  const executeWithMFA = async (action, actionName = 'ดำเนินการ') => {
+    // Check if MFA is already verified
+    const { hasMFA } = await getMFAStatus()
+    
+    if (hasMFA) {
+      // Already verified, execute directly
+      return await action()
+    }
+    
+    // Need MFA verification
+    return new Promise((resolve, reject) => {
+      setPendingAction({ action, resolve, reject, actionName })
+      setShowChallenge(true)
+    })
+  }
+
+  const MFAChallengeWrapper = ({ darkMode }) => {
+    if (!showChallenge || !pendingAction) return null
+
+    return (
+      <MFAChallengeModal
+        darkMode={darkMode}
+        actionName={pendingAction.actionName}
+        onSuccess={async () => {
+          setShowChallenge(false)
+          try {
+            const result = await pendingAction.action()
+            pendingAction.resolve(result)
+          } catch (err) {
+            pendingAction.reject(err)
+          }
+          setPendingAction(null)
+        }}
+        onCancel={() => {
+          setShowChallenge(false)
+          pendingAction.reject(new Error('MFA cancelled'))
+          setPendingAction(null)
+        }}
+      />
+    )
+  }
+
+  return { executeWithMFA, MFAChallengeWrapper }
+}
+
+// ===== USAGE EXAMPLE =====
+/*
+
+// ใน Admin Panel component:
+function AdminPanel({ darkMode }) {
+  const { executeWithMFA, MFAChallengeWrapper } = useMFAProtectedAction()
+
+  const handleResolvePoll = async (pollId, correctOptionId) => {
+    try {
+      await executeWithMFA(
+        () => resolvePoll(pollId, correctOptionId),
+        'resolve โพล'
+      )
+      // Success!
+    } catch (err) {
+      if (err.message === 'MFA cancelled') {
+        // User cancelled
+      } else {
+        // Other error
+      }
+    }
+  }
+
+  return (
+    <>
+      <AdminMFASection darkMode={darkMode} />
+      
+      {// ... other admin content ...}
+      
+      <MFAChallengeWrapper darkMode={darkMode} />
+    </>
+  )
+}
+
+*/
