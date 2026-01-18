@@ -4716,3 +4716,416 @@ function AdminPanel({ darkMode }) {
 }
 
 */
+// ============================================================
+// KIDWA: Vote History Chart Component
+// Add to app/page.js
+// ============================================================
+
+// ===== IMPORTS NEEDED =====
+/*
+import { 
+  LineChart, Line, XAxis, YAxis, CartesianGrid, 
+  Tooltip, Legend, ResponsiveContainer, ReferenceLine 
+} from 'recharts'
+import html2canvas from 'html2canvas'
+
+// Add to lib/supabase.js imports:
+import { getVoteHistory, getChartColor, getChartColorLight } from '@/lib/supabase'
+
+// Install html2canvas:
+// npm install html2canvas
+*/
+
+// ===== VOTE HISTORY CHART COMPONENT =====
+
+function VoteHistoryChart({ pollId, darkMode, onClose }) {
+  const [chartData, setChartData] = useState([])
+  const [options, setOptions] = useState([])
+  const [question, setQuestion] = useState('')
+  const [resolution, setResolution] = useState('daily')
+  const [availableRes, setAvailableRes] = useState({ has6h: false, hasDaily: false, hasMonthly: false })
+  const [isLoading, setIsLoading] = useState(true)
+  const [isExporting, setIsExporting] = useState(false)
+  const [showGrid, setShowGrid] = useState(true)
+  const [showLegend, setShowLegend] = useState(true)
+  const chartRef = useRef(null)
+
+  useEffect(() => {
+    loadData()
+    loadAvailableResolutions()
+  }, [pollId])
+
+  useEffect(() => {
+    loadData()
+  }, [resolution])
+
+  const loadAvailableResolutions = async () => {
+    const { data } = await getAvailableResolutions(pollId)
+    if (data) {
+      setAvailableRes(data)
+      // Auto-select best resolution
+      if (data.hasDaily) setResolution('daily')
+      else if (data.has6h) setResolution('6h')
+      else if (data.hasMonthly) setResolution('monthly')
+    }
+  }
+
+  const loadData = async () => {
+    setIsLoading(true)
+    const { data, error } = await getVoteHistory(pollId, resolution)
+    
+    if (data && !error) {
+      setChartData(data.chartData)
+      setOptions(data.options)
+      setQuestion(data.question)
+    }
+    setIsLoading(false)
+  }
+
+  // Format time based on resolution
+  const formatTime = (time) => {
+    const date = new Date(time)
+    if (resolution === '6h') {
+      return date.toLocaleDateString('th-TH', { 
+        day: 'numeric', 
+        month: 'short',
+        hour: '2-digit'
+      })
+    } else if (resolution === 'daily') {
+      return date.toLocaleDateString('th-TH', { 
+        day: 'numeric', 
+        month: 'short' 
+      })
+    } else {
+      return date.toLocaleDateString('th-TH', { 
+        month: 'short', 
+        year: '2-digit' 
+      })
+    }
+  }
+
+  // Custom tooltip
+  const CustomTooltip = ({ active, payload, label }) => {
+    if (!active || !payload || !payload.length) return null
+    
+    const totalVotes = payload[0]?.payload?.totalVotes || 0
+    
+    return (
+      <div className={`vote-chart-tooltip ${darkMode ? 'dark' : ''}`}>
+        <p className="tooltip-time">{formatTime(label)}</p>
+        <p className="tooltip-total">รวม {totalVotes.toLocaleString()} โหวต</p>
+        <div className="tooltip-items">
+          {payload.map((entry, index) => {
+            const opt = options.find(o => o.id === entry.dataKey)
+            if (!opt) return null
+            
+            const count = entry.payload[`${entry.dataKey}_count`] || 0
+            
+            return (
+              <div key={entry.dataKey} className="tooltip-item">
+                <span 
+                  className="tooltip-dot" 
+                  style={{ backgroundColor: entry.color }}
+                />
+                <span className="tooltip-label">
+                  {opt.text}
+                  {opt.isCorrect && <span className="correct-badge">✓</span>}
+                </span>
+                <span className="tooltip-value">
+                  {entry.value?.toFixed(1)}% ({count})
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
+  // Export chart as image
+  const exportAsImage = async () => {
+    if (!chartRef.current) return
+    
+    setIsExporting(true)
+    
+    try {
+      // Create canvas from chart
+      const canvas = await html2canvas(chartRef.current, {
+        backgroundColor: darkMode ? '#0f0f1a' : '#ffffff',
+        scale: 2, // Higher quality
+        logging: false,
+        useCORS: true
+      })
+      
+      // Add watermark
+      const ctx = canvas.getContext('2d')
+      ctx.font = 'bold 24px sans-serif'
+      ctx.fillStyle = darkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)'
+      ctx.textAlign = 'center'
+      
+      // Multiple watermarks
+      const text = 'คิดว่า..'
+      for (let y = 50; y < canvas.height; y += 150) {
+        for (let x = 100; x < canvas.width; x += 200) {
+          ctx.save()
+          ctx.translate(x, y)
+          ctx.rotate(-Math.PI / 12) // -15 degrees
+          ctx.fillText(text, 0, 0)
+          ctx.restore()
+        }
+      }
+      
+      // Add bottom watermark
+      ctx.font = 'bold 16px sans-serif'
+      ctx.fillStyle = darkMode ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.3)'
+      ctx.textAlign = 'right'
+      ctx.fillText('คิดว่า.. | kidwa.com', canvas.width - 20, canvas.height - 15)
+      
+      // Download
+      const link = document.createElement('a')
+      link.download = `kidwa-poll-${pollId.slice(0, 8)}.png`
+      link.href = canvas.toDataURL('image/png')
+      link.click()
+      
+    } catch (err) {
+      console.error('Export error:', err)
+      alert('ไม่สามารถ export รูปภาพได้')
+    }
+    
+    setIsExporting(false)
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div 
+        className={`modal vote-history-modal ${darkMode ? 'dark' : ''}`} 
+        onClick={e => e.stopPropagation()}
+      >
+        <button className="modal-close" onClick={onClose}>✕</button>
+        
+        {/* Header */}
+        <div className="vote-history-header">
+          <h2>📊 ประวัติการโหวต</h2>
+          <p className="vote-history-question">{question}</p>
+        </div>
+
+        {/* Controls */}
+        <div className="vote-history-controls">
+          {/* Resolution Tabs */}
+          <div className="resolution-tabs">
+            {availableRes.has6h && (
+              <button 
+                className={`res-tab ${resolution === '6h' ? 'active' : ''}`}
+                onClick={() => setResolution('6h')}
+              >
+                6H
+              </button>
+            )}
+            {availableRes.hasDaily && (
+              <button 
+                className={`res-tab ${resolution === 'daily' ? 'active' : ''}`}
+                onClick={() => setResolution('daily')}
+              >
+                1D
+              </button>
+            )}
+            {availableRes.hasMonthly && (
+              <button 
+                className={`res-tab ${resolution === 'monthly' ? 'active' : ''}`}
+                onClick={() => setResolution('monthly')}
+              >
+                1M
+              </button>
+            )}
+          </div>
+          
+          {/* Chart Options */}
+          <div className="chart-options">
+            <label className="chart-option">
+              <input 
+                type="checkbox" 
+                checked={showGrid} 
+                onChange={(e) => setShowGrid(e.target.checked)}
+              />
+              <span>Grid</span>
+            </label>
+            <label className="chart-option">
+              <input 
+                type="checkbox" 
+                checked={showLegend} 
+                onChange={(e) => setShowLegend(e.target.checked)}
+              />
+              <span>Legend</span>
+            </label>
+          </div>
+          
+          {/* Export Button */}
+          <button 
+            className="btn-export"
+            onClick={exportAsImage}
+            disabled={isExporting || isLoading}
+          >
+            {isExporting ? '⏳' : '📷'} Export
+          </button>
+        </div>
+
+        {/* Chart Container */}
+        <div className="vote-history-chart-container" ref={chartRef}>
+          {/* Watermark Background */}
+          <div className="chart-watermark">คิดว่า..</div>
+          
+          {isLoading ? (
+            <div className="chart-loading">
+              <div className="chart-spinner"></div>
+              <p>กำลังโหลดข้อมูล...</p>
+            </div>
+          ) : chartData.length === 0 ? (
+            <div className="chart-empty">
+              <p>ไม่มีข้อมูลสำหรับช่วงเวลานี้</p>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={350}>
+              <LineChart
+                data={chartData}
+                margin={{ top: 20, right: 30, left: 0, bottom: 20 }}
+              >
+                {showGrid && (
+                  <CartesianGrid 
+                    strokeDasharray="3 3" 
+                    stroke={darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'} 
+                    horizontal={true}
+                    vertical={false}
+                  />
+                )}
+                
+                <XAxis 
+                  dataKey="time" 
+                  tickFormatter={formatTime}
+                  stroke={darkMode ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'}
+                  fontSize={12}
+                  tickMargin={10}
+                />
+                
+                <YAxis 
+                  domain={[0, 100]}
+                  tickFormatter={(v) => `${v}%`}
+                  stroke={darkMode ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)'}
+                  fontSize={12}
+                  width={45}
+                />
+                
+                <Tooltip content={<CustomTooltip />} />
+                
+                {showLegend && (
+                  <Legend 
+                    formatter={(value) => {
+                      const opt = options.find(o => o.id === value)
+                      if (!opt) return value
+                      return (
+                        <span>
+                          {opt.text.length > 20 ? opt.text.slice(0, 20) + '...' : opt.text}
+                          {opt.isCorrect && ' ✓'}
+                        </span>
+                      )
+                    }}
+                    wrapperStyle={{ 
+                      paddingTop: '10px',
+                      fontSize: '12px'
+                    }}
+                  />
+                )}
+                
+                {/* Lines for each option */}
+                {options.map((opt, index) => (
+                  <Line
+                    key={opt.id}
+                    type="monotone"
+                    dataKey={opt.id}
+                    name={opt.id}
+                    stroke={getChartColor(index)}
+                    strokeWidth={opt.isCorrect ? 3 : 2}
+                    dot={false}
+                    activeDot={{ 
+                      r: 6, 
+                      stroke: opt.isCorrect ? '#22c55e' : getChartColor(index),
+                      strokeWidth: opt.isCorrect ? 3 : 2
+                    }}
+                  />
+                ))}
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+          
+          {/* Bottom Watermark */}
+          <div className="chart-watermark-bottom">
+            คิดว่า.. | kidwa.com
+          </div>
+        </div>
+
+        {/* Stats Summary */}
+        {!isLoading && chartData.length > 0 && (
+          <div className="vote-history-stats">
+            <div className="stat-item">
+              <span className="stat-label">โหวตทั้งหมด</span>
+              <span className="stat-value">
+                {chartData[chartData.length - 1]?.totalVotes?.toLocaleString() || 0}
+              </span>
+            </div>
+            <div className="stat-item">
+              <span className="stat-label">ช่วงเวลา</span>
+              <span className="stat-value">
+                {chartData.length > 0 && (
+                  <>
+                    {formatTime(chartData[0].time)} - {formatTime(chartData[chartData.length - 1].time)}
+                  </>
+                )}
+              </span>
+            </div>
+            <div className="stat-item">
+              <span className="stat-label">จุดข้อมูล</span>
+              <span className="stat-value">{chartData.length}</span>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ===== BUTTON TO OPEN CHART =====
+// Add this button in resolved poll card
+
+function VoteHistoryButton({ pollId, darkMode }) {
+  const [showChart, setShowChart] = useState(false)
+  
+  return (
+    <>
+      <button 
+        className="btn-vote-history"
+        onClick={() => setShowChart(true)}
+        title="ดูประวัติการโหวต"
+      >
+        📊 ดูกราฟ
+      </button>
+      
+      {showChart && (
+        <VoteHistoryChart 
+          pollId={pollId} 
+          darkMode={darkMode} 
+          onClose={() => setShowChart(false)} 
+        />
+      )}
+    </>
+  )
+}
+
+// ===== INTEGRATION EXAMPLE =====
+/*
+// In PollCard component, add this for resolved polls:
+
+{poll.status === 'resolved' && (
+  <div className="poll-actions-resolved">
+    <VoteHistoryButton pollId={poll.id} darkMode={darkMode} />
+  </div>
+)}
+*/
