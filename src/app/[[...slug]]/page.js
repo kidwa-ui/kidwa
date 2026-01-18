@@ -1362,6 +1362,11 @@ function AccountModal({ onClose, user, darkMode, onUpdateUser, onOpenVerificatio
   )
 }
 
+// ============================================================
+// KIDWA: Admin Panel with MFA Section
+// แทนที่ function AdminPanel เดิม (บรรทัด 1365-1479)
+// ============================================================
+
 // ===== Admin Panel =====
 function AdminPanel({ onClose, darkMode, onRefresh, user }) {
   const [activeTab, setActiveTab] = useState('pending')
@@ -1380,6 +1385,7 @@ function AdminPanel({ onClose, darkMode, onRefresh, user }) {
     else if (activeTab === 'all') { const { data } = await getAllPollsAdmin(); setPolls(data || []) }
     else if (activeTab === 'users') { const { data } = await getAllUsers(); setUsers(data || []) }
     else if (activeTab === 'logs') { const { data } = await getAdminAuditLogs(50); setAuditLogs(data || []) }
+    // Tab 'mfa' ไม่ต้อง load data เพิ่ม - AdminMFASection จะ load เอง
     const statsData = await getAdminStats(); setStats(statsData)
     setIsLoading(false)
   }
@@ -1434,9 +1440,12 @@ function AdminPanel({ onClose, darkMode, onRefresh, user }) {
           <button className={`admin-tab ${activeTab === 'all' ? 'active' : ''}`} onClick={() => setActiveTab('all')}>📊 โพล</button>
           <button className={`admin-tab ${activeTab === 'users' ? 'active' : ''}`} onClick={() => setActiveTab('users')}>👥 Users</button>
           <button className={`admin-tab ${activeTab === 'logs' ? 'active' : ''}`} onClick={() => setActiveTab('logs')}>📜 Logs</button>
+          <button className={`admin-tab ${activeTab === 'mfa' ? 'active' : ''}`} onClick={() => setActiveTab('mfa')}>🔐 2FA</button>
         </div>
         <div className="admin-content">
-          {isLoading ? <div style={{ textAlign: 'center', padding: '2rem' }}>⏳ กำลังโหลด...</div> : activeTab === 'pending' ? (
+          {isLoading && activeTab !== 'mfa' ? (
+            <div style={{ textAlign: 'center', padding: '2rem' }}>⏳ กำลังโหลด...</div>
+          ) : activeTab === 'pending' ? (
             <>
               {expiredPolls.length > 0 && <div className="admin-section"><h3 className="admin-section-title">🔴 หมดเวลาแล้ว - รอเฉลย</h3>{expiredPolls.map(poll => (<div key={poll.id} className="admin-poll-item"><div className="admin-poll-info"><span className="admin-poll-question">{poll.question}</span><span className="admin-poll-meta">👥 {poll.options?.reduce((s, o) => s + o.votes, 0)} โหวต</span></div><div className="admin-poll-actions"><button className="btn btn-sm btn-success" onClick={() => setSelectedPollForResolve(poll)}>✅ เฉลย</button><button className="btn btn-sm btn-danger" onClick={() => handleDeletePoll(poll.id)}>🗑️</button></div></div>))}</div>}
               {upcomingPolls.length > 0 && <div className="admin-section"><h3 className="admin-section-title">🟢 ยังไม่หมดเวลา</h3>{upcomingPolls.slice(0, 5).map(poll => (<div key={poll.id} className="admin-poll-item"><div className="admin-poll-info"><span className="admin-poll-question">{poll.question}</span><span className="admin-poll-meta">⏱️ {getDaysRemaining(poll.ends_at)}</span></div></div>))}</div>}
@@ -1446,7 +1455,7 @@ function AdminPanel({ onClose, darkMode, onRefresh, user }) {
             <div className="admin-section">{polls.map(poll => (<div key={poll.id} className="admin-poll-item"><div className="admin-poll-info"><span className="admin-poll-question">{poll.featured && '⭐ '}{poll.resolved && '✅ '}{poll.question}</span><span className="admin-poll-meta">{categories.find(c => c.id === poll.category)?.icon} • 👥 {poll.options?.reduce((s, o) => s + o.votes, 0)}</span></div><div className="admin-poll-actions"><button className={`btn btn-sm ${poll.featured ? 'btn-warning' : 'btn-secondary'}`} onClick={() => handleToggleFeatured(poll.id, !poll.featured)}>{poll.featured ? '⭐' : '☆'}</button>{!poll.resolved && isExpired(poll.ends_at) && <button className="btn btn-sm btn-success" onClick={() => setSelectedPollForResolve(poll)}>✅</button>}<button className="btn btn-sm btn-danger" onClick={() => handleDeletePoll(poll.id)}>🗑️</button></div></div>))}</div>
           ) : activeTab === 'users' ? (
             <div className="admin-section">{users.map((u, i) => (<div key={u.id} className="admin-user-item"><div className="admin-user-info"><span className="admin-user-rank">{i + 1}</span><span className="admin-user-name">{u.is_banned && '🚫 '}{u.is_admin && '👑 '}{u.username}</span><span className="admin-user-rep">{getReputationLevel(u.reputation).badge} {u.reputation} pt</span></div><div className="admin-user-actions">{!u.is_admin && <button className={`btn btn-sm ${u.is_banned ? 'btn-success' : 'btn-danger'}`} onClick={() => handleToggleBan(u.id, !u.is_banned)}>{u.is_banned ? '✅ ปลดแบน' : '🚫 แบน'}</button>}</div></div>))}</div>
-          ) : (
+          ) : activeTab === 'logs' ? (
             <div className="admin-section audit-logs-section">
               {auditLogs.length > 0 ? auditLogs.map(log => (
                 <div key={log.id} className="audit-log-item">
@@ -1460,7 +1469,10 @@ function AdminPanel({ onClose, darkMode, onRefresh, user }) {
                 </div>
               )) : <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>ยังไม่มี Audit Logs</div>}
             </div>
-          )}
+          ) : activeTab === 'mfa' ? (
+            /* ===== MFA Tab Content ===== */
+            <AdminMFASection darkMode={darkMode} />
+          ) : null}
         </div>
         {selectedPollForResolve && (
           <div className="resolve-modal-overlay" onClick={() => setSelectedPollForResolve(null)}>
