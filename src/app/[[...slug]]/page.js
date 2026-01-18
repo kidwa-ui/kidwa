@@ -693,18 +693,20 @@ function PollCard({ poll, onClick, userVotes }) {
         {expired && !poll.resolved && <span className="resolved-badge">⏰ รอเฉลย</span>}
       </div>
       <div className="poll-question">{poll.question}</div>
+      
+      {/* ===== NEW BLIND MODE UI ===== */}
       {isBlind ? (
-  <div className="blind-minimal">
-    <div className="blind-status">
-      <span className="blind-icon" title="ผลโหวตจะเปิดเผยเมื่อโพลสิ้นสุด">🔒</span>
-      <span className="blind-label">รอเฉลย</span>
-    </div>
-    {hasVoted && (
-      <div className="blind-voted">
-        ✓ โหวตแล้ว {confidenceLevels.find(c => c.value === hasVoted.confidence)?.emoji || '🤩'}
-      </div>
-    )}
-  </div>
+        <div className="blind-minimal">
+          <div className="blind-status">
+            <span className="blind-icon" title="ผลโหวตจะเปิดเผยเมื่อโพลสิ้นสุด">🔒</span>
+            <span className="blind-label">รอเฉลย</span>
+          </div>
+          {hasVoted && (
+            <div className="blind-voted">
+              ✓ โหวตแล้ว {confidenceLevels.find(c => c.value === hasVoted.confidence)?.emoji || '🤩'}
+            </div>
+          )}
+        </div>
       ) : first && second ? (
         <div className="dual-bar-container">
           <div className="dual-bar-labels"><span className="label-left">{first.text}</span><span className="label-right">{second.text}</span></div>
@@ -714,6 +716,7 @@ function PollCard({ poll, onClick, userVotes }) {
           </div>
         </div>
       ) : null}
+      
       {poll.options?.length > 2 && <div style={{ textAlign: 'center', fontSize: '0.8rem', color: 'var(--primary)' }}>+{poll.options.length - 2} ตัวเลือกอื่น</div>}
       <div className="poll-footer">
         <span>👥 {totalVotes.toLocaleString()} คน</span>
