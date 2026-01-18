@@ -3084,6 +3084,13 @@ export default function Home() {
                   </button>
                 ))}
               </div>
+           )}
+            
+            {/* Vote History Button - สำหรับโพลที่เฉลยแล้ว */}
+            {selectedPoll.resolved && (
+              <div style={{ marginTop: '1rem', marginBottom: '1rem' }}>
+                <VoteHistoryButton pollId={selectedPoll.id} darkMode={darkMode} />
+              </div>
             )}
             
             <ShareButtons poll={selectedPoll} />
