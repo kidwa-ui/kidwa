@@ -2927,3 +2927,151 @@ export async function resolvePollWithMFA(pollId, correctOptionId, adminId) {
   
   return { success: true }
 }
+// ============================================================
+// KIDWA: Vote History Functions
+// Add to lib/supabase.js
+// ============================================================
+
+// ===== GET VOTE HISTORY FOR CHART =====
+
+/**
+ * Get historical vote distribution for a resolved poll
+ * @param {string} pollId - Poll ID
+ * @param {string} resolution - '6h' | 'daily' | 'monthly'
+ * @returns {Promise<{data: Array, error: Error}>}
+ */
+export async function getVoteHistory(pollId, resolution = 'daily') {
+  try {
+    // Get snapshots
+    const { data: snapshots, error: snapshotError } = await supabase
+      .from('vote_snapshots')
+      .select('*')
+      .eq('poll_id', pollId)
+      .eq('resolution', resolution)
+      .order('snapshot_time', { ascending: true })
+    
+    if (snapshotError) throw snapshotError
+    
+    // Get options for this poll
+    const { data: options, error: optionError } = await supabase
+      .from('options')
+      .select('id, text')
+      .eq('poll_id', pollId)
+      .order('created_at', { ascending: true })
+    
+    if (optionError) throw optionError
+    
+    // Get poll info (for correct answer)
+    const { data: poll, error: pollError } = await supabase
+      .from('polls')
+      .select('correct_option_id, question')
+      .eq('id', pollId)
+      .single()
+    
+    if (pollError) throw pollError
+    
+    // Transform data for chart
+    const chartData = snapshots.map(snapshot => {
+      const point = {
+        time: snapshot.snapshot_time,
+        totalVotes: snapshot.total_votes,
+      }
+      
+      // Add percentage for each option
+      options.forEach(opt => {
+        const optData = snapshot.distribution[opt.id]
+        point[opt.id] = optData ? parseFloat(optData.percentage) : 0
+        point[`${opt.id}_count`] = optData ? parseInt(optData.count) : 0
+      })
+      
+      return point
+    })
+    
+    return {
+      data: {
+        chartData,
+        options: options.map(o => ({
+          ...o,
+          isCorrect: o.id === poll.correct_option_id
+        })),
+        question: poll.question
+      },
+      error: null
+    }
+  } catch (err) {
+    console.error('[Vote History] Error:', err)
+    return { data: null, error: err }
+  }
+}
+
+/**
+ * Get available resolutions for a poll
+ * (Check which resolutions have data)
+ */
+export async function getAvailableResolutions(pollId) {
+  try {
+    const { data, error } = await supabase
+      .from('vote_snapshots')
+      .select('resolution')
+      .eq('poll_id', pollId)
+    
+    if (error) throw error
+    
+    const resolutions = [...new Set(data.map(d => d.resolution))]
+    
+    return {
+      data: {
+        has6h: resolutions.includes('6h'),
+        hasDaily: resolutions.includes('daily'),
+        hasMonthly: resolutions.includes('monthly'),
+      },
+      error: null
+    }
+  } catch (err) {
+    return { data: null, error: err }
+  }
+}
+
+/**
+ * Manually trigger snapshot generation for a poll
+ * (Admin use - normally auto-triggered on resolve)
+ */
+export async function regenerateSnapshots(pollId) {
+  try {
+    const { data, error } = await supabase
+      .rpc('generate_poll_snapshots', { p_poll_id: pollId })
+    
+    if (error) throw error
+    
+    return { count: data, error: null }
+  } catch (err) {
+    console.error('[Vote History] Regenerate error:', err)
+    return { count: 0, error: err }
+  }
+}
+
+// ===== CHART COLOR HELPERS =====
+
+// Consistent colors for options (up to 10)
+const CHART_COLORS = [
+  '#3B82F6', // Blue
+  '#F59E0B', // Amber
+  '#10B981', // Emerald
+  '#8B5CF6', // Violet
+  '#EF4444', // Red
+  '#06B6D4', // Cyan
+  '#F97316', // Orange
+  '#84CC16', // Lime
+  '#EC4899', // Pink
+  '#6366F1', // Indigo
+]
+
+export function getChartColor(index) {
+  return CHART_COLORS[index % CHART_COLORS.length]
+}
+
+// Lighter version for area fill
+export function getChartColorLight(index, opacity = 0.3) {
+  const color = CHART_COLORS[index % CHART_COLORS.length]
+  return `${color}${Math.round(opacity * 255).toString(16).padStart(2, '0')}`
+}
