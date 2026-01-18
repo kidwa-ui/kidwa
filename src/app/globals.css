@@ -138,9 +138,27 @@ html.dark, .dark { background: var(--bg); }
 .time-remaining.expired { color: var(--red); }
 
 /* ===== Blind Container ===== */
-.blind-container { background: linear-gradient(135deg, #fef3c7, #fde68a); border-radius: 12px; padding: 1.5rem; text-align: center; margin-bottom: 1rem; }
-.blind-message span { font-size: 2rem; }
-.blind-message p { margin-top: 0.5rem; font-weight: 500; color: #92400e; }
+.blind-minimal { display: flex;  align-items: center;  justify-content: space-between;  padding: 0.75rem 1rem;  margin: 0.5rem 0;  background: rgba(100, 116, 139, 0.08);  border-radius: 8px;  border-left: 3px solid rgba(100, 116, 139, 0.3);}
+.blind-status { display: flex;  align-items: center;  gap: 0.5rem;}
+.blind-icon { font-size: 1rem;  opacity: 0.7;  cursor: help;}
+.blind-label { font-size: 0.85rem;  font-weight: 450;  color: var(--text-secondary);  opacity: 0.8;}
+.blind-voted { font-size: 0.8rem;  color: #059669;  font-weight: 500;}
+
+/* ===== HOVER TOOLTIP ===== */
+.blind-icon { position: relative;}
+.blind-icon::after { content: attr(title);  position: absolute;  bottom: 120%;  left: 50%;  transform: translateX(-50%);  background: rgba(15, 23, 42, 0.95);  color: white;  padding: 0.5rem 0.75rem;  border-radius: 6px;  font-size: 0.75rem;  white-space: nowrap;  opacity: 0;  visibility: hidden;  transition: all 0.2s ease;  pointer-events: none;  z-index: 100;}
+.blind-icon:hover::after { opacity: 1;  visibility: visible;}
+
+/* ===== DARK MODE ===== */
+.dark .blind-minimal { background: rgba(148, 163, 184, 0.08);  border-left-color: rgba(148, 163, 184, 0.25);}
+.dark .blind-label { color: rgba(255, 255, 255, 0.5);}
+.dark .blind-voted { color: #34d399;}
+
+/* ===== MOBILE ===== */
+@media (max-width: 480px) {
+  .blind-minimal {    padding: 0.6rem 0.75rem;  }
+  .blind-label {    font-size: 0.8rem;}
+  .blind-voted {    font-size: 0.75rem;  }}
 
 /* ===== Live Battle Card ===== */
 .live-battle-card { border: 2px solid #f59e0b; background: linear-gradient(135deg, rgba(245, 158, 11, 0.05), rgba(245, 158, 11, 0.1)); }
