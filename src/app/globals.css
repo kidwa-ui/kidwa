@@ -2957,3 +2957,461 @@ select.form-input { appearance: none; background-image: url("data:image/svg+xml,
     flex-direction: column;
   }
 }
+/* ============================================================
+   KIDWA: Vote History Chart Styles
+   Add to app/globals.css
+   ============================================================ */
+
+/* ===== VOTE HISTORY MODAL ===== */
+
+.vote-history-modal {
+  max-width: 800px;
+  width: 95%;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 1.5rem;
+}
+
+.vote-history-header {
+  margin-bottom: 1.5rem;
+}
+
+.vote-history-header h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.vote-history-question {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+/* ===== CONTROLS ===== */
+
+.vote-history-controls {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+/* Resolution Tabs */
+.resolution-tabs {
+  display: flex;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 4px;
+}
+
+.res-tab {
+  padding: 0.5rem 1rem;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.res-tab:hover {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.res-tab.active {
+  background: rgba(59, 130, 246, 0.3);
+  color: #60a5fa;
+}
+
+/* Chart Options */
+.chart-options {
+  display: flex;
+  gap: 1rem;
+  margin-left: auto;
+}
+
+.chart-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+}
+
+.chart-option input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #3b82f6;
+}
+
+/* Export Button */
+.btn-export {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: rgba(59, 130, 246, 0.2);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 8px;
+  color: #60a5fa;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-export:hover:not(:disabled) {
+  background: rgba(59, 130, 246, 0.3);
+}
+
+.btn-export:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ===== CHART CONTAINER ===== */
+
+.vote-history-chart-container {
+  position: relative;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 1rem;
+  min-height: 400px;
+}
+
+/* Watermark Background */
+.chart-watermark {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-15deg);
+  font-size: 4rem;
+  font-weight: bold;
+  color: rgba(255, 255, 255, 0.03);
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 0;
+}
+
+/* Bottom Watermark */
+.chart-watermark-bottom {
+  position: absolute;
+  bottom: 8px;
+  right: 12px;
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.2);
+  pointer-events: none;
+}
+
+/* Loading State */
+.chart-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 350px;
+  gap: 1rem;
+}
+
+.chart-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(255, 255, 255, 0.1);
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: chart-spin 0.8s linear infinite;
+}
+
+@keyframes chart-spin {
+  to { transform: rotate(360deg); }
+}
+
+.chart-loading p {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.9rem;
+}
+
+/* Empty State */
+.chart-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 350px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* ===== TOOLTIP ===== */
+
+.vote-chart-tooltip {
+  background: rgba(15, 15, 26, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  min-width: 180px;
+}
+
+.tooltip-time {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 0.25rem;
+}
+
+.tooltip-total {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.tooltip-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.tooltip-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+}
+
+.tooltip-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.tooltip-label {
+  flex: 1;
+  color: rgba(255, 255, 255, 0.7);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 120px;
+}
+
+.tooltip-label .correct-badge {
+  color: #22c55e;
+  margin-left: 4px;
+  font-weight: bold;
+}
+
+.tooltip-value {
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  white-space: nowrap;
+}
+
+/* ===== STATS SUMMARY ===== */
+
+.vote-history-stats {
+  display: flex;
+  gap: 1.5rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  flex-wrap: wrap;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stat-value {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* ===== VOTE HISTORY BUTTON ===== */
+
+.btn-vote-history {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.875rem;
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 8px;
+  color: #60a5fa;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-vote-history:hover {
+  background: rgba(59, 130, 246, 0.2);
+  border-color: rgba(59, 130, 246, 0.4);
+}
+
+/* ===== LIGHT MODE ===== */
+
+.vote-history-modal:not(.dark) {
+  background: #ffffff;
+}
+
+.vote-history-modal:not(.dark) .vote-history-header h2 {
+  color: #1f2937;
+}
+
+.vote-history-modal:not(.dark) .vote-history-question {
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.vote-history-modal:not(.dark) .res-tab {
+  color: rgba(0, 0, 0, 0.5);
+}
+
+.vote-history-modal:not(.dark) .res-tab:hover {
+  color: rgba(0, 0, 0, 0.8);
+}
+
+.vote-history-modal:not(.dark) .res-tab.active {
+  background: rgba(59, 130, 246, 0.15);
+  color: #2563eb;
+}
+
+.vote-history-modal:not(.dark) .chart-option {
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.vote-history-modal:not(.dark) .vote-history-chart-container {
+  background: rgba(0, 0, 0, 0.02);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+.vote-history-modal:not(.dark) .chart-watermark {
+  color: rgba(0, 0, 0, 0.03);
+}
+
+.vote-history-modal:not(.dark) .chart-watermark-bottom {
+  color: rgba(0, 0, 0, 0.15);
+}
+
+.vote-history-modal:not(.dark) .vote-chart-tooltip {
+  background: rgba(255, 255, 255, 0.98);
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+.vote-history-modal:not(.dark) .tooltip-time {
+  color: rgba(0, 0, 0, 0.5);
+}
+
+.vote-history-modal:not(.dark) .tooltip-total {
+  color: rgba(0, 0, 0, 0.9);
+  border-bottom-color: rgba(0, 0, 0, 0.1);
+}
+
+.vote-history-modal:not(.dark) .tooltip-label {
+  color: rgba(0, 0, 0, 0.7);
+}
+
+.vote-history-modal:not(.dark) .tooltip-value {
+  color: rgba(0, 0, 0, 0.9);
+}
+
+.vote-history-modal:not(.dark) .vote-history-stats {
+  border-top-color: rgba(0, 0, 0, 0.08);
+}
+
+.vote-history-modal:not(.dark) .stat-label {
+  color: rgba(0, 0, 0, 0.4);
+}
+
+.vote-history-modal:not(.dark) .stat-value {
+  color: rgba(0, 0, 0, 0.9);
+}
+
+.vote-history-modal:not(.dark) .chart-loading p {
+  color: rgba(0, 0, 0, 0.5);
+}
+
+.vote-history-modal:not(.dark) .chart-empty {
+  color: rgba(0, 0, 0, 0.4);
+}
+
+/* ===== RESPONSIVE ===== */
+
+@media (max-width: 640px) {
+  .vote-history-modal {
+    padding: 1rem;
+    max-height: 95vh;
+  }
+  
+  .vote-history-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .resolution-tabs {
+    justify-content: center;
+  }
+  
+  .chart-options {
+    margin-left: 0;
+    justify-content: center;
+  }
+  
+  .btn-export {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .vote-history-chart-container {
+    padding: 0.5rem;
+  }
+  
+  .chart-watermark {
+    font-size: 2.5rem;
+  }
+  
+  .vote-history-stats {
+    justify-content: space-between;
+  }
+  
+  .stat-item {
+    text-align: center;
+    flex: 1;
+  }
+}
+
+/* ===== RECHARTS OVERRIDES ===== */
+
+.vote-history-modal .recharts-cartesian-grid-horizontal line {
+  stroke-opacity: 0.5;
+}
+
+.vote-history-modal .recharts-legend-wrapper {
+  padding-bottom: 0 !important;
+}
+
+.vote-history-modal .recharts-legend-item {
+  margin-right: 15px !important;
+}
+
+.vote-history-modal .recharts-legend-item-text {
+  color: rgba(255, 255, 255, 0.7) !important;
+}
+
+.vote-history-modal:not(.dark) .recharts-legend-item-text {
+  color: rgba(0, 0, 0, 0.7) !important;
+}
