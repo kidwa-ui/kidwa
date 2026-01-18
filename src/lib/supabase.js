@@ -275,39 +275,75 @@ export async function createTag(name) {
 }
 
 export async function getTrendingTags(limit = 10, daysWindow = 7) {
-  // Calculate time window start (Bangkok time aware)
-  const windowStart = new Date()
-  windowStart.setDate(windowStart.getDate() - daysWindow)
-  
-  // Get recent poll_tags within time window
-  const { data: recentPollTags, error } = await supabase
-    .from('poll_tags')
-    .select('poll_id, tag_id, tags(id, name), polls!inner(id, created_at, options(votes))')
-    .gte('polls.created_at', windowStart.toISOString())
-  
-  if (error) return { data: [], error }
-  
-  // Aggregate vote counts per tag
-  const tagVotes = {}
-  recentPollTags?.forEach(pt => {
-    if (pt.tags && pt.polls) {
-      const tagId = pt.tags.id
-      const pollVotes = pt.polls.options?.reduce((sum, opt) => sum + (opt.votes || 0), 0) || 0
-      
-      if (!tagVotes[tagId]) {
-        tagVotes[tagId] = { id: tagId, name: pt.tags.name, vote_count: 0, poll_count: 0 }
+  try {
+    // Calculate time window start
+    const windowStart = new Date()
+    windowStart.setDate(windowStart.getDate() - daysWindow)
+    
+    // Step 1: Get active polls within time window
+    const { data: polls, error: pollError } = await supabase
+      .from('polls')
+      .select('id')
+      .gte('created_at', windowStart.toISOString())
+      .eq('status', 'active')
+    
+    if (pollError || !polls?.length) return { data: [], error: pollError }
+    
+    const pollIds = polls.map(p => p.id)
+    
+    // Step 2: Get vote counts per poll
+    const { data: votes, error: voteError } = await supabase
+      .from('votes')
+      .select('poll_id')
+      .in('poll_id', pollIds)
+    
+    if (voteError) return { data: [], error: voteError }
+    
+    // Count votes per poll
+    const pollVoteCounts = {}
+    votes?.forEach(v => {
+      pollVoteCounts[v.poll_id] = (pollVoteCounts[v.poll_id] || 0) + 1
+    })
+    
+    // Step 3: Get tags for these polls
+    const { data: pollTags, error: tagError } = await supabase
+      .from('poll_tags')
+      .select('poll_id, tags(id, name)')
+      .in('poll_id', pollIds)
+    
+    if (tagError) return { data: [], error: tagError }
+    
+    // Step 4: Aggregate vote counts per tag
+    const tagVotes = {}
+    pollTags?.forEach(pt => {
+      if (pt.tags) {
+        const tagId = pt.tags.id
+        const voteCount = pollVoteCounts[pt.poll_id] || 0
+        
+        if (!tagVotes[tagId]) {
+          tagVotes[tagId] = { 
+            id: tagId, 
+            name: pt.tags.name, 
+            vote_count: 0,  // จำนวนคนโหวต
+            poll_count: 0   // จำนวนโพล
+          }
+        }
+        tagVotes[tagId].vote_count += voteCount
+        tagVotes[tagId].poll_count++
       }
-      tagVotes[tagId].vote_count += pollVotes
-      tagVotes[tagId].poll_count++
-    }
-  })
-  
-  // Sort by vote count (engagement) and return top N
-  const sorted = Object.values(tagVotes)
-    .sort((a, b) => b.vote_count - a.vote_count)
-    .slice(0, limit)
-  
-  return { data: sorted, error: null }
+    })
+    
+    // Step 5: Sort by vote count and return top N
+    const sorted = Object.values(tagVotes)
+      .filter(t => t.vote_count > 0)  // เฉพาะ tags ที่มีคนโหวต
+      .sort((a, b) => b.vote_count - a.vote_count)
+      .slice(0, limit)
+    
+    return { data: sorted, error: null }
+  } catch (err) {
+    console.error('[Trending Tags] Error:', err)
+    return { data: [], error: err }
+  }
 }
 
 export async function getPollsByTag(tagName, limit = 20) {
@@ -407,11 +443,103 @@ export async function getUserPollLimit(userId) {
   return { canCreate: remaining > 0, used, limit: dailyLimit, remaining, hasCompletedProfile: true }
 }
 
-export async function findSimilarPolls(question, limit = 5) {
-  const searchQuery = question.toLowerCase().trim()
-  const keywords = searchQuery.split(/\s+/).filter(word => word.length > 2).slice(0, 5)
-  if (keywords.length === 0) return { data: [], error: null }
+const SIMILARITY_STOP_WORDS = [
+  // คำขึ้นต้นทั่วไป
+  'คิดว่า',
+  'คิดว่าในอนาคต',
+  'คิดว่าจะ',
+  'ใครคิดว่า',
+  'คุณคิดว่า',
+  
+  // คำเกี่ยวกับเวลา
+  'ภายในปี',
+  'ภายในครึ่งปี',
+  'ภายในเดือน',
+  'ภายในสัปดาห์',
+  'ภายใน',
+  'ปีนี้',
+  'ปีหน้า',
+  'เดือนนี้',
+  'เดือนหน้า',
+  'สัปดาห์นี้',
+  'สัปดาห์หน้า',
+  'วันนี้',
+  'พรุ่งนี้',
+  'ก่อน',
+  'หลัง',
+  
+  // ปี พ.ศ. / ค.ศ.
+  '2567', '2568', '2569', '2570', '2571',
+  '2024', '2025', '2026', '2027', '2028',
+  
+  // คำถามทั่วไป
+  'ใครจะ',
+  'อะไรจะ',
+  'ที่ไหน',
+  'เมื่อไหร่',
+  'อย่างไร',
+  'จะเป็น',
+  'จะมี',
+  'จะได้',
+  'จะเกิด',
+  'หรือไม่',
+  'ไหม',
+  'มั้ย',
+  'ครับ',
+  'ค่ะ',
+  'นะ',
+  
+  // คำเชื่อม
+  'และ',
+  'หรือ',
+  'แต่',
+  'ที่',
+  'ของ',
+  'ใน',
+  'ให้',
+  'ได้',
+  'มา',
+  'ไป',
+  'กับ',
+]
 
+// Function ลบ stop words ออกจากคำถาม
+function removeStopWords(text) {
+  let cleaned = text.toLowerCase().trim()
+  
+  // ลบ ".." ออก
+  cleaned = cleaned.replace(/\.{2,}/g, ' ')
+  
+  // ลบ stop words
+  SIMILARITY_STOP_WORDS.forEach(word => {
+    const regex = new RegExp(word, 'gi')
+    cleaned = cleaned.replace(regex, ' ')
+  })
+  
+  // ลบ whitespace ซ้ำ และ trim
+  cleaned = cleaned.replace(/\s+/g, ' ').trim()
+  
+  return cleaned
+}
+
+// แทนที่ function findSimilarPolls เดิม (บรรทัด 410-436) ด้วย:
+
+export async function findSimilarPolls(question, limit = 5) {
+  // ลบ stop words ก่อนค้นหา
+  const cleanedQuestion = removeStopWords(question)
+  
+  // แยกเป็น keywords (เฉพาะคำที่ยาวกว่า 2 ตัวอักษร)
+  const keywords = cleanedQuestion
+    .split(/\s+/)
+    .filter(word => word.length > 2)
+    .slice(0, 5)
+  
+  // ถ้าไม่มี keywords ที่มีความหมาย ไม่ต้องหา similar
+  if (keywords.length === 0) {
+    return { data: [], error: null }
+  }
+  
+  // ค้นหาโพลที่ยังไม่ resolve
   const { data: polls, error } = await supabase
     .from('polls')
     .select('id, question, ends_at, resolved, category, options(votes)')
@@ -419,18 +547,32 @@ export async function findSimilarPolls(question, limit = 5) {
     .eq('resolved', false)
     .gt('ends_at', new Date().toISOString())
     .order('created_at', { ascending: false })
-    .limit(limit)
+    .limit(20) // ดึงมากขึ้นเพื่อ filter ทีหลัง
 
   if (error) return { data: [], error }
 
+  // คำนวณ similarity โดยใช้ cleaned question
   const scoredPolls = polls?.map(poll => {
-    const pollQuestion = poll.question.toLowerCase()
+    // ลบ stop words จากโพลที่มีอยู่ด้วย
+    const cleanedPollQuestion = removeStopWords(poll.question)
+    const pollWords = cleanedPollQuestion.split(/\s+/).filter(w => w.length > 2)
+    
+    // นับคำที่ตรงกัน
     let matchCount = 0
-    keywords.forEach(keyword => { if (pollQuestion.includes(keyword)) matchCount++ })
-    const similarity = matchCount / keywords.length
+    keywords.forEach(keyword => {
+      if (pollWords.some(pw => pw.includes(keyword) || keyword.includes(pw))) {
+        matchCount++
+      }
+    })
+    
+    const similarity = keywords.length > 0 ? matchCount / keywords.length : 0
     const totalVotes = poll.options?.reduce((sum, o) => sum + o.votes, 0) || 0
+    
     return { ...poll, similarity, totalVotes }
-  }).filter(p => p.similarity >= 0.4).sort((a, b) => b.similarity - a.similarity)
+  })
+  .filter(p => p.similarity >= 0.5) // ใช้ threshold สูงขึ้น (0.5 แทน 0.4)
+  .sort((a, b) => b.similarity - a.similarity)
+  .slice(0, limit)
 
   return { data: scoredPolls || [], error: null }
 }
