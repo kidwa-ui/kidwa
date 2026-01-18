@@ -20,3 +20,10 @@
     "eslint-config-next": "14.0.4"
   }
 }
+{
+  "dependencies": {
+    // ... existing dependencies ...
+    "@upstash/ratelimit": "^2.0.0",
+    "@upstash/redis": "^1.34.0"
+  }
+}
