@@ -700,16 +700,18 @@ function PollCard({ poll, onClick, userVotes }) {
           <div className="blind-status">
             <span className="blind-icon">🔒</span>
             <span className="blind-label">รอเฉลย</span>
+          </div>
+          <div className="blind-right">
+            {hasVoted && (
+              <span className="blind-voted">
+                ✓ โหวตแล้ว {confidenceLevels.find(c => c.value === hasVoted.confidence)?.emoji || '🤩'}
+              </span>
+            )}
             <span className="blind-info-btn" title="ระบบซ่อนผลโหวตเพื่อป้องกัน Selection Bias โดยจะเฉลยเมื่อครบกำหนด">
               <span className="blind-info-icon">?</span>
               <span className="blind-tooltip">ระบบซ่อนผลโหวตเพื่อป้องกัน Selection Bias โดยจะเฉลยเมื่อครบกำหนด</span>
             </span>
           </div>
-          {hasVoted && (
-            <div className="blind-voted">
-              ✓ โหวตแล้ว {confidenceLevels.find(c => c.value === hasVoted.confidence)?.emoji || '🤩'}
-            </div>
-          )}
         </div>
       ) : first && second ? (
         <div className="dual-bar-container">
