@@ -18,7 +18,7 @@ import {
   submitDemographics, skipVerification, checkNeedsVerification, getUserPollLimit, findSimilarPolls, checkAndAwardCreatorPoints,
   checkAndGrantVerified, getVerifiedProgress, getUserVoteCount,
   getTrendingTags, getPollsByTag,
-  getVoteDetails, getVoteStatistics, logAdminAction, getAdminAuditLogs
+  getVoteDetails, getVoteStatistics, logAdminAction, getAdminAuditLogs,
   enrollMFA, verifyMFAEnrollment, challengeMFA, verifyMFA, getMFAStatus, listMFAFactors, unenrollMFA
 } from '@/lib/supabase'
 
