@@ -19,6 +19,7 @@ import {
   checkAndGrantVerified, getVerifiedProgress, getUserVoteCount,
   getTrendingTags, getPollsByTag,
   getVoteDetails, getVoteStatistics, logAdminAction, getAdminAuditLogs
+  enrollMFA, verifyMFAEnrollment, challengeMFA, verifyMFA, getMFAStatus, listMFAFactors, unenrollMFA
 } from '@/lib/supabase'
 
 // ===== Categories =====
