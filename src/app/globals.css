@@ -2497,3 +2497,463 @@ select.form-input { appearance: none; background-image: url("data:image/svg+xml,
   background: rgba(255, 255, 255, 0.03);
   border-radius: 8px;
 }
+/* ============================================================
+   KIDWA: MFA (2FA) Styles
+   Add these styles to app/globals.css
+   ============================================================ */
+
+/* ===== MFA SETUP MODAL ===== */
+
+.mfa-setup-modal,
+.mfa-challenge-modal {
+  max-width: 420px;
+  width: 95%;
+  padding: 2rem;
+}
+
+.mfa-step-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.mfa-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.mfa-step-content h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+}
+
+.mfa-description {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin-bottom: 1.5rem;
+  max-width: 320px;
+}
+
+.mfa-requirements {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  padding: 1rem;
+  width: 100%;
+  margin-bottom: 1.5rem;
+  text-align: left;
+}
+
+.mfa-requirements h4 {
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.mfa-requirements ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.mfa-requirements li {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.6);
+  padding: 0.25rem 0;
+}
+
+.mfa-btn-start {
+  width: 100%;
+  padding: 1rem;
+  font-size: 1rem;
+}
+
+/* Loading State */
+.mfa-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: 2rem;
+}
+
+.mfa-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(255, 255, 255, 0.1);
+  border-top-color: #8b5cf6;
+  border-radius: 50%;
+  animation: mfa-spin 0.8s linear infinite;
+}
+
+@keyframes mfa-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* QR Code Section */
+.mfa-qr-container {
+  background: white;
+  padding: 1rem;
+  border-radius: 12px;
+  margin-bottom: 1rem;
+}
+
+.mfa-qr-image {
+  width: 200px;
+  height: 200px;
+  display: block;
+}
+
+.mfa-secret-section {
+  margin-bottom: 1.5rem;
+}
+
+.mfa-secret-box {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 0.75rem;
+  border-radius: 8px;
+}
+
+.mfa-secret-box code {
+  font-family: monospace;
+  font-size: 0.8rem;
+  color: #a78bfa;
+  word-break: break-all;
+}
+
+.btn-copy {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.25rem;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+.btn-copy:hover {
+  opacity: 1;
+}
+
+.btn-text {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.btn-text:hover {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* Code Input */
+.mfa-verify-section {
+  width: 100%;
+}
+
+.mfa-verify-section h4 {
+  font-size: 0.9rem;
+  margin-bottom: 0.75rem;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.mfa-code-input-group {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+}
+
+.mfa-code-input {
+  width: 140px;
+  padding: 0.875rem;
+  font-size: 1.5rem;
+  font-family: monospace;
+  text-align: center;
+  letter-spacing: 0.5rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  color: white;
+  transition: all 0.2s ease;
+}
+
+.mfa-code-input:focus {
+  outline: none;
+  border-color: #8b5cf6;
+  background: rgba(139, 92, 246, 0.1);
+}
+
+.mfa-code-input.large {
+  width: 180px;
+  font-size: 2rem;
+  padding: 1rem;
+}
+
+.mfa-code-input::placeholder {
+  color: rgba(255, 255, 255, 0.2);
+  letter-spacing: 0.3rem;
+}
+
+/* Error Message */
+.mfa-error {
+  color: #f87171;
+  font-size: 0.85rem;
+  margin-top: 0.75rem;
+  padding: 0.5rem 1rem;
+  background: rgba(248, 113, 113, 0.1);
+  border-radius: 8px;
+}
+
+/* Success State */
+.mfa-success {
+  padding: 2rem;
+}
+
+.mfa-success-icon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+  animation: mfa-pop 0.5s ease;
+}
+
+@keyframes mfa-pop {
+  0% { transform: scale(0); }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+
+/* ===== MFA CHALLENGE MODAL ===== */
+
+.mfa-challenge-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.mfa-actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1.5rem;
+  width: 100%;
+}
+
+.mfa-actions button {
+  flex: 1;
+  padding: 0.875rem;
+}
+
+/* ===== MFA STATUS INDICATOR ===== */
+
+.mfa-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+}
+
+.mfa-status.verified {
+  background: rgba(34, 197, 94, 0.1);
+  color: #4ade80;
+}
+
+.mfa-status.pending {
+  background: rgba(245, 158, 11, 0.1);
+  color: #fbbf24;
+}
+
+.mfa-status.not-setup {
+  background: rgba(239, 68, 68, 0.1);
+  color: #f87171;
+}
+
+.mfa-status.loading {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.mfa-status-icon {
+  font-size: 1rem;
+}
+
+.mfa-status .btn-small {
+  margin-left: auto;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.7rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  border-radius: 4px;
+  color: inherit;
+  cursor: pointer;
+}
+
+/* ===== ADMIN MFA SECTION ===== */
+
+.admin-mfa-section {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.admin-mfa-section h3 {
+  font-size: 1rem;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.mfa-status-card {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 12px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.mfa-status-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+  font-size: 0.9rem;
+}
+
+.mfa-status-row:not(:last-child) {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.mfa-status-row span:first-child {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.mfa-badge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.mfa-badge.active {
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+}
+
+.mfa-badge.inactive {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+}
+
+.mfa-level {
+  color: #a78bfa;
+}
+
+/* Factors List */
+.mfa-factors-list {
+  margin-top: 1rem;
+}
+
+.mfa-factors-list h4 {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 0.75rem;
+}
+
+.mfa-factor-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 10px;
+  margin-bottom: 0.5rem;
+}
+
+.factor-icon {
+  font-size: 1.25rem;
+}
+
+.factor-name {
+  font-weight: 500;
+  flex: 1;
+}
+
+.factor-date {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.btn-danger-small {
+  padding: 0.375rem 0.5rem;
+  background: rgba(239, 68, 68, 0.1);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-danger-small:hover {
+  background: rgba(239, 68, 68, 0.2);
+}
+
+/* No Factors State */
+.mfa-no-factors {
+  text-align: center;
+  padding: 1.5rem;
+}
+
+.mfa-no-factors p {
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 1rem;
+}
+
+.mfa-loading-inline {
+  text-align: center;
+  padding: 1rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* ===== DARK MODE ADJUSTMENTS ===== */
+
+.dark .mfa-setup-modal,
+.dark .mfa-challenge-modal {
+  background: #0f0f1a;
+}
+
+.dark .mfa-code-input {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.dark .mfa-qr-container {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+/* ===== RESPONSIVE ===== */
+
+@media (max-width: 480px) {
+  .mfa-setup-modal,
+  .mfa-challenge-modal {
+    padding: 1.5rem;
+  }
+  
+  .mfa-qr-image {
+    width: 180px;
+    height: 180px;
+  }
+  
+  .mfa-code-input.large {
+    width: 160px;
+    font-size: 1.75rem;
+  }
+  
+  .mfa-actions {
+    flex-direction: column;
+  }
+}
