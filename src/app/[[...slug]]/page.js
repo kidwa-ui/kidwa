@@ -698,8 +698,12 @@ function PollCard({ poll, onClick, userVotes }) {
       {isBlind ? (
         <div className="blind-minimal">
           <div className="blind-status">
-            <span className="blind-icon" title="ผลโหวตจะเปิดเผยเมื่อโพลสิ้นสุด">🔒</span>
+            <span className="blind-icon">🔒</span>
             <span className="blind-label">รอเฉลย</span>
+            <span className="blind-info-btn" title="ระบบซ่อนผลโหวตเพื่อป้องกัน Selection Bias โดยจะเฉลยเมื่อครบกำหนด">
+              <span className="blind-info-icon">?</span>
+              <span className="blind-tooltip">ระบบซ่อนผลโหวตเพื่อป้องกัน Selection Bias โดยจะเฉลยเมื่อครบกำหนด</span>
+            </span>
           </div>
           {hasVoted && (
             <div className="blind-voted">
