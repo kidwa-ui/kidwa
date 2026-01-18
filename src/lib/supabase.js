@@ -2927,28 +2927,3 @@ export async function resolvePollWithMFA(pollId, correctOptionId, adminId) {
   
   return { success: true }
 }
-
-// ===== ADMIN ACTION LOGGER =====
-
-/**
- * Log admin action for audit trail
- */
-export async function logAdminAction(adminId, action, targetType, targetId, metadata = {}) {
-  try {
-    await supabase
-      .from('audit_logs')
-      .insert([{
-        admin_id: adminId,
-        action,
-        target_type: targetType,
-        target_id: targetId,
-        metadata: {
-          ...metadata,
-          timestamp: new Date().toISOString(),
-          ip: typeof window !== 'undefined' ? 'client' : 'server'
-        }
-      }])
-  } catch (err) {
-    console.error('[AUDIT] Failed to log action:', err)
-  }
-}
