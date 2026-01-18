@@ -2636,3 +2636,319 @@ export async function getUserRecognitionHistory(userId) {
   
   return { data, error }
 }
+// ============================================================
+// KIDWA: Admin 2FA (Multi-Factor Authentication)
+// Add these functions to lib/supabase.js
+// ============================================================
+//
+// วิธี Setup:
+// 1. Supabase Dashboard → Authentication → Multi-Factor Authentication
+// 2. Enable "TOTP" (Time-based One-Time Password)
+// 3. Save changes
+//
+// ============================================================
+
+// ===== MFA ENROLLMENT =====
+
+/**
+ * Start MFA enrollment - generates QR code for authenticator app
+ * @returns {Promise<{qrCode: string, secret: string, factorId: string, error: Error|null}>}
+ */
+export async function enrollMFA() {
+  try {
+    const { data, error } = await supabase.auth.mfa.enroll({
+      factorType: 'totp',
+      friendlyName: 'Kidwa Admin Authenticator'
+    })
+    
+    if (error) {
+      console.error('[MFA] Enroll error:', error)
+      return { qrCode: null, secret: null, factorId: null, error }
+    }
+    
+    return { 
+      qrCode: data.totp.qr_code,      // Base64 QR code image
+      secret: data.totp.secret,        // Manual entry key
+      factorId: data.id,               // Factor ID (save this!)
+      error: null 
+    }
+  } catch (err) {
+    console.error('[MFA] Enroll exception:', err)
+    return { qrCode: null, secret: null, factorId: null, error: err }
+  }
+}
+
+/**
+ * Verify MFA enrollment with code from authenticator app
+ * @param {string} factorId - Factor ID from enrollMFA
+ * @param {string} code - 6-digit code from authenticator
+ * @returns {Promise<{success: boolean, error: Error|null}>}
+ */
+export async function verifyMFAEnrollment(factorId, code) {
+  try {
+    const { data: challengeData, error: challengeError } = await supabase.auth.mfa.challenge({
+      factorId
+    })
+    
+    if (challengeError) {
+      return { success: false, error: challengeError }
+    }
+    
+    const { data, error } = await supabase.auth.mfa.verify({
+      factorId,
+      challengeId: challengeData.id,
+      code
+    })
+    
+    if (error) {
+      return { success: false, error }
+    }
+    
+    console.log('[MFA] Enrollment verified successfully')
+    return { success: true, error: null }
+  } catch (err) {
+    console.error('[MFA] Verify enrollment exception:', err)
+    return { success: false, error: err }
+  }
+}
+
+// ===== MFA VERIFICATION (Login) =====
+
+/**
+ * Create MFA challenge for login
+ * @param {string} factorId - Factor ID
+ * @returns {Promise<{challengeId: string, error: Error|null}>}
+ */
+export async function challengeMFA(factorId) {
+  try {
+    const { data, error } = await supabase.auth.mfa.challenge({
+      factorId
+    })
+    
+    if (error) {
+      return { challengeId: null, error }
+    }
+    
+    return { challengeId: data.id, error: null }
+  } catch (err) {
+    return { challengeId: null, error: err }
+  }
+}
+
+/**
+ * Verify MFA code during login
+ * @param {string} factorId - Factor ID
+ * @param {string} challengeId - Challenge ID from challengeMFA
+ * @param {string} code - 6-digit code
+ * @returns {Promise<{success: boolean, error: Error|null}>}
+ */
+export async function verifyMFA(factorId, challengeId, code) {
+  try {
+    const { data, error } = await supabase.auth.mfa.verify({
+      factorId,
+      challengeId,
+      code
+    })
+    
+    if (error) {
+      return { success: false, error }
+    }
+    
+    return { success: true, error: null }
+  } catch (err) {
+    return { success: false, error: err }
+  }
+}
+
+// ===== MFA STATUS =====
+
+/**
+ * Get current MFA status for user
+ * @returns {Promise<{hasMFA: boolean, currentLevel: string, needsMFA: boolean, factors: Array, error: Error|null}>}
+ */
+export async function getMFAStatus() {
+  try {
+    const { data, error } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
+    
+    if (error) {
+      return { hasMFA: false, currentLevel: null, needsMFA: false, factors: [], error }
+    }
+    
+    // aal1 = password only
+    // aal2 = MFA verified
+    const hasMFA = data.currentLevel === 'aal2'
+    const needsMFA = data.nextLevel === 'aal2' && data.currentLevel === 'aal1'
+    
+    return { 
+      hasMFA,
+      currentLevel: data.currentLevel,
+      nextLevel: data.nextLevel,
+      needsMFA,
+      factors: data.currentAuthenticationMethods || [],
+      error: null 
+    }
+  } catch (err) {
+    return { hasMFA: false, currentLevel: null, needsMFA: false, factors: [], error: err }
+  }
+}
+
+/**
+ * List all enrolled MFA factors
+ * @returns {Promise<{factors: Array, error: Error|null}>}
+ */
+export async function listMFAFactors() {
+  try {
+    const { data, error } = await supabase.auth.mfa.listFactors()
+    
+    if (error) {
+      return { factors: [], error }
+    }
+    
+    // Filter to only verified TOTP factors
+    const verifiedFactors = (data.totp || []).filter(f => f.status === 'verified')
+    
+    return { factors: verifiedFactors, error: null }
+  } catch (err) {
+    return { factors: [], error: err }
+  }
+}
+
+/**
+ * Remove MFA factor
+ * @param {string} factorId - Factor ID to remove
+ * @returns {Promise<{success: boolean, error: Error|null}>}
+ */
+export async function unenrollMFA(factorId) {
+  try {
+    const { error } = await supabase.auth.mfa.unenroll({ factorId })
+    
+    if (error) {
+      return { success: false, error }
+    }
+    
+    console.log('[MFA] Factor unenrolled:', factorId)
+    return { success: true, error: null }
+  } catch (err) {
+    return { success: false, error: err }
+  }
+}
+
+// ===== MFA GUARDS =====
+
+/**
+ * Check if current session has MFA verified
+ * Use this to protect admin actions
+ * @returns {Promise<{authorized: boolean, reason: string|null}>}
+ */
+export async function requireMFA() {
+  const { hasMFA, currentLevel, needsMFA } = await getMFAStatus()
+  
+  if (needsMFA) {
+    return { 
+      authorized: false, 
+      reason: 'MFA_REQUIRED',
+      message: 'กรุณายืนยัน 2FA ก่อนดำเนินการ'
+    }
+  }
+  
+  if (currentLevel !== 'aal2') {
+    // Check if user has MFA set up
+    const { factors } = await listMFAFactors()
+    
+    if (factors.length === 0) {
+      return { 
+        authorized: false, 
+        reason: 'MFA_NOT_ENROLLED',
+        message: 'กรุณาตั้งค่า 2FA ก่อนใช้งาน Admin Panel'
+      }
+    }
+    
+    return { 
+      authorized: false, 
+      reason: 'MFA_NOT_VERIFIED',
+      message: 'กรุณายืนยัน 2FA ก่อนดำเนินการ'
+    }
+  }
+  
+  return { authorized: true, reason: null, message: null }
+}
+
+/**
+ * Check if user is admin AND has MFA verified
+ * @param {string} userId - User ID to check
+ * @returns {Promise<{authorized: boolean, reason: string|null}>}
+ */
+export async function requireAdminWithMFA(userId) {
+  // 1. Check MFA
+  const mfaCheck = await requireMFA()
+  if (!mfaCheck.authorized) {
+    return mfaCheck
+  }
+  
+  // 2. Check admin role
+  const { data: user, error } = await supabase
+    .from('users')
+    .select('is_admin')
+    .eq('id', userId)
+    .single()
+  
+  if (error || !user?.is_admin) {
+    return { 
+      authorized: false, 
+      reason: 'NOT_ADMIN',
+      message: 'คุณไม่มีสิทธิ์ Admin'
+    }
+  }
+  
+  return { authorized: true, reason: null, message: null }
+}
+
+// ===== PROTECTED ADMIN FUNCTIONS =====
+
+/**
+ * Resolve poll with MFA protection
+ * Example of how to wrap admin functions
+ */
+export async function resolvePollWithMFA(pollId, correctOptionId, adminId) {
+  // 1. Verify admin + MFA
+  const authCheck = await requireAdminWithMFA(adminId)
+  if (!authCheck.authorized) {
+    return { error: { message: authCheck.message, code: authCheck.reason } }
+  }
+  
+  // 2. Log admin action
+  await logAdminAction(adminId, 'resolve_poll_mfa', 'poll', pollId, {
+    correctOptionId,
+    mfaVerified: true
+  })
+  
+  // 3. Proceed with resolution
+  // ... call existing resolvePoll function ...
+  
+  return { success: true }
+}
+
+// ===== ADMIN ACTION LOGGER =====
+
+/**
+ * Log admin action for audit trail
+ */
+export async function logAdminAction(adminId, action, targetType, targetId, metadata = {}) {
+  try {
+    await supabase
+      .from('audit_logs')
+      .insert([{
+        admin_id: adminId,
+        action,
+        target_type: targetType,
+        target_id: targetId,
+        metadata: {
+          ...metadata,
+          timestamp: new Date().toISOString(),
+          ip: typeof window !== 'undefined' ? 'client' : 'server'
+        }
+      }])
+  } catch (err) {
+    console.error('[AUDIT] Failed to log action:', err)
+  }
+}
