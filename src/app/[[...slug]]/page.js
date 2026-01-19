@@ -3907,13 +3907,13 @@ function AdminSystemHealth({ darkMode }) {
 
 // ===== About Us Modal =====
 function AboutUsModal({ onClose, darkMode }) {
-  const [activeSection, setActiveSection] = useState('what')
+  const [activeSection, setActiveSection] = useState('philosophy')
   
   const sections = [
-    { id: 'what', icon: '🎯', label: 'คืออะไร' },
+    { id: 'philosophy', icon: '💭', label: 'ปรัชญา' },
+    { id: 'how', icon: '⚙️', label: 'วิธีวัด' },
     { id: 'polls', icon: '📊', label: 'ประเภทโพล' },
-    { id: 'rep', icon: '⭐', label: 'คะแนน' },
-    { id: 'rank', icon: '🏆', label: 'อันดับ' },
+    { id: 'levels', icon: '🏆', label: 'ระดับ' },
   ]
 
   return (
@@ -3927,7 +3927,7 @@ function AboutUsModal({ onClose, darkMode }) {
             <span className="about-logo-text">คิดว่า</span>
             <span className="about-logo-dots">..</span>
           </div>
-          <p className="about-tagline">ไม่ใช่แค่โหวต แต่คือการพิสูจน์ว่าคุณมองเห็นอนาคต</p>
+          <p className="about-tagline">ไม่ใช่แค่โหวต แต่คือการวัดคุณภาพของความคิด</p>
         </div>
 
         {/* Tab Navigation */}
@@ -3947,42 +3947,141 @@ function AboutUsModal({ onClose, darkMode }) {
         {/* Content Sections */}
         <div className="about-content">
           
-          {/* Section: What is Kidwa */}
-          {activeSection === 'what' && (
+          {/* Section: Philosophy */}
+          {activeSection === 'philosophy' && (
             <div className="about-section animate-fade">
-              <div className="about-card highlight">
-                <h3>คิดว่า.. ต่างจากโพลทั่วไปอย่างไร?</h3>
-                <div className="comparison-visual">
-                  <div className="compare-item old">
-                    <span className="compare-icon">📋</span>
-                    <span className="compare-label">โพลทั่วไป</span>
-                    <span className="compare-desc">โหวต → จบ</span>
+              <div className="about-card highlight philosophy-card">
+                <div className="philosophy-statement">
+                  <h3>คิดว่า.. ไม่ใช่เว็บโหวต</h3>
+                  <h3>และไม่ใช่เกมทายผล</h3>
+                </div>
+                <p className="philosophy-intro">
+                  ที่นี่ เราให้คุณ <strong>คิด</strong> — และทุกความคิดมีผลต่อ <strong>ชื่อเสียง</strong> ของคุณ
+                </p>
+              </div>
+              
+              <div className="about-card">
+                <h4>เราใช้คณิตศาสตร์วัดคุณภาพการตัดสินใจ</h4>
+                <p className="philosophy-desc">
+                  ไม่ใช่แค่ว่าคุณเลือกข้างไหน "ถูก" หรือ "ผิด"<br/>
+                  แต่คุณ <strong>คิดอย่างไร</strong> และ <strong>คิดภายใต้ความไม่แน่นอนแค่ไหน</strong>
+                </p>
+              </div>
+
+              <div className="philosophy-principles">
+                <h4>สิ่งที่เราไม่แนะนำ</h4>
+                <div className="principle-items warning">
+                  <div className="principle-item">
+                    <span className="principle-icon">🎲</span>
+                    <span>โหวตแบบสุ่ม</span>
                   </div>
-                  <div className="compare-arrow">→</div>
-                  <div className="compare-item new">
-                    <span className="compare-icon">🎯</span>
-                    <span className="compare-label">คิดว่า..</span>
-                    <span className="compare-desc">โหวต → รอผล → นับ Reputation</span>
+                  <div className="principle-item">
+                    <span className="principle-icon">😎</span>
+                    <span>เลือก "มั่นใจสูง" ทุกโพล</span>
+                  </div>
+                  <div className="principle-item">
+                    <span className="principle-icon">👥</span>
+                    <span>โหวตตามเสียงส่วนใหญ่</span>
                   </div>
                 </div>
               </div>
-              
-              <div className="about-grid">
-                <div className="about-mini-card">
-                  <span className="mini-icon">🔮</span>
-                  <h4>คิดว่า..</h4>
-                  <p>ใช้วิจารณญาณ คิดว่าจะเป็น..</p>
+
+              <div className="philosophy-values">
+                <h4>เพราะที่นี่...</h4>
+                <div className="value-items">
+                  <div className="value-item">
+                    <span className="value-icon">💎</span>
+                    <div className="value-content">
+                      <strong>เสียงส่วนน้อยที่คิดถูก มีคุณค่า</strong>
+                      <p>คนที่กล้าคิดต่าง และถูกต้อง ได้รับ Underdog Bonus</p>
+                    </div>
+                  </div>
+                  <div className="value-item">
+                    <span className="value-icon">📊</span>
+                    <div className="value-content">
+                      <strong>ความสม่ำเสมอ สร้างวินัย</strong>
+                      <p>ไม่ใช่แค่โหวตถูกครั้งเดียว แต่คิดถูกอย่างต่อเนื่อง</p>
+                    </div>
+                  </div>
+                  <div className="value-item">
+                    <span className="value-icon">⏰</span>
+                    <div className="value-content">
+                      <strong>คนที่คิดก่อน ย่อมเสี่ยงมากกว่า</strong>
+                      <p>โหวตเร็วเมื่อยังไม่มีข้อมูลมาก = กล้าหาญกว่า</p>
+                    </div>
+                  </div>
                 </div>
-                <div className="about-mini-card">
-                  <span className="mini-icon">⏳</span>
-                  <h4>รอผล</h4>
-                  <p>เมื่อถึงเวลา ระบบจะเฉลยคำตอบ</p>
+              </div>
+
+              <div className="about-card highlight-soft">
+                <p className="philosophy-conclusion">
+                  แม้คุณจะสมัครมาทีหลัง คุณยังสามารถ <strong>แซงคนอื่นได้</strong><br/>
+                  ถ้าคุณมองเห็นอนาคตได้ดีกว่า
+                </p>
+                <div className="philosophy-final">
+                  <span className="final-icon">🧠</span>
+                  <p><strong>คิดว่า..</strong> ไม่ได้วัดว่าคุณ "รู้มากแค่ไหน"<br/>แต่วัดว่า <strong>คุณคิดดีแค่ไหน</strong></p>
                 </div>
-                <div className="about-mini-card">
-                  <span className="mini-icon">📈</span>
-                  <h4>สะสม</h4>
-                  <p>ผลโหวต นับคะแนน</p>
+              </div>
+            </div>
+          )}
+
+          {/* Section: How We Measure */}
+          {activeSection === 'how' && (
+            <div className="about-section animate-fade">
+              <div className="about-card">
+                <h3>เราวัดอะไรบ้าง?</h3>
+                <p className="about-card-desc">ระบบ Reputation ใช้หลายปัจจัยในการประเมิน ไม่ใช่แค่ "ถูก/ผิด"</p>
+              </div>
+
+              <div className="measure-factors">
+                <div className="measure-factor">
+                  <div className="factor-header">
+                    <span className="factor-icon">🎯</span>
+                    <h4>ความแม่นยำ (Accuracy)</h4>
+                  </div>
+                  <p>โหวตถูกหรือผิด — แต่ไม่ใช่ปัจจัยเดียว</p>
+                  <div className="factor-weight">น้ำหนัก: สูง</div>
                 </div>
+
+                <div className="measure-factor">
+                  <div className="factor-header">
+                    <span className="factor-icon">💪</span>
+                    <h4>ความมั่นใจ (Conviction)</h4>
+                  </div>
+                  <p>คุณมั่นใจแค่ไหน? ความมั่นใจสูง = ผลกระทบสูง ทั้งบวกและลบ</p>
+                  <div className="factor-levels">
+                    <span className="fl low">🥶 ×0.8</span>
+                    <span className="fl med">🥺 ×1.0</span>
+                    <span className="fl high">😎 ×1.3</span>
+                  </div>
+                </div>
+
+                <div className="measure-factor">
+                  <div className="factor-header">
+                    <span className="factor-icon">🦁</span>
+                    <h4>ความกล้า (Underdog Bonus)</h4>
+                  </div>
+                  <p>โหวตฝั่งที่มีคนเลือกน้อย (&lt;30%) แล้วถูก = ได้ bonus พิเศษ</p>
+                  <div className="factor-weight highlight">Bonus: +20-50%</div>
+                </div>
+
+                <div className="measure-factor">
+                  <div className="factor-header">
+                    <span className="factor-icon">📈</span>
+                    <h4>ความสม่ำเสมอ (Consistency)</h4>
+                  </div>
+                  <p>โหวตถูกบ่อยๆ อย่างต่อเนื่อง ดีกว่าโหวตถูกครั้งใหญ่ครั้งเดียว</p>
+                  <div className="factor-weight">สะท้อนใน: Monthly Ranking</div>
+                </div>
+              </div>
+
+              <div className="about-card highlight-soft">
+                <h4>สูตรคำนวณ Reputation</h4>
+                <div className="formula-display">
+                  <code>Rep = √(Stake × Conviction × Accuracy) × Experience + Underdog − Penalty</code>
+                </div>
+                <p className="formula-note">* สูตรนี้ทำให้การ "เดามั่ว" ไม่คุ้มค่า และการ "คิดดี" ได้รับรางวัล</p>
               </div>
             </div>
           )}
@@ -3998,11 +4097,11 @@ function AboutUsModal({ onClose, darkMode }) {
                     <h4>Prediction</h4>
                     <span className="ptc-badge rep">มีผล Rep</span>
                   </div>
-                  <p>คิดว่า.. เหตุการณ์ในอนาคต เช่น ผลเลือกตั้ง, ใครจะชนะมิสยูนิเวิร์ส</p>
+                  <p>คิดว่า.. เหตุการณ์ในอนาคตจะเป็นอย่างไร</p>
                   <div className="ptc-features">
-                    <span>✓ มีคำตอบแน่ๆ และต้องเฉลย</span>
-                    <span>✓ Blind Mode ป้องกัน Selection Bias</span>
-                    <span>✓ นับ Reputation</span>
+                    <span>✓ ต้องมีคำตอบที่ตรวจสอบได้</span>
+                    <span>✓ Blind Mode ป้องกันการตามฝูง</span>
+                    <span>✓ นับ Reputation เมื่อเฉลย</span>
                   </div>
                 </div>
 
@@ -4012,11 +4111,11 @@ function AboutUsModal({ onClose, darkMode }) {
                     <h4>Opinion</h4>
                     <span className="ptc-badge no-rep">ไม่มีผล Rep</span>
                   </div>
-                  <p>แบบสำรวจความคิดเห็น ไม่มีถูก/ผิด</p>
+                  <p>สำรวจความคิดเห็น ไม่มีถูก/ผิด</p>
                   <div className="ptc-features">
-                    <span>✓ เสนอเพิ่มตัวเลือกได้</span>
-                    <span>✓ ผลโหวตขึ้นทันที</span>
-                    <span>✓ ไม่มีผลต่อ Rep</span>
+                    <span>✓ เสนอตัวเลือกใหม่ได้</span>
+                    <span>✓ เห็นผลทันที</span>
+                    <span>✓ ไม่กระทบ Reputation</span>
                   </div>
                 </div>
 
@@ -4026,11 +4125,11 @@ function AboutUsModal({ onClose, darkMode }) {
                     <h4>Live Battle</h4>
                     <span className="ptc-badge live-badge">Real-time</span>
                   </div>
-                  <p>โหวตสดๆ ดูผลเปลี่ยนแปลงแบบ real-time</p>
+                  <p>โหวตสดๆ ดูผลเปลี่ยนแบบ real-time</p>
                   <div className="ptc-features">
                     <span>✓ Countdown timer</span>
-                    <span>✓ ดูผลสดๆ</span>
-                    <span>✓ ระยะสั้น</span>
+                    <span>✓ ตื่นเต้น ลุ้นสด</span>
+                    <span>✓ ระยะสั้น นาที-ชั่วโมง</span>
                   </div>
                 </div>
 
@@ -4040,11 +4139,11 @@ function AboutUsModal({ onClose, darkMode }) {
                     <h4>Time Capsule</h4>
                     <span className="ptc-badge capsule-badge">Long-term</span>
                   </div>
-                  <p>คิดว่า.. อนาคตระยะยาว เป็นปีๆ</p>
+                  <p>ทำนายอนาคตระยะยาว 1+ ปี</p>
                   <div className="ptc-features">
                     <span>✓ Blind จนกว่าจะถึงเวลา</span>
-                    <span>✓ ระยะยาว 1+ ปี</span>
-                    <span>✓ ทดสอบการมองการณ์ไกล</span>
+                    <span>✓ ทดสอบวิสัยทัศน์</span>
+                    <span>✓ สำหรับคนที่คิดไกล</span>
                   </div>
                 </div>
 
@@ -4052,118 +4151,57 @@ function AboutUsModal({ onClose, darkMode }) {
             </div>
           )}
 
-          {/* Section: Reputation */}
-          {activeSection === 'rep' && (
+          {/* Section: Levels & Rankings */}
+          {activeSection === 'levels' && (
             <div className="about-section animate-fade">
               <div className="about-card">
-                <h3>ระบบคะแนน Reputation</h3>
-                <p className="about-card-desc">คะแนนสะท้อนสิ่งที่คุณคิดว่า..</p>
-                
-                <div className="rep-formula">
-                  <div className="formula-box">
-                    <span className="formula-label">เริ่มต้น</span>
-                    <span className="formula-value">1,000 pt</span>
-                  </div>
-                  <div className="formula-op">+</div>
-                  <div className="formula-box correct">
-                    <span className="formula-label">โหวตถูก</span>
-                    <span className="formula-value">+คะแนน</span>
-                  </div>
-                  <div className="formula-op">-</div>
-                  <div className="formula-box wrong">
-                    <span className="formula-label">คลาดเคลื่อน</span>
-                    <span className="formula-value">-คะแนน</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="conviction-showcase">
-                <h4>Conviction Level</h4>
-                <p>ยิ่งมั่นใจมาก ยิ่งมีผลต่อ Rep</p>
-                <div className="conviction-levels">
-                  <div className="conviction-level low">
-                    <span className="conv-emoji">🥶</span>
-                    <span className="conv-name">ไม่ค่อยมั่นใจ</span>
-                    <span className="conv-multiplier">×0.8</span>
-                  </div>
-                  <div className="conviction-level medium">
-                    <span className="conv-emoji">🥺</span>
-                    <span className="conv-name">โหวตเลย</span>
-                    <span className="conv-multiplier">×1.0</span>
-                  </div>
-                  <div className="conviction-level high">
-                    <span className="conv-emoji">😎</span>
-                    <span className="conv-name">มั่นใจมาก</span>
-                    <span className="conv-multiplier">×1.3</span>
-                  </div>
-                </div>
+                <h3>ระดับชื่อเสียง</h3>
+                <p className="about-card-desc">เริ่มต้นที่ 1,000 pt — ไต่ขึ้นด้วยการคิดที่ดี</p>
               </div>
 
               <div className="rep-levels">
-                <h4>ระดับชื่อเสียง</h4>
                 <div className="level-ladder">
-                  <div className="level-item"><span>👑</span> ตำนาน <span className="level-pts">10,000+</span></div>
-                  <div className="level-item"><span>🏆</span> ปรมาจารย์ <span className="level-pts">5,001+</span></div>
-                  <div className="level-item"><span>⭐</span> ผู้เชี่ยวชาญ <span className="level-pts">3,001+</span></div>
-                  <div className="level-item"><span>🔮</span> นักวิเคราะห์ <span className="level-pts">1,501+</span></div>
-                  <div className="level-item"><span>🎯</span> ผู้เริ่มต้น <span className="level-pts">501+</span></div>
-                  <div className="level-item"><span>🌱</span> นักศึกษา <span className="level-pts">0+</span></div>
+                  <div className="level-item legendary"><span>👑</span> ตำนาน <span className="level-pts">10,000+</span></div>
+                  <div className="level-item master"><span>🏆</span> ปรมาจารย์ <span className="level-pts">5,001+</span></div>
+                  <div className="level-item expert"><span>⭐</span> ผู้เชี่ยวชาญ <span className="level-pts">3,001+</span></div>
+                  <div className="level-item analyst"><span>🔮</span> นักวิเคราะห์ <span className="level-pts">1,501+</span></div>
+                  <div className="level-item beginner"><span>🎯</span> ผู้เริ่มต้น <span className="level-pts">501+</span></div>
+                  <div className="level-item student"><span>🌱</span> นักศึกษา <span className="level-pts">0+</span></div>
                 </div>
               </div>
-            </div>
-          )}
 
-          {/* Section: Rankings */}
-          {activeSection === 'rank' && (
-            <div className="about-section animate-fade">
               <div className="about-card">
-                <h3>อันดับ Leaderboard</h3>
-                <p className="about-card-desc">ไม่มี Season, ไม่มี Reset — ทุกอันดับเป็น Rolling Window</p>
-              </div>
-
-              <div className="rank-types">
-                <div className="rank-type-card">
-                  <div className="rank-type-icon">⚡</div>
-                  <div>
-                    <h4>Weekly</h4>
-                    <p className="rank-type-meaning">คะแนนล่าสุด</p>
-                    <p className="rank-type-desc">สะท้อนความคิด..ในช่วง 7 วันที่ผ่านมา </p>
-                    <div className="rank-type-window">ทุกสัปดาห์</div>
+                <h3>Leaderboard</h3>
+                <p className="about-card-desc">ไม่มี Season Reset — ทุกอันดับเป็น Rolling Window</p>
+                
+                <div className="rank-types-compact">
+                  <div className="rank-compact">
+                    <span className="rank-icon">⚡</span>
+                    <div>
+                      <strong>Weekly</strong>
+                      <p>7 วันล่าสุด — ความคมชัดปัจจุบัน</p>
+                    </div>
                   </div>
-                </div>
-
-                <div className="rank-type-card">
-                  <div className="rank-type-icon">📅</div>
-                  <div>
-                    <h4>Monthly</h4>
-                    <p className="rank-type-meaning">ความสม่ำเสมอ</p>
-                    <p className="rank-type-desc">สะท้อนความต่อเนื่องทั้งเดือน</p>
-                    <div className="rank-type-window">ทุกเดือน</div>
+                  <div className="rank-compact">
+                    <span className="rank-icon">📅</span>
+                    <div>
+                      <strong>Monthly</strong>
+                      <p>30 วันล่าสุด — ความสม่ำเสมอ</p>
+                    </div>
                   </div>
-                </div>
-
-                <div className="rank-type-card featured">
-                  <div className="rank-type-icon">👑</div>
-                  <div>
-                    <h4>All-time</h4>
-                    <p className="rank-type-meaning">ชื่อเสียงสะสม</p>
-                    <p className="rank-type-desc">Reputation รวมตั้งแต่เริ่มใช้งาน สะท้อนความน่าเชื่อถือระยะยาว</p>
-                    <div className="rank-type-window">ตลอดกาล</div>
+                  <div className="rank-compact featured">
+                    <span className="rank-icon">👑</span>
+                    <div>
+                      <strong>All-time</strong>
+                      <p>ตั้งแต่เริ่มใช้งาน — ชื่อเสียงสะสม</p>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              <div className="verified-info-box">
-                <div className="verified-icon-large">✓</div>
-                <div className="verified-info-content">
-                  <h4>Verified Badge</h4>
-                  <p>สัญลักษณ์ของความน่าเชื่อถือ ได้จากการมีส่วนร่วมอย่างต่อเนื่อง</p>
-                  <ul>
-                    <li>เป็นสมาชิกมาแล้ว 14+ วัน</li>
-                    <li>โหวตแล้ว 20+ โพล</li>
-                    <li>ยืนยันอีเมลแล้ว</li>
-                  </ul>
-                </div>
+              <div className="about-card highlight-soft">
+                <h4>🔓 Verified Badge</h4>
+                <p>ได้รับเมื่อ: เป็นสมาชิก 14+ วัน, โหวต 20+ โพล, ยืนยันอีเมล</p>
               </div>
             </div>
           )}
