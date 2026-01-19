@@ -4026,56 +4026,57 @@ function AboutUsModal({ onClose, darkMode }) {
             </div>
           )}
 
-          {/* Section: How We Measure */}
-          {activeSection === 'how' && (
-            <div className="about-section animate-fade">
-              <div className="about-card">
-                <h3>เราวัดอะไรบ้าง?</h3>
-                <p className="about-card-desc">ระบบ Reputation ใช้สมการคณิตศาสตร์ในการคำนวน ไม่ใช่แค่ "ถูก/ผิด"</p>
-              </div>
+ {/* Section: How We Measure */}
+{activeSection === 'how' && (
+  <div className="about-section animate-fade">
+    <div className="about-card">
+      <h3>เราวัดอะไรบ้าง?</h3>
+      <p className="about-card-desc">ระบบ Reputation ใช้หลายปัจจัยในการประเมิน ไม่ใช่แค่ "ถูก/ผิด"</p>
+    </div>
 
-              <div className="measure-factors">
-                <div className="measure-factor">
-                  <div className="factor-header">
-                    <span className="factor-icon">🎯</span>
-                    <h4>ความแม่นยำ (Accuracy)</h4>
-                  </div>
-                  <p>โหวตถูกหรือผิด — แต่ไม่ใช่ปัจจัยเดียว</p>
-                  <div className="factor-weight">น้ำหนัก: สูง</div>
-                </div>
+    <div className="measure-factors">
+      <div className="measure-factor">
+        <div className="factor-header">
+          <span className="factor-icon">🎯</span>
+          <h4>ความแม่นยำ (Accuracy)</h4>
+        </div>
+        <p>โหวตถูกหรือผิด — แต่ไม่ใช่ปัจจัยเดียว</p>
+        <div className="factor-weight">น้ำหนัก: สูง</div>
+      </div>
 
-                <div className="measure-factor">
-                  <div className="factor-header">
-                    <span className="factor-icon">💪</span>
-                    <h4>ความมั่นใจ (Conviction)</h4>
-                  </div>
-                  <p>คุณมั่นใจแค่ไหน? ความมั่นใจสูง = ผลกระทบสูง ทั้งบวกและลบ</p>
-                  <div className="factor-levels">
-                    <span className="fl low">🥶 ×0.8</span>
-                    <span className="fl med">🥺 ×1.0</span>
-                    <span className="fl high">😎 ×1.3</span>
-                  </div>
-                </div>
+      <div className="measure-factor">
+        <div className="factor-header">
+          <span className="factor-icon">💪</span>
+          <h4>ความมั่นใจ (Conviction)</h4>
+        </div>
+        <p>คุณมั่นใจแค่ไหน? ความมั่นใจสูง = ผลกระทบสูง ทั้งบวกและลบ</p>
+        <div className="factor-levels">
+          <span className="fl low">🥶 ×0.8</span>
+          <span className="fl med">🥺 ×1.0</span>
+          <span className="fl high">😎 ×1.3</span>
+        </div>
+      </div>
 
-                <div className="measure-factor">
-                  <div className="factor-header">
-                    <span className="factor-icon">🦁</span>
-                    <h4>ความกล้า (Underdog Bonus)</h4>
-                  </div>
-                  <p>โหวตฝั่งที่มีคนเลือกน้อย (&lt;30%) แล้วถูก = ได้ bonus พิเศษ</p>
-                  <div className="factor-weight highlight">Bonus: +20-50%</div>
-                </div>
+      <div className="measure-factor">
+        <div className="factor-header">
+          <span className="factor-icon">🦁</span>
+          <h4>ความกล้า (Underdog Bonus)</h4>
+        </div>
+        <p>โหวตฝั่งที่มีคนเลือกน้อย (&lt;30%) แล้วถูก = ได้ bonus พิเศษ</p>
+        <div className="factor-weight highlight">Bonus: +20-50%</div>
+      </div>
 
-                <div className="measure-factor">
-                  <div className="factor-header">
-                    <span className="factor-icon">📈</span>
-                    <h4>ความสม่ำเสมอ (Consistency)</h4>
-                  </div>
-                  <p>โหวตถูกบ่อยๆ อย่างต่อเนื่อง ดีกว่าโหวตถูกครั้งใหญ่ครั้งเดียว</p>
-                  <div className="factor-weight">สะท้อนใน: Monthly Ranking</div>
-                </div>
-          
-          )}
+      <div className="measure-factor">
+        <div className="factor-header">
+          <span className="factor-icon">📈</span>
+          <h4>ความสม่ำเสมอ (Consistency)</h4>
+        </div>
+        <p>โหวตถูกบ่อยๆ อย่างต่อเนื่อง ดีกว่าโหวตถูกครั้งใหญ่ครั้งเดียว</p>
+        <div className="factor-weight">สะท้อนใน: Monthly Ranking</div>
+      </div>
+    </div>
+  </div>
+)}
 
           {/* Section: Poll Types */}
           {activeSection === 'polls' && (
