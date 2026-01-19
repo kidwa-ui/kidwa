@@ -3910,7 +3910,7 @@ function AboutUsModal({ onClose, darkMode }) {
   const [activeSection, setActiveSection] = useState('philosophy')
   
   const sections = [
-    { id: 'philosophy', icon: '💭', label: 'ปรัชญา' },
+    { id: 'philosophy', icon: '💭', label: 'เสาหลักของคิดว่า..' },
     { id: 'how', icon: '⚙️', label: 'วิธีวัด' },
     { id: 'polls', icon: '📊', label: 'ประเภทโพล' },
     { id: 'levels', icon: '🏆', label: 'ระดับ' },
@@ -3952,7 +3952,7 @@ function AboutUsModal({ onClose, darkMode }) {
             <div className="about-section animate-fade">
               <div className="about-card highlight philosophy-card">
                 <div className="philosophy-statement">
-                  <h3>คิดว่า.. ไม่ใช่เว็บโหวต</h3>
+                  <h3>คิดว่า.. ไม่ใช่การโหวตทั่วไป</h3>
                   <h3>และไม่ใช่เกมทายผล</h3>
                 </div>
                 <p className="philosophy-intro">
@@ -3961,9 +3961,9 @@ function AboutUsModal({ onClose, darkMode }) {
               </div>
               
               <div className="about-card">
-                <h4>เราใช้คณิตศาสตร์วัดคุณภาพการตัดสินใจ</h4>
+                <h4>เราใช้สมการคณิตศาสตร์วัดคุณภาพการที่คุณคิดว่า..</h4>
                 <p className="philosophy-desc">
-                  ไม่ใช่แค่ว่าคุณเลือกข้างไหน "ถูก" หรือ "ผิด"<br/>
+                  ไม่ใช่แค่ว่าคุณเลือกข้าง "ถูก" หรือ "ผิด"<br/>
                   แต่คุณ <strong>คิดอย่างไร</strong> และ <strong>คิดภายใต้ความไม่แน่นอนแค่ไหน</strong>
                 </p>
               </div>
@@ -3993,7 +3993,7 @@ function AboutUsModal({ onClose, darkMode }) {
                     <span className="value-icon">💎</span>
                     <div className="value-content">
                       <strong>เสียงส่วนน้อยที่คิดถูก มีคุณค่า</strong>
-                      <p>คนที่กล้าคิดต่าง และถูกต้อง ได้รับ Underdog Bonus</p>
+                      <p>คนที่กล้าคิดต่าง และถูกต้อง ได้รับคะแนนพิเศษ</p>
                     </div>
                   </div>
                   <div className="value-item">
@@ -4031,7 +4031,7 @@ function AboutUsModal({ onClose, darkMode }) {
             <div className="about-section animate-fade">
               <div className="about-card">
                 <h3>เราวัดอะไรบ้าง?</h3>
-                <p className="about-card-desc">ระบบ Reputation ใช้หลายปัจจัยในการประเมิน ไม่ใช่แค่ "ถูก/ผิด"</p>
+                <p className="about-card-desc">ระบบ Reputation ใช้สมการคณิตศาสตร์ในการคำนวน ไม่ใช่แค่ "ถูก/ผิด"</p>
               </div>
 
               <div className="measure-factors">
@@ -4075,15 +4075,6 @@ function AboutUsModal({ onClose, darkMode }) {
                   <div className="factor-weight">สะท้อนใน: Monthly Ranking</div>
                 </div>
               </div>
-
-              <div className="about-card highlight-soft">
-                <h4>สูตรคำนวณ Reputation</h4>
-                <div className="formula-display">
-                  <code>Rep = √(Stake × Conviction × Accuracy) × Experience + Underdog − Penalty</code>
-                </div>
-                <p className="formula-note">* สูตรนี้ทำให้การ "เดามั่ว" ไม่คุ้มค่า และการ "คิดดี" ได้รับรางวัล</p>
-              </div>
-            </div>
           )}
 
           {/* Section: Poll Types */}
@@ -4100,7 +4091,7 @@ function AboutUsModal({ onClose, darkMode }) {
                   <p>คิดว่า.. เหตุการณ์ในอนาคตจะเป็นอย่างไร</p>
                   <div className="ptc-features">
                     <span>✓ ต้องมีคำตอบที่ตรวจสอบได้</span>
-                    <span>✓ Blind Mode ป้องกันการตามฝูง</span>
+                    <span>✓ Blind Mode ป้องกัน Selection Bias</span>
                     <span>✓ นับ Reputation เมื่อเฉลย</span>
                   </div>
                 </div>
@@ -4114,7 +4105,7 @@ function AboutUsModal({ onClose, darkMode }) {
                   <p>สำรวจความคิดเห็น ไม่มีถูก/ผิด</p>
                   <div className="ptc-features">
                     <span>✓ เสนอตัวเลือกใหม่ได้</span>
-                    <span>✓ เห็นผลทันที</span>
+                    <span>✓ ผลโหวตขึ้นทันที</span>
                     <span>✓ ไม่กระทบ Reputation</span>
                   </div>
                 </div>
@@ -4139,11 +4130,11 @@ function AboutUsModal({ onClose, darkMode }) {
                     <h4>Time Capsule</h4>
                     <span className="ptc-badge capsule-badge">Long-term</span>
                   </div>
-                  <p>ทำนายอนาคตระยะยาว 1+ ปี</p>
+                  <p>คิดว่า.. อนาคตระยะยาว 1+ ปี</p>
                   <div className="ptc-features">
                     <span>✓ Blind จนกว่าจะถึงเวลา</span>
-                    <span>✓ ทดสอบวิสัยทัศน์</span>
-                    <span>✓ สำหรับคนที่คิดไกล</span>
+                    <span>✓ ทดสอบการมองการณ์ไกล</span>
+                    <span>✓ ระยะยาว 1+ ปี</span>
                   </div>
                 </div>
 
@@ -4172,21 +4163,21 @@ function AboutUsModal({ onClose, darkMode }) {
 
               <div className="about-card">
                 <h3>Leaderboard</h3>
-                <p className="about-card-desc">ไม่มี Season Reset — ทุกอันดับเป็น Rolling Window</p>
+                <p className="about-card-desc">ไม่มี Season, ไม่มี Reset</p>
                 
                 <div className="rank-types-compact">
                   <div className="rank-compact">
                     <span className="rank-icon">⚡</span>
                     <div>
                       <strong>Weekly</strong>
-                      <p>7 วันล่าสุด — ความคมชัดปัจจุบัน</p>
+                      <p>สะท้อนความคิด..ในช่วง 7 วันที่ผ่านมา</p>
                     </div>
                   </div>
                   <div className="rank-compact">
                     <span className="rank-icon">📅</span>
                     <div>
                       <strong>Monthly</strong>
-                      <p>30 วันล่าสุด — ความสม่ำเสมอ</p>
+                      <p>สะท้อนความต่อเนื่องทั้งเดือน</p>
                     </div>
                   </div>
                   <div className="rank-compact featured">
@@ -4200,8 +4191,8 @@ function AboutUsModal({ onClose, darkMode }) {
               </div>
 
               <div className="about-card highlight-soft">
-                <h4>🔓 Verified Badge</h4>
-                <p>ได้รับเมื่อ: เป็นสมาชิก 14+ วัน, โหวต 20+ โพล, ยืนยันอีเมล</p>
+                <h4>✔️ Verified Badge</h4>
+                <p>สัญลักษณ์ของความน่าเชื่อถือ ได้จากการมีส่วนร่วมอย่างต่อเนื่อง ได้รับเมื่อ: เป็นสมาชิก 14+ วัน, โหวต 20+ โพล, ยืนยันอีเมลแล้ว</p>
               </div>
             </div>
           )}
