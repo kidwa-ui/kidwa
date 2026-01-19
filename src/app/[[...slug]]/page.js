@@ -4074,7 +4074,7 @@ function AboutUsModal({ onClose, darkMode }) {
                   <p>โหวตถูกบ่อยๆ อย่างต่อเนื่อง ดีกว่าโหวตถูกครั้งใหญ่ครั้งเดียว</p>
                   <div className="factor-weight">สะท้อนใน: Monthly Ranking</div>
                 </div>
-              </div>
+          
           )}
 
           {/* Section: Poll Types */}
