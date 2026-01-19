@@ -2761,15 +2761,6 @@ export default function Home() {
                     {unreadCount > 0 && <span className="notification-badge-count">{unreadCount > 9 ? '9+' : unreadCount}</span>}
                   </button>
                 </div>
-                {/* Global Notification Dropdown */}
-                {showNotifications && (
-                  <>
-                    <div className="notification-backdrop" onClick={() => { setShowNotifications(false); loadUnreadCount() }}></div>
-                    <div className="notification-dropdown-global">
-                      <NotificationDropdown user={user} onClose={() => { setShowNotifications(false); loadUnreadCount() }} />
-                    </div>
-                  </>
-                )}
                 <div className="user-badge hide-mobile" onClick={() => { setShowAccount(true); setShowMenu(false) }}>
                   {user.avatar_url ? (
                     <img src={user.avatar_url} alt={user.username} className="user-avatar-img" />
@@ -3158,6 +3149,16 @@ export default function Home() {
           onClose={() => setViewProfileUserId(null)} 
           darkMode={darkMode} 
         />
+      )}
+      
+      {/* Global Notification Dropdown */}
+      {showNotifications && (
+        <>
+          <div className="notification-backdrop" onClick={() => { setShowNotifications(false); loadUnreadCount() }}></div>
+          <div className="notification-dropdown-global">
+            <NotificationDropdown user={user} onClose={() => { setShowNotifications(false); loadUnreadCount() }} />
+          </div>
+        </>
       )}
       
       {/* Policy Modals */}
