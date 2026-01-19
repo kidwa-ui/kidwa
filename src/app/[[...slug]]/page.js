@@ -2368,6 +2368,7 @@ function NotificationDropdown({ user, onClose }) {
 
   return (
     <div className="notification-dropdown" onClick={e => e.stopPropagation()}>
+      <button className="notification-close-btn" onClick={onClose}>✕</button>
       <div className="notification-header">
         <h3>การแจ้งเตือน</h3>
         {notifications.some(n => !n.is_read) && (
@@ -3156,7 +3157,6 @@ export default function Home() {
         <>
           <div className="notification-backdrop" onClick={() => { setShowNotifications(false); loadUnreadCount() }}></div>
           <div className="notification-dropdown-global">
-            <button className="notification-close-btn" onClick={() => { setShowNotifications(false); loadUnreadCount() }}>✕</button>
             <NotificationDropdown user={user} onClose={() => { setShowNotifications(false); loadUnreadCount() }} />
           </div>
         </>
