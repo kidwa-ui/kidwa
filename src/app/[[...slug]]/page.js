@@ -3156,6 +3156,7 @@ export default function Home() {
         <>
           <div className="notification-backdrop" onClick={() => { setShowNotifications(false); loadUnreadCount() }}></div>
           <div className="notification-dropdown-global">
+            <button className="notification-close-btn" onClick={() => { setShowNotifications(false); loadUnreadCount() }}>✕</button>
             <NotificationDropdown user={user} onClose={() => { setShowNotifications(false); loadUnreadCount() }} />
           </div>
         </>
