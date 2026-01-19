@@ -2647,6 +2647,291 @@ select.form-input { appearance: none; background-image: url("data:image/svg+xml,
   font-style: italic;
 }
 
+/* ===== PHILOSOPHY SECTION ===== */
+
+.philosophy-card {
+  text-align: center;
+}
+
+.philosophy-statement h3 {
+  font-size: 1.2rem;
+  margin-bottom: 0.25rem;
+  background: linear-gradient(135deg, #fff 0%, #a78bfa 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.philosophy-intro {
+  font-size: 0.95rem;
+  color: rgba(255, 255, 255, 0.8);
+  margin-top: 1rem;
+  line-height: 1.6;
+}
+
+.philosophy-intro strong {
+  color: #a78bfa;
+}
+
+.philosophy-desc {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.6;
+}
+
+.philosophy-desc strong {
+  color: #fff;
+}
+
+.philosophy-principles {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 14px;
+  padding: 1rem;
+}
+
+.philosophy-principles h4 {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 0.75rem;
+}
+
+.principle-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.principle-items.warning .principle-item {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.principle-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.principle-icon {
+  font-size: 1rem;
+}
+
+.philosophy-values {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 14px;
+  padding: 1rem;
+}
+
+.philosophy-values h4 {
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.value-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.value-item {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.value-icon {
+  font-size: 1.25rem;
+  flex-shrink: 0;
+}
+
+.value-content strong {
+  display: block;
+  font-size: 0.85rem;
+  color: #fff;
+  margin-bottom: 0.25rem;
+}
+
+.value-content p {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+  line-height: 1.4;
+}
+
+.about-card.highlight-soft {
+  background: rgba(139, 92, 246, 0.08);
+  border-color: rgba(139, 92, 246, 0.15);
+}
+
+.philosophy-conclusion {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.8);
+  text-align: center;
+  line-height: 1.6;
+  margin-bottom: 1rem;
+}
+
+.philosophy-conclusion strong {
+  color: #a78bfa;
+}
+
+.philosophy-final {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  text-align: center;
+}
+
+.final-icon {
+  font-size: 2rem;
+}
+
+.philosophy-final p {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.9);
+  line-height: 1.5;
+}
+
+.philosophy-final strong {
+  color: #a78bfa;
+}
+
+/* ===== MEASURE FACTORS SECTION ===== */
+
+.measure-factors {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.measure-factor {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 1rem;
+}
+
+.factor-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.factor-icon {
+  font-size: 1.25rem;
+}
+
+.factor-header h4 {
+  font-size: 0.9rem;
+  color: #fff;
+  margin: 0;
+}
+
+.measure-factor p {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 0.5rem;
+}
+
+.factor-weight {
+  display: inline-block;
+  font-size: 0.7rem;
+  padding: 0.25rem 0.5rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.factor-weight.highlight {
+  background: rgba(34, 197, 94, 0.15);
+  color: #22c55e;
+}
+
+.factor-levels {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.factor-levels .fl {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.factor-levels .fl.low { color: #22c55e; }
+.factor-levels .fl.med { color: #f59e0b; }
+.factor-levels .fl.high { color: #ef4444; }
+
+.formula-display {
+  background: rgba(0, 0, 0, 0.3);
+  padding: 1rem;
+  border-radius: 8px;
+  margin: 0.75rem 0;
+  overflow-x: auto;
+}
+
+.formula-display code {
+  font-family: 'Monaco', 'Consolas', monospace;
+  font-size: 0.75rem;
+  color: #a78bfa;
+  white-space: nowrap;
+}
+
+.formula-note {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+  font-style: italic;
+}
+
+/* ===== RANK TYPES COMPACT ===== */
+
+.rank-types-compact {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.rank-compact {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 10px;
+}
+
+.rank-compact.featured {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(59, 130, 246, 0.1) 100%);
+  border: 1px solid rgba(139, 92, 246, 0.2);
+}
+
+.rank-compact .rank-icon {
+  font-size: 1.5rem;
+}
+
+.rank-compact strong {
+  display: block;
+  font-size: 0.85rem;
+  color: #fff;
+}
+
+.rank-compact p {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+  margin: 0;
+}
+
 /* ===== UPDATED LEADERBOARD PERIOD INFO ===== */
 
 .leaderboard-period-info {
