@@ -2438,7 +2438,6 @@ export default function Home() {
   const [showAdminPanel, setShowAdminPanel] = useState(false)
   const [showAccount, setShowAccount] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
-  const [showNotificationsMobile, setShowNotificationsMobile] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
   const [viewProfileUserId, setViewProfileUserId] = useState(null)
   const [liveBattles, setLiveBattles] = useState([])
@@ -2761,8 +2760,16 @@ export default function Home() {
                     🔔
                     {unreadCount > 0 && <span className="notification-badge-count">{unreadCount > 9 ? '9+' : unreadCount}</span>}
                   </button>
-                  {showNotifications && <NotificationDropdown user={user} onClose={() => { setShowNotifications(false); loadUnreadCount() }} />}
                 </div>
+                {/* Global Notification Dropdown */}
+                {showNotifications && (
+                  <>
+                    <div className="notification-backdrop" onClick={() => { setShowNotifications(false); loadUnreadCount() }}></div>
+                    <div className="notification-dropdown-global">
+                      <NotificationDropdown user={user} onClose={() => { setShowNotifications(false); loadUnreadCount() }} />
+                    </div>
+                  </>
+                )}
                 <div className="user-badge hide-mobile" onClick={() => { setShowAccount(true); setShowMenu(false) }}>
                   {user.avatar_url ? (
                     <img src={user.avatar_url} alt={user.username} className="user-avatar-img" />
@@ -2818,7 +2825,7 @@ export default function Home() {
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{getReputationLevel(user.reputation).badge} {user.reputation} pt</div>
                   </div>
                 </div>
-                <button className="dropdown-item" onClick={() => { setShowNotificationsMobile(true); setShowMenu(false) }}>
+                <button className="dropdown-item" onClick={() => { setShowNotifications(true); setShowMenu(false) }}>
                   การแจ้งเตือน {unreadCount > 0 && <span className="mobile-notif-badge">{unreadCount}</span>}
                 </button>
                 <button className="dropdown-item" onClick={() => { setShowAccount(true); setShowMenu(false) }}>บัญชีของฉัน</button>
@@ -3151,16 +3158,6 @@ export default function Home() {
           onClose={() => setViewProfileUserId(null)} 
           darkMode={darkMode} 
         />
-      )}
-      
-      {/* Mobile Notification Modal */}
-      {showNotificationsMobile && (
-        <div className="notification-overlay" onClick={() => { setShowNotificationsMobile(false); loadUnreadCount() }}>
-          <div className={`modal notification-modal ${darkMode ? 'dark' : ''}`} onClick={e => e.stopPropagation()}>
-            <button className="modal-close" onClick={() => { setShowNotificationsMobile(false); loadUnreadCount() }}>✕</button>
-            <NotificationDropdown user={user} onClose={() => { setShowNotificationsMobile(false); loadUnreadCount() }} />
-          </div>
-        </div>
       )}
       
       {/* Policy Modals */}
