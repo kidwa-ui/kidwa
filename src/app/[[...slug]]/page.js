@@ -2402,7 +2402,6 @@ export default function Home() {
   const router = useRouter()
   const params = useParams()
   const searchParams = useSearchParams()
-  const refreshTrendingTags = () => {  setTrendingRefreshKey(prev => prev + 1)}
   // Parse slug from URL: /sports → ['sports'], /tag/foo → ['tag', 'foo']
   const slug = params?.slug || []
   
