@@ -285,7 +285,7 @@ export async function getTrendingTags(limit = 10, daysWindow = 7) {
       .from('polls')
       .select('id')
       .gte('created_at', windowStart.toISOString())
-      .eq('status', 'active')
+      .eq('resolved', false)
     
     if (pollError || !polls?.length) return { data: [], error: pollError }
     
