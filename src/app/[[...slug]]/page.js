@@ -3053,7 +3053,7 @@ export default function Home() {
                 const isBlind = selectedPoll.blind_mode && !selectedPoll.resolved && !expired
                 const hasVoted = !!userVotes[selectedPoll.id]
                 const isCorrect = selectedPoll.correct_option_id === option.id
-                
+                const isOthersOption = option.is_system && option.option_key === 'others'
                 return (
   <button 
     key={option.id} 
@@ -3699,7 +3699,6 @@ function AdminExtendPollModal({ poll, adminId, darkMode, onClose, onExtended }) 
 
 function OpinionPollOption({ option, poll, isSelected, onVote, currentUser, darkMode }) {
   const [showOthersModal, setShowOthersModal] = useState(false)
-  const isOthersOption = option.is_system && option.option_key === 'others'
   
   const totalVotes = poll.options?.reduce((sum, o) => sum + o.votes, 0) || 0
   const percentage = totalVotes > 0 ? Math.round((option.votes / totalVotes) * 100) : 0
