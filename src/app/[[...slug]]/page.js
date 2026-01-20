@@ -2441,6 +2441,7 @@ export default function Home() {
   const [showAccount, setShowAccount] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
+  const [trendingRefreshKey, setTrendingRefreshKey] = useState(0)
   const [viewProfileUserId, setViewProfileUserId] = useState(null)
   const [liveBattles, setLiveBattles] = useState([])
   const [timeCapsules, setTimeCapsules] = useState([])
@@ -2690,6 +2691,7 @@ export default function Home() {
     setShowMenu(false)
   }
 
+  const refreshTrendingTags = () => {  setTrendingRefreshKey(prev => prev + 1)}
   // Vote handler
   const handleVote = async (pollId, optionId, confidence) => { 
     if (!user) { setShowAuthModal('login'); return }
