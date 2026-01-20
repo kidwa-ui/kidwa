@@ -3076,13 +3076,6 @@ export default function Home() {
     {isOthersOption && <span className="others-hint">คลิกเพื่อดูหรือเสนอตัวเลือก</span>}
   </button>
 )
-                    {!isBlind && <div className="option-bar" style={{ width: `${percent}%` }} />}
-                    <div className="option-content">
-                      <span>{isCorrect && '✅ '}{isVoted && '✓ '}{option.text}</span>
-                      {!isBlind && <span style={{ fontWeight: 600 }}>{percent}%</span>}
-                    </div>
-                  </button>
-                )
               })}
             </div>
  {showOthersModal && selectedPoll && (
