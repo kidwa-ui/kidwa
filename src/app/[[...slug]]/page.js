@@ -2303,7 +2303,7 @@ function TrendingTagsSection({ onTagClick, darkMode }) {
 
   useEffect(() => {
     loadTrendingTags()
-  }, [])
+  }, [refreshKey])
 
   const loadTrendingTags = async () => {
     setIsLoading(true)
@@ -2402,7 +2402,8 @@ export default function Home() {
   const router = useRouter()
   const params = useParams()
   const searchParams = useSearchParams()
-  
+  const [trendingRefreshKey, setTrendingRefreshKey] = useState(0)
+  const refreshTrendingTags = () => {  setTrendingRefreshKey(prev => prev + 1)}
   // Parse slug from URL: /sports → ['sports'], /tag/foo → ['tag', 'foo']
   const slug = params?.slug || []
   
@@ -2702,6 +2703,7 @@ export default function Home() {
     }
     setUserVotes(prev => ({ ...prev, [pollId]: { optionId, confidence } }))
     await loadPolls()
+    refreshTrendingTags() // ← ใส่ตรงนี้ (หลัง loadPolls) เพื่อให้นับแท็กทันทีหลังโหวต
     const totalVotes = (poll?.options?.reduce((sum, opt) => sum + (opt.votes || 0), 0) || 0) + 1
     alert(`✅ บันทึกโหวตของคุณแล้ว\nตอนนี้มีผู้ร่วมโหวต ${totalVotes.toLocaleString()} คน`)
     await checkAndAwardCreatorPoints(pollId)
@@ -2908,7 +2910,7 @@ export default function Home() {
       <main className="main">
         {/* Sidebar - Trending Tags */}
         <aside className="sidebar">
-          <TrendingTagsSection onTagClick={handleTagClick} darkMode={darkMode} />
+      <TrendingTagsSection onTagClick={handleTagClick}   darkMode={darkMode}   refreshKey={trendingRefreshKey} />
         </aside>
 
         {/* Content */}
