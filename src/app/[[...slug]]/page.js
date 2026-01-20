@@ -3085,7 +3085,7 @@ export default function Home() {
                 )
               })}
             </div>
-            {showOthersModal && selectedPoll && (
+ {showOthersModal && selectedPoll && (
   <OthersOptionsModal
     poll={selectedPoll}
     currentUser={user}
@@ -3095,7 +3095,8 @@ export default function Home() {
       setShowOthersModal(false)
       loadPolls()
     }}
-
+  />
+)}
             {!userVotes[selectedPoll.id] && !isExpired(selectedPoll.ends_at) && user && selectedPoll.poll_type === 'prediction' && (
               <>
                 <ConfidenceSelector selectedConfidence={selectedConfidence} onSelect={setSelectedConfidence} disabled={!selectedOption} user={user} stake={selectedConfidence} />
