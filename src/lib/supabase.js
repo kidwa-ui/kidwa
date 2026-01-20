@@ -397,10 +397,13 @@ export async function createPoll({ question, options, category, tags, blindMode,
     
     if (pollError) throw pollError
 
-   const optionsData = options.map(opt => ({   poll_id: poll.id,   text: opt,   votes: 0,  is_system: false,  option_key: null}))
-// Auto-add "อื่นๆ" for Opinion polls
-if (pollType === 'opinion') {  optionsData.push({    poll_id: poll.id,    text: 'อื่นๆ',    votes: 0,    is_system: true,    option_key: 'others'  })}
-const { error: optionsError } = await supabase.from('options').insert(optionsData)
+const optionsData = options.map(opt => ({   poll_id: poll.id,   text: opt,   votes: 0,  is_system: false,  option_key: null}))
+
+// Auto-add "อื่นๆ" for Opinion polls (ถ้ายังไม่มี)
+    if (pollType === 'opinion') {  const hasOthers = options.some(opt =>     opt.toLowerCase().includes('อื่นๆ') ||     opt.toLowerCase().includes('อื่น ๆ') ||    opt.toLowerCase() === 'other' ||
+    opt.toLowerCase() === 'others'  )
+    if (!hasOthers) {    optionsData.push({      poll_id: poll.id,      text: 'อื่นๆ',      votes: 0,      is_system: true,      option_key: 'others'    })  }}
+    const { error: optionsError } = await supabase.from('options').insert(optionsData)
     if (optionsError) throw optionsError
 
     if (tags && tags.length > 0) {
