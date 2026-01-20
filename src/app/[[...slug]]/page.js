@@ -2297,7 +2297,7 @@ function UserProfileModal({ userId, currentUser, onClose, darkMode }) {
 }
 
 // ===== Trending Tags Section (Sidebar) =====
-function TrendingTagsSection({ onTagClick, darkMode }) {
+function TrendingTagsSection({ onTagClick, darkMode, refreshKey}) {
   const [tags, setTags] = useState([])
   const [isLoading, setIsLoading] = useState(true)
 
