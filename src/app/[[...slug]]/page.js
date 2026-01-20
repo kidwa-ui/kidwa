@@ -3055,12 +3055,27 @@ export default function Home() {
                 const isCorrect = selectedPoll.correct_option_id === option.id
                 
                 return (
-                  <button 
-                    key={option.id} 
-                    onClick={() => !expired && !hasVoted && setSelectedOption(option.id)} 
-                    disabled={expired || hasVoted} 
-                    className={`option-btn ${isVoted ? 'voted' : ''} ${isSelected ? 'selected' : ''} ${expired || hasVoted ? 'disabled' : ''} ${isCorrect ? 'correct' : ''}`}
-                  >
+  <button 
+    key={option.id} 
+    onClick={() => {
+      if (expired || hasVoted) return
+      if (isOthersOption) {
+        setShowOthersModal(true)
+      } else {
+        setSelectedOption(option.id)
+      }
+    }} 
+    disabled={expired || hasVoted} 
+    className={`option-btn ${isVoted ? 'voted' : ''} ${isSelected ? 'selected' : ''} ${expired || hasVoted ? 'disabled' : ''} ${isCorrect ? 'correct' : ''} ${isOthersOption ? 'others-option' : ''}`}
+  >
+    {!isBlind && <div className="option-bar" style={{ width: `${percent}%` }} />}
+    <div className="option-content">
+      <span>{isCorrect && '✅ '}{isVoted && '✓ '}{isOthersOption && '💡 '}{option.text}</span>
+      {!isBlind && <span style={{ fontWeight: 600 }}>{percent}%</span>}
+    </div>
+    {isOthersOption && <span className="others-hint">คลิกเพื่อดูหรือเสนอตัวเลือก</span>}
+  </button>
+)
                     {!isBlind && <div className="option-bar" style={{ width: `${percent}%` }} />}
                     <div className="option-content">
                       <span>{isCorrect && '✅ '}{isVoted && '✓ '}{option.text}</span>
@@ -3070,7 +3085,17 @@ export default function Home() {
                 )
               })}
             </div>
-            
+            {showOthersModal && selectedPoll && (
+  <OthersOptionsModal
+    poll={selectedPoll}
+    currentUser={user}
+    darkMode={darkMode}
+    onClose={() => setShowOthersModal(false)}
+    onVote={() => {
+      setShowOthersModal(false)
+      loadPolls()
+    }}
+
             {!userVotes[selectedPoll.id] && !isExpired(selectedPoll.ends_at) && user && selectedPoll.poll_type === 'prediction' && (
               <>
                 <ConfidenceSelector selectedConfidence={selectedConfidence} onSelect={setSelectedConfidence} disabled={!selectedOption} user={user} stake={selectedConfidence} />
