@@ -2446,6 +2446,7 @@ export default function Home() {
   const [showCreateLiveBattle, setShowCreateLiveBattle] = useState(false)
   const [showCreateTimeCapsule, setShowCreateTimeCapsule] = useState(false)
   const [showVerificationModal, setShowVerificationModal] = useState(false)
+  const [showOthersModal, setShowOthersModal] = useState(false)
 
   // Info modals state
   const [showPostingGuidelines, setShowPostingGuidelines] = useState(false)
@@ -3698,7 +3699,6 @@ function AdminExtendPollModal({ poll, adminId, darkMode, onClose, onExtended }) 
 // Modified PollCard that handles "อื่นๆ" specially
 
 function OpinionPollOption({ option, poll, isSelected, onVote, currentUser, darkMode }) {
-  const [showOthersModal, setShowOthersModal] = useState(false)
   
   const totalVotes = poll.options?.reduce((sum, o) => sum + o.votes, 0) || 0
   const percentage = totalVotes > 0 ? Math.round((option.votes / totalVotes) * 100) : 0
