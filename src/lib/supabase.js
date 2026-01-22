@@ -3635,34 +3635,3 @@ export async function checkSuggestionValidity(pollId, text, userId) {
     return { valid: false, error: 'เกิดข้อผิดพลาด', similarShadow: null }
   }
 }
-
-// ===== UTILITY FUNCTIONS =====
-
-/**
- * Simple string similarity calculation (Dice coefficient)
- */
-function calculateSimilarity(str1, str2) {
-  if (!str1 || !str2) return 0
-  if (str1 === str2) return 1
-  
-  const bigrams1 = getBigrams(str1)
-  const bigrams2 = getBigrams(str2)
-  
-  let intersection = 0
-  bigrams2.forEach(bigram => {
-    if (bigrams1.has(bigram)) {
-      intersection++
-      bigrams1.delete(bigram) // Count each match only once
-    }
-  })
-  
-  return (2 * intersection) / (str1.length - 1 + str2.length - 1)
-}
-
-function getBigrams(str) {
-  const bigrams = new Set()
-  for (let i = 0; i < str.length - 1; i++) {
-    bigrams.add(str.substring(i, i + 2))
-  }
-  return bigrams
-}
