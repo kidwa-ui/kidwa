@@ -3222,3 +3222,447 @@ export function getChartColorLight(index, opacity = 0.3) {
   const color = CHART_COLORS[index % CHART_COLORS.length]
   return `${color}${Math.round(opacity * 255).toString(16).padStart(2, '0')}`
 }
+
+// ============================================================
+// KIDWA: Shadow Options Functions
+// Add these to your lib/supabase.js
+// ============================================================
+
+// ===== SHADOW OPTIONS =====
+// Shadow options are community-suggested answers that can be promoted to real options
+
+/**
+ * Get all shadow options for a poll
+ * @param {string} pollId - Poll ID
+ * @returns {Promise<{data: Array, error: Error}>}
+ */
+export async function getShadowOptions(pollId) {
+  try {
+    const { data, error } = await supabase
+      .from('shadow_options')
+      .select(`
+        id,
+        text,
+        unique_voters,
+        created_at,
+        promoted,
+        promoted_at,
+        created_by,
+        users:created_by (username)
+      `)
+      .eq('poll_id', pollId)
+      .eq('promoted', false) // Only show non-promoted ones
+      .order('unique_voters', { ascending: false })
+    
+    if (error) throw error
+    
+    return { data: data || [], error: null }
+  } catch (err) {
+    console.error('[Shadow Options] Get error:', err)
+    return { data: [], error: err }
+  }
+}
+
+/**
+ * Suggest a new shadow option
+ * @param {string} pollId - Poll ID
+ * @param {string} text - Suggestion text
+ * @param {string} userId - User ID
+ * @returns {Promise<{data: Object, error: Error, similarShadow: Object, canSupport: boolean}>}
+ */
+export async function suggestShadowOption(pollId, text, userId) {
+  try {
+    // 1. Check if user is verified
+    const { data: user } = await supabase
+      .from('users')
+      .select('is_verified')
+      .eq('id', userId)
+      .single()
+    
+    if (!user?.is_verified) {
+      return { 
+        data: null, 
+        error: { message: 'ต้องเป็น Verified user เพื่อเสนอตัวเลือก' },
+        similarShadow: null,
+        canSupport: false
+      }
+    }
+    
+    // 2. Check for existing similar shadow option
+    const normalizedText = text.trim().toLowerCase()
+    
+    const { data: existingShadows } = await supabase
+      .from('shadow_options')
+      .select('id, text, unique_voters')
+      .eq('poll_id', pollId)
+      .eq('promoted', false)
+    
+    // Simple similarity check (you can make this more sophisticated)
+    const similarShadow = existingShadows?.find(shadow => {
+      const existingText = shadow.text.toLowerCase()
+      // Check if texts are very similar (contains or Levenshtein distance)
+      return existingText === normalizedText || 
+             existingText.includes(normalizedText) || 
+             normalizedText.includes(existingText) ||
+             calculateSimilarity(existingText, normalizedText) > 0.8
+    })
+    
+    if (similarShadow) {
+      return {
+        data: null,
+        error: { message: 'มีคนเสนอคำตอบคล้ายกันไว้แล้ว' },
+        similarShadow,
+        canSupport: true
+      }
+    }
+    
+    // 3. Check if matches any existing poll option
+    const { data: existingOptions } = await supabase
+      .from('options')
+      .select('id, text')
+      .eq('poll_id', pollId)
+    
+    const matchesExisting = existingOptions?.some(opt => 
+      opt.text.toLowerCase() === normalizedText
+    )
+    
+    if (matchesExisting) {
+      return {
+        data: null,
+        error: { message: 'ตัวเลือกนี้มีอยู่แล้วในโพล' },
+        similarShadow: null,
+        canSupport: false
+      }
+    }
+    
+    // 4. Create shadow option
+    const { data, error } = await supabase
+      .from('shadow_options')
+      .insert([{
+        poll_id: pollId,
+        text: text.trim(),
+        created_by: userId,
+        unique_voters: 1, // Creator counts as first voter
+        promoted: false
+      }])
+      .select()
+      .single()
+    
+    if (error) throw error
+    
+    // 5. Add creator's vote for their own suggestion
+    await supabase
+      .from('shadow_option_votes')
+      .insert([{
+        shadow_option_id: data.id,
+        user_id: userId
+      }])
+    
+    return { data, error: null, similarShadow: null, canSupport: false }
+  } catch (err) {
+    console.error('[Shadow Options] Suggest error:', err)
+    return { data: null, error: err, similarShadow: null, canSupport: false }
+  }
+}
+
+/**
+ * Vote for (support) a shadow option
+ * @param {string} shadowId - Shadow option ID
+ * @param {string} userId - User ID
+ * @returns {Promise<{data: Object, error: Error, promoted: boolean, promotionMessage: string}>}
+ */
+export async function voteForShadowOption(shadowId, userId) {
+  try {
+    // 1. Check if user already voted
+    const { data: existingVote } = await supabase
+      .from('shadow_option_votes')
+      .select('id')
+      .eq('shadow_option_id', shadowId)
+      .eq('user_id', userId)
+      .single()
+    
+    if (existingVote) {
+      return {
+        data: null,
+        error: { message: 'คุณสนับสนุนตัวเลือกนี้แล้ว' },
+        promoted: false,
+        promotionMessage: null
+      }
+    }
+    
+    // 2. Add vote
+    const { error: voteError } = await supabase
+      .from('shadow_option_votes')
+      .insert([{
+        shadow_option_id: shadowId,
+        user_id: userId
+      }])
+    
+    if (voteError) throw voteError
+    
+    // 3. Increment unique_voters count
+    const { data: shadowOption, error: updateError } = await supabase
+      .from('shadow_options')
+      .update({ unique_voters: supabase.raw('unique_voters + 1') })
+      .eq('id', shadowId)
+      .select('*, polls:poll_id (id, total_votes)')
+      .single()
+    
+    // Alternative approach without raw SQL:
+    // First get current count
+    const { data: currentShadow } = await supabase
+      .from('shadow_options')
+      .select('unique_voters, poll_id')
+      .eq('id', shadowId)
+      .single()
+    
+    const newCount = (currentShadow?.unique_voters || 0) + 1
+    
+    const { data: updatedShadow, error: finalUpdateError } = await supabase
+      .from('shadow_options')
+      .update({ unique_voters: newCount })
+      .eq('id', shadowId)
+      .select('*, polls:poll_id (id, total_votes)')
+      .single()
+    
+    if (finalUpdateError) throw finalUpdateError
+    
+    // 4. Check if should be promoted (threshold met)
+    const poll = updatedShadow.polls
+    const threshold = Math.max(3, Math.ceil((poll?.total_votes || 0) * 0.1))
+    
+    let promoted = false
+    let promotionMessage = null
+    
+    if (newCount >= threshold && !updatedShadow.promoted) {
+      // Promote to real option
+      const promotionResult = await promoteShadowOption(shadowId)
+      if (promotionResult.success) {
+        promoted = true
+        promotionMessage = `🎉 ตัวเลือก "${updatedShadow.text}" ได้รับการสนับสนุนเพียงพอและถูกเพิ่มเป็นตัวเลือกจริงแล้ว!`
+      }
+    }
+    
+    return {
+      data: updatedShadow,
+      error: null,
+      promoted,
+      promotionMessage
+    }
+  } catch (err) {
+    console.error('[Shadow Options] Vote error:', err)
+    return { data: null, error: err, promoted: false, promotionMessage: null }
+  }
+}
+
+/**
+ * Promote shadow option to real option
+ * @param {string} shadowId - Shadow option ID
+ * @returns {Promise<{success: boolean, newOptionId: string, error: Error}>}
+ */
+async function promoteShadowOption(shadowId) {
+  try {
+    // 1. Get shadow option details
+    const { data: shadow, error: getError } = await supabase
+      .from('shadow_options')
+      .select('*')
+      .eq('id', shadowId)
+      .single()
+    
+    if (getError || !shadow) throw getError || new Error('Shadow option not found')
+    
+    // 2. Create real option
+    const { data: newOption, error: insertError } = await supabase
+      .from('options')
+      .insert([{
+        poll_id: shadow.poll_id,
+        text: shadow.text,
+        votes: 0, // Start fresh - shadow votes were just support
+        from_shadow: true,
+        shadow_option_id: shadowId
+      }])
+      .select()
+      .single()
+    
+    if (insertError) throw insertError
+    
+    // 3. Mark shadow as promoted
+    await supabase
+      .from('shadow_options')
+      .update({ 
+        promoted: true, 
+        promoted_at: new Date().toISOString(),
+        promoted_option_id: newOption.id
+      })
+      .eq('id', shadowId)
+    
+    return { success: true, newOptionId: newOption.id, error: null }
+  } catch (err) {
+    console.error('[Shadow Options] Promote error:', err)
+    return { success: false, newOptionId: null, error: err }
+  }
+}
+
+/**
+ * Vote for "Others" with a specific shadow option
+ * This creates a regular vote but links it to the shadow option
+ * @param {string} userId - User ID
+ * @param {string} pollId - Poll ID
+ * @param {string} shadowId - Shadow option ID
+ * @param {number} confidence - Confidence level
+ * @returns {Promise<{data: Object, error: Error}>}
+ */
+export async function voteOthersWithShadow(userId, pollId, shadowId, confidence = 50) {
+  try {
+    // 1. Find the "อื่นๆ" option
+    const { data: options } = await supabase
+      .from('options')
+      .select('id, text')
+      .eq('poll_id', pollId)
+    
+    const othersOption = options?.find(opt => 
+      opt.text.toLowerCase().includes('อื่น') || 
+      opt.text.toLowerCase() === 'others' ||
+      opt.text.toLowerCase() === 'other'
+    )
+    
+    if (!othersOption) {
+      return { data: null, error: { message: 'ไม่พบตัวเลือก "อื่นๆ" ในโพลนี้' } }
+    }
+    
+    // 2. Create or update vote
+    const { data: existingVote } = await supabase
+      .from('votes')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('poll_id', pollId)
+      .single()
+    
+    if (existingVote) {
+      // Update existing vote
+      const { data, error } = await supabase
+        .from('votes')
+        .update({ 
+          option_id: othersOption.id, 
+          confidence,
+          shadow_option_id: shadowId,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', existingVote.id)
+        .select()
+        .single()
+      
+      return { data, error }
+    } else {
+      // Create new vote
+      const { data, error } = await supabase
+        .from('votes')
+        .insert([{
+          user_id: userId,
+          poll_id: pollId,
+          option_id: othersOption.id,
+          confidence,
+          shadow_option_id: shadowId
+        }])
+        .select()
+        .single()
+      
+      return { data, error }
+    }
+  } catch (err) {
+    console.error('[Shadow Options] Vote others error:', err)
+    return { data: null, error: err }
+  }
+}
+
+/**
+ * Check if a suggestion is valid (real-time validation)
+ * @param {string} pollId - Poll ID
+ * @param {string} text - Suggestion text
+ * @param {string} userId - User ID
+ * @returns {Promise<{valid: boolean, error: string, similarShadow: Object}>}
+ */
+export async function checkSuggestionValidity(pollId, text, userId) {
+  try {
+    if (!text || text.trim().length < 2) {
+      return { valid: false, error: 'ข้อความสั้นเกินไป', similarShadow: null }
+    }
+    
+    if (text.trim().length > 100) {
+      return { valid: false, error: 'ข้อความยาวเกินไป (สูงสุด 100 ตัวอักษร)', similarShadow: null }
+    }
+    
+    const normalizedText = text.trim().toLowerCase()
+    
+    // Check existing poll options
+    const { data: existingOptions } = await supabase
+      .from('options')
+      .select('text')
+      .eq('poll_id', pollId)
+    
+    const matchesExisting = existingOptions?.some(opt => 
+      opt.text.toLowerCase() === normalizedText
+    )
+    
+    if (matchesExisting) {
+      return { valid: false, error: 'ตัวเลือกนี้มีอยู่แล้วในโพล', similarShadow: null }
+    }
+    
+    // Check similar shadow options
+    const { data: existingShadows } = await supabase
+      .from('shadow_options')
+      .select('id, text, unique_voters')
+      .eq('poll_id', pollId)
+      .eq('promoted', false)
+    
+    const similarShadow = existingShadows?.find(shadow => {
+      const existingText = shadow.text.toLowerCase()
+      return existingText === normalizedText || 
+             calculateSimilarity(existingText, normalizedText) > 0.7
+    })
+    
+    if (similarShadow) {
+      return { 
+        valid: false, 
+        error: 'มีคนเสนอคำตอบคล้ายกันไว้แล้ว', 
+        similarShadow 
+      }
+    }
+    
+    return { valid: true, error: null, similarShadow: null }
+  } catch (err) {
+    console.error('[Shadow Options] Validation error:', err)
+    return { valid: false, error: 'เกิดข้อผิดพลาด', similarShadow: null }
+  }
+}
+
+// ===== UTILITY FUNCTIONS =====
+
+/**
+ * Simple string similarity calculation (Dice coefficient)
+ */
+function calculateSimilarity(str1, str2) {
+  if (!str1 || !str2) return 0
+  if (str1 === str2) return 1
+  
+  const bigrams1 = getBigrams(str1)
+  const bigrams2 = getBigrams(str2)
+  
+  let intersection = 0
+  bigrams2.forEach(bigram => {
+    if (bigrams1.has(bigram)) {
+      intersection++
+      bigrams1.delete(bigram) // Count each match only once
+    }
+  })
+  
+  return (2 * intersection) / (str1.length - 1 + str2.length - 1)
+}
+
+function getBigrams(str) {
+  const bigrams = new Set()
+  for (let i = 0; i < str.length - 1; i++) {
+    bigrams.add(str.substring(i, i + 2))
+  }
+  return bigrams
+}
