@@ -1770,16 +1770,11 @@ export async function voteForShadowOption(shadowId, userId) {
 export async function getShadowOptions(pollId) {
   const { data, error } = await supabase
     .from('shadow_options')
-    .select(`
-      id, text, status, unique_voters, trust_score, created_at,
-      suggested_by,
-      users:suggested_by (username)
-    `)
+    .select(`      id, text, status, unique_voters, trust_score, created_at,      suggested_by,      users:suggested_by (username)    `)
     .eq('poll_id', pollId)
     .eq('status', 'pending')
     .order('trust_score', { ascending: false })
-  
-  return { data, error }
+    return { data, error }
 }
 
 // ===== SHADOW PROMOTION LOGIC =====
@@ -3231,37 +3226,6 @@ export function getChartColorLight(index, opacity = 0.3) {
 // ===== SHADOW OPTIONS =====
 // Shadow options are community-suggested answers that can be promoted to real options
 
-/**
- * Get all shadow options for a poll
- * @param {string} pollId - Poll ID
- * @returns {Promise<{data: Array, error: Error}>}
- */
-export async function getShadowOptions(pollId) {
-  try {
-    const { data, error } = await supabase
-      .from('shadow_options')
-      .select(`
-        id,
-        text,
-        unique_voters,
-        created_at,
-        promoted,
-        promoted_at,
-        created_by,
-        users:created_by (username)
-      `)
-      .eq('poll_id', pollId)
-      .eq('promoted', false) // Only show non-promoted ones
-      .order('unique_voters', { ascending: false })
-    
-    if (error) throw error
-    
-    return { data: data || [], error: null }
-  } catch (err) {
-    console.error('[Shadow Options] Get error:', err)
-    return { data: [], error: err }
-  }
-}
 
 /**
  * Suggest a new shadow option
