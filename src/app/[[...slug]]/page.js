@@ -19,7 +19,10 @@ import {
   checkAndGrantVerified, getVerifiedProgress, getUserVoteCount,
   getTrendingTags, getPollsByTag,
   getVoteDetails, getVoteStatistics, logAdminAction, getAdminAuditLogs,
-  enrollMFA, verifyMFAEnrollment, challengeMFA, verifyMFA, getMFAStatus, listMFAFactors, unenrollMFA
+  enrollMFA, verifyMFAEnrollment, challengeMFA, verifyMFA, getMFAStatus, listMFAFactors, unenrollMFA,
+  createOpinionPoll, suggestShadowOption, voteForShadowOption, getShadowOptions,
+  voteOthersWithShadow, extendPollTime, getPollExtensionHistory, getOpinionPolls,
+  checkSuggestionValidity, getCleanupHealth, safeResolvePoll, closeOpinionPoll
 } from '@/lib/supabase'
 
 // ===== Categories =====
@@ -3196,29 +3199,6 @@ export default function Home() {
     </div>
   )
 }
-// ============================================================
-// KIDWA: Opinion Poll & Admin Extension UI Components
-// Add these components to app/page.js
-// ============================================================
-
-// ===== IMPORT ADDITIONS =====
-// Add to imports at top of page.js:
-/*
-import {
-  createOpinionPoll,
-  suggestShadowOption,
-  voteForShadowOption,
-  getShadowOptions,
-  voteOthersWithShadow,
-  extendPollTime,
-  getPollExtensionHistory,
-  getOpinionPolls,
-  checkSuggestionValidity,
-  getCleanupHealth,
-  safeResolvePoll,
-  closeOpinionPoll
-} from '@/lib/supabase'
-*/
 
 // ===== SHADOW OPTIONS MODAL =====
 // Shows when user clicks "อื่นๆ" option
