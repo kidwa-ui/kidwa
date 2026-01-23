@@ -1774,7 +1774,8 @@ export async function getShadowOptions(pollId) {
     .eq('poll_id', pollId)
     .eq('status', 'pending')
     .order('trust_score', { ascending: false })
-    return { data, error }
+  
+  return { data, error }
 }
 
 // ===== SHADOW PROMOTION LOGIC =====
