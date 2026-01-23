@@ -1224,10 +1224,39 @@ export async function submitDemographics(userId, { fullName, birthDate, gender, 
       pdpa_consent: pdpaConsent,
       pdpa_consent_at: pdpaConsent ? new Date().toISOString() : null,
       marketing_consent: marketingConsent,
-      // Note: is_verified is NOT set here anymore
-      // Verified badge is earned through participation (14 days + 20 votes)
+      verification_skipped: false,
     })
     .eq('id', userId).select().single()
+
+  if (!error && data) {
+    // Check current progress
+    const { count: voteCount } = await getUserVoteCount(userId)
+    const daysSinceSignup = Math.floor((Date.now() - new Date(data.created_at).getTime()) / (1000 * 60 * 60 * 24))
+    
+    // Check if now qualifies for verified
+    const verifyResult = await checkAndGrantVerified(userId)
+    
+    // Send notification only if not granted verified (verified notification is sent separately)
+    if (!verifyResult.granted && !data.is_verified) {
+      const daysLeft = Math.max(0, 14 - daysSinceSignup)
+      const votesLeft = Math.max(0, 20 - voteCount)
+      
+      let progressText = ''
+      if (daysLeft > 0 && votesLeft > 0) {
+        progressText = ` (เหลืออีก ${daysLeft} วัน และ ${votesLeft} โหวต)`
+      } else if (daysLeft > 0) {
+        progressText = ` (เหลืออีก ${daysLeft} วัน)`
+      } else if (votesLeft > 0) {
+        progressText = ` (เหลืออีก ${votesLeft} โหวต)`
+      }
+      
+      await createNotification({
+        userId,
+        type: 'demographics_submitted',
+        message: `🙏 ขอบคุณที่ร่วมเป็นส่วนหนึ่งของคิดว่า.. เพื่อรับเครื่องหมาย ✓ ต่อท้ายชื่อ คุณต้องเป็นสมาชิกอย่างน้อย 14 วัน และโหวต 20 โหวต${progressText}`
+      })
+    }
+  }
 
   return { data, error }
 }
@@ -1313,7 +1342,7 @@ export async function checkAndGrantVerified(userId) {
     await createNotification({
       userId,
       type: 'verified_granted',
-      message: '🎉 คุณได้รับสถานะ Verified แล้ว! ขอบคุณที่ร่วมคิดว่า..และแลกเปลี่ยนความคิดเห็นอย่างต่อเนื่อง'
+      message: '🎉 ขอบคุณที่ร่วมคิดว่า..และแลกเปลี่ยนความคิดเห็นอย่างต่อเนื่อง.. ตอนนี้คุณได้รับเครื่องหมาย ✓ ต่อท้ายชื่อเรียบร้อยแล้ว'
     })
     
     return { granted: true }
