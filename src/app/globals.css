@@ -4326,3 +4326,32 @@ select.form-input { appearance: none; background-image: url("data:image/svg+xml,
     order: -1;
   }
 }
+
+/* ===== Mobile Trending Tags ===== */
+.mobile-trending-tags {
+  display: none; /* ซ่อนบน desktop */
+}
+
+@media (max-width: 768px) {
+  .mobile-trending-tags {
+    display: block;
+    padding: 0 1rem;
+    margin-bottom: 1rem;
+  }
+  
+  .mobile-trending-tags .sidebar-title {
+    font-size: 1rem;
+    margin-bottom: 0.75rem;
+  }
+  
+  .mobile-trending-tags .trending-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  
+  .mobile-trending-tags .trending-tag {
+    font-size: 0.85rem;
+    padding: 0.4rem 0.8rem;
+  }
+}
