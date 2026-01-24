@@ -2909,6 +2909,14 @@ export default function Home() {
       </nav>
       </div>
       {/* End Sticky Block */}
+{/* Mobile Trending Tags - แสดงเฉพาะ mobile */}
+<div className="mobile-trending-tags">
+  <TrendingTagsSection 
+    onTagClick={handleTagClick} 
+    darkMode={darkMode} 
+    refreshKey={trendingRefreshKey} 
+  />
+</div>
 
       {/* Main Content */}
       <main className="main">
