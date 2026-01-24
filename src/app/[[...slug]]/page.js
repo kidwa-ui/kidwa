@@ -2739,7 +2739,7 @@ export default function Home() {
   })
   
   const featuredPolls = filteredPolls.filter(p => p.featured).slice(0, 3)
-  const latestPolls = [...filteredPolls].slice(0, 9)
+  const latestPolls = [...filteredPolls].slice(0, 99)
 
   if (isLoading) return <div className={`loading-screen ${darkMode ? 'dark' : ''}`}><div className="loading-spinner" /><p>กำลังโหลด...</p></div>
 
