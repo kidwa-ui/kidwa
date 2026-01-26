@@ -280,32 +280,23 @@ export async function getTrendingTags(limit = 10, daysWindow = 7) {
     const windowStart = new Date()
     windowStart.setDate(windowStart.getDate() - daysWindow)
     
-    // Step 1: Get active polls within time window
-    const { data: polls, error: pollError } = await supabase
-      .from('polls')
-      .select('id')
-      .gte('created_at', windowStart.toISOString())
-      .eq('resolved', false)
-    
-    if (pollError || !polls?.length) return { data: [], error: pollError }
-    
-    const pollIds = polls.map(p => p.id)
-    
-    // Step 2: Get vote counts per poll
+    // Step 1: Get votes within time window (นับจากวันที่กดโหวต)
     const { data: votes, error: voteError } = await supabase
       .from('votes')
-      .select('poll_id')
-      .in('poll_id', pollIds)
+      .select('poll_id, created_at')
+      .gte('created_at', windowStart.toISOString())
     
-    if (voteError) return { data: [], error: voteError }
+    if (voteError || !votes?.length) return { data: [], error: voteError }
     
     // Count votes per poll
     const pollVoteCounts = {}
-    votes?.forEach(v => {
+    votes.forEach(v => {
       pollVoteCounts[v.poll_id] = (pollVoteCounts[v.poll_id] || 0) + 1
     })
     
-    // Step 3: Get tags for these polls
+    const pollIds = Object.keys(pollVoteCounts)
+    
+    // Step 2: Get tags for these polls (ไม่กรอง resolved แล้ว)
     const { data: pollTags, error: tagError } = await supabase
       .from('poll_tags')
       .select('poll_id, tags(id, name)')
@@ -313,7 +304,7 @@ export async function getTrendingTags(limit = 10, daysWindow = 7) {
     
     if (tagError) return { data: [], error: tagError }
     
-    // Step 4: Aggregate vote counts per tag
+    // Step 3: Aggregate vote counts per tag
     const tagVotes = {}
     pollTags?.forEach(pt => {
       if (pt.tags) {
@@ -324,8 +315,8 @@ export async function getTrendingTags(limit = 10, daysWindow = 7) {
           tagVotes[tagId] = { 
             id: tagId, 
             name: pt.tags.name, 
-            vote_count: 0,  // จำนวนคนโหวต
-            poll_count: 0   // จำนวนโพล
+            vote_count: 0,
+            poll_count: 0
           }
         }
         tagVotes[tagId].vote_count += voteCount
@@ -333,9 +324,9 @@ export async function getTrendingTags(limit = 10, daysWindow = 7) {
       }
     })
     
-    // Step 5: Sort by vote count and return top N
+    // Step 4: Sort by vote count and return top N
     const sorted = Object.values(tagVotes)
-      .filter(t => t.vote_count > 0)  // เฉพาะ tags ที่มีคนโหวต
+      .filter(t => t.vote_count > 0)
       .sort((a, b) => b.vote_count - a.vote_count)
       .slice(0, limit)
     
