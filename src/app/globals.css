@@ -3204,6 +3204,49 @@ select.form-input { appearance: none; background-image: url("data:image/svg+xml,
   color: rgba(0, 0, 0, 0.6);
 }
 
+/* ===== POLL TYPES SHOWCASE - LIGHT MODE ===== */
+
+.about-modal:not(.dark) .poll-type-showcase-card {
+  background: rgba(0, 0, 0, 0.02);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.about-modal:not(.dark) .poll-type-showcase-card:hover {
+  border-color: rgba(0, 0, 0, 0.15);
+}
+
+.about-modal:not(.dark) .ptc-header h4 {
+  color: #1a1a2e;
+}
+
+.about-modal:not(.dark) .poll-type-showcase-card > p {
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.about-modal:not(.dark) .ptc-features span {
+  color: rgba(0, 0, 0, 0.5);
+}
+
+/* Badges - ใช้สีเข้มขึ้นใน Light Mode */
+.about-modal:not(.dark) .ptc-badge.rep {
+  background: rgba(139, 92, 246, 0.15);
+  color: #7c3aed;
+}
+
+.about-modal:not(.dark) .ptc-badge.no-rep {
+  background: rgba(59, 130, 246, 0.15);
+  color: #2563eb;
+}
+
+.about-modal:not(.dark) .ptc-badge.live-badge {
+  background: rgba(245, 158, 11, 0.15);
+  color: #d97706;
+}
+
+.about-modal:not(.dark) .ptc-badge.capsule-badge {
+  background: rgba(16, 185, 129, 0.15);
+  color: #059669;
+}
 /* ============================================================
    END: About Modal Light Mode
    ============================================================ */
