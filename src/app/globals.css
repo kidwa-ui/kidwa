@@ -2932,6 +2932,282 @@ select.form-input { appearance: none; background-image: url("data:image/svg+xml,
   margin: 0;
 }
 
+/* ============================================================
+   KIDWA: About Modal - LIGHT MODE Fix
+   เพิ่มโค้ดนี้ต่อท้ายส่วน About Modal ใน globals.css
+   (หลัง .rank-compact p ประมาณบรรทัด 2933)
+   ============================================================ */
+
+/* ===== ABOUT MODAL - LIGHT MODE ===== */
+
+/* Main Modal Background */
+.about-modal:not(.dark) {
+  background: linear-gradient(180deg, #ffffff 0%, #f8f9fa 100%);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+/* Hero Section */
+.about-modal:not(.dark) .about-hero {
+  background: radial-gradient(ellipse at center, rgba(139, 92, 246, 0.1) 0%, transparent 70%);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.about-modal:not(.dark) .about-logo-text {
+  background: linear-gradient(135deg, #1a1a2e 0%, #8b5cf6 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.about-modal:not(.dark) .about-tagline {
+  color: rgba(0, 0, 0, 0.6);
+}
+
+/* Tab Navigation */
+.about-modal:not(.dark) .about-tabs {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.about-modal:not(.dark) .about-tab {
+  color: rgba(0, 0, 0, 0.5);
+}
+
+.about-modal:not(.dark) .about-tab:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: rgba(0, 0, 0, 0.8);
+}
+
+.about-modal:not(.dark) .about-tab.active {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(59, 130, 246, 0.15) 100%);
+  color: #1a1a2e;
+}
+
+/* Cards */
+.about-modal:not(.dark) .about-card {
+  background: rgba(0, 0, 0, 0.02);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.about-modal:not(.dark) .about-card.highlight {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, rgba(59, 130, 246, 0.04) 100%);
+  border-color: rgba(139, 92, 246, 0.2);
+}
+
+.about-modal:not(.dark) .about-card.highlight-soft {
+  background: rgba(139, 92, 246, 0.06);
+  border-color: rgba(139, 92, 246, 0.12);
+}
+
+.about-modal:not(.dark) .about-card h3 {
+  color: #1a1a2e;
+}
+
+.about-modal:not(.dark) .about-card h4 {
+  color: #1a1a2e;
+}
+
+.about-modal:not(.dark) .about-card-desc {
+  color: rgba(0, 0, 0, 0.6);
+}
+
+/* Philosophy Section */
+.about-modal:not(.dark) .philosophy-statement h3 {
+  background: linear-gradient(135deg, #1a1a2e 0%, #8b5cf6 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.about-modal:not(.dark) .philosophy-intro {
+  color: rgba(0, 0, 0, 0.8);
+}
+
+.about-modal:not(.dark) .philosophy-desc {
+  color: rgba(0, 0, 0, 0.7);
+}
+
+.about-modal:not(.dark) .philosophy-desc strong {
+  color: #1a1a2e;
+}
+
+.about-modal:not(.dark) .philosophy-principles {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.about-modal:not(.dark) .philosophy-principles h4 {
+  color: rgba(0, 0, 0, 0.7);
+}
+
+.about-modal:not(.dark) .principle-item {
+  color: rgba(0, 0, 0, 0.8);
+}
+
+.about-modal:not(.dark) .principle-items.warning .principle-item {
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.15);
+}
+
+.about-modal:not(.dark) .philosophy-values {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.about-modal:not(.dark) .philosophy-values h4 {
+  color: rgba(0, 0, 0, 0.8);
+}
+
+.about-modal:not(.dark) .value-content strong {
+  color: #1a1a2e;
+}
+
+.about-modal:not(.dark) .value-content p {
+  color: rgba(0, 0, 0, 0.5);
+}
+
+.about-modal:not(.dark) .philosophy-conclusion {
+  color: rgba(0, 0, 0, 0.8);
+}
+
+.about-modal:not(.dark) .philosophy-final {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.about-modal:not(.dark) .philosophy-final p {
+  color: rgba(0, 0, 0, 0.9);
+}
+
+/* Measure Factors Section */
+.about-modal:not(.dark) .measure-factor {
+  background: rgba(0, 0, 0, 0.02);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.about-modal:not(.dark) .factor-header h4 {
+  color: #1a1a2e;
+}
+
+.about-modal:not(.dark) .measure-factor p {
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.about-modal:not(.dark) .factor-weight {
+  background: rgba(0, 0, 0, 0.05);
+  color: rgba(0, 0, 0, 0.5);
+}
+
+.about-modal:not(.dark) .factor-levels .fl {
+  background: rgba(0, 0, 0, 0.05);
+  color: rgba(0, 0, 0, 0.7);
+}
+
+/* Rep Levels Section */
+.about-modal:not(.dark) .level-item {
+  background: rgba(0, 0, 0, 0.02);
+  color: #1a1a2e;
+}
+
+.about-modal:not(.dark) .level-pts {
+  color: rgba(0, 0, 0, 0.4);
+}
+
+/* Rank Types */
+.about-modal:not(.dark) .rank-type-card {
+  background: rgba(0, 0, 0, 0.02);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.about-modal:not(.dark) .rank-type-card h4 {
+  color: #1a1a2e;
+}
+
+.about-modal:not(.dark) .rank-type-desc {
+  color: rgba(0, 0, 0, 0.5);
+}
+
+.about-modal:not(.dark) .rank-type-window {
+  background: rgba(0, 0, 0, 0.05);
+  color: rgba(0, 0, 0, 0.6);
+}
+
+/* Rank Compact */
+.about-modal:not(.dark) .rank-compact {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.about-modal:not(.dark) .rank-compact.featured {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(59, 130, 246, 0.08) 100%);
+  border: 1px solid rgba(139, 92, 246, 0.15);
+}
+
+.about-modal:not(.dark) .rank-compact strong {
+  color: #1a1a2e;
+}
+
+.about-modal:not(.dark) .rank-compact p {
+  color: rgba(0, 0, 0, 0.5);
+}
+
+/* Footer */
+.about-modal:not(.dark) .about-footer {
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.about-modal:not(.dark) .about-version {
+  color: rgba(0, 0, 0, 0.3);
+}
+
+.about-modal:not(.dark) .about-separator {
+  color: rgba(0, 0, 0, 0.2);
+}
+
+.about-modal:not(.dark) .about-tagline-small {
+  color: rgba(0, 0, 0, 0.5);
+}
+
+/* Comparison Visual */
+.about-modal:not(.dark) .comparison-visual {
+  background: rgba(0, 0, 0, 0.02);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.about-modal:not(.dark) .comp-label {
+  color: rgba(0, 0, 0, 0.6);
+}
+
+/* Scoring Table */
+.about-modal:not(.dark) .scoring-table {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.about-modal:not(.dark) .scoring-header {
+  background: rgba(0, 0, 0, 0.05);
+  color: rgba(0, 0, 0, 0.7);
+}
+
+.about-modal:not(.dark) .scoring-row {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.about-modal:not(.dark) .scoring-cell {
+  color: rgba(0, 0, 0, 0.8);
+}
+
+/* Mini Cards */
+.about-modal:not(.dark) .about-mini-card {
+  background: rgba(0, 0, 0, 0.02);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.about-modal:not(.dark) .about-mini-card h4 {
+  color: #1a1a2e;
+}
+
+.about-modal:not(.dark) .about-mini-card p {
+  color: rgba(0, 0, 0, 0.6);
+}
+
+/* ============================================================
+   END: About Modal Light Mode
+   ============================================================ */
+
 /* ===== UPDATED LEADERBOARD PERIOD INFO ===== */
 
 .leaderboard-period-info {
